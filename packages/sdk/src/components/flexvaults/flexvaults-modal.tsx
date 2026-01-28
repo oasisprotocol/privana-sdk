@@ -27,21 +27,21 @@ export function FlexvaultsModal({ open, onClose }: FlexvaultsModalProps) {
   return (
     <>
       <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-        <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden rounded-xl border border-zinc-800 bg-[#18181b] p-0 sm:max-w-[380px]">
-          <DialogHeader className="border-b border-zinc-800 px-4 py-3">
-            <DialogTitle className="text-sm font-medium text-zinc-200">Flexvaults</DialogTitle>
+        <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden rounded-xl border border-border bg-card p-0 sm:max-w-[380px]">
+          <DialogHeader className="border-b border-border px-4 py-3">
+            <DialogTitle className="text-sm font-medium text-foreground">Flexvaults</DialogTitle>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto">
             <div className="px-4 pt-4">
-              <div className="mb-4 flex gap-1 rounded-lg bg-zinc-800/50 p-0.5">
+              <div className="mb-4 flex gap-1 rounded-lg bg-muted/50 p-0.5">
                 <button
                   onClick={() => setActiveTab('deposit')}
                   className={cn(
                     'flex-1 cursor-pointer rounded-md py-1.5 text-xs font-medium transition-colors',
                     activeTab === 'deposit'
-                      ? 'bg-zinc-700 text-white'
-                      : 'text-zinc-500 hover:text-zinc-300'
+                      ? 'bg-secondary text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
                   )}
                 >
                   Deposit
@@ -51,8 +51,8 @@ export function FlexvaultsModal({ open, onClose }: FlexvaultsModalProps) {
                   className={cn(
                     'flex-1 cursor-pointer rounded-md py-1.5 text-xs font-medium transition-colors',
                     activeTab === 'withdraw'
-                      ? 'bg-zinc-700 text-white'
-                      : 'text-zinc-500 hover:text-zinc-300'
+                      ? 'bg-secondary text-foreground'
+                      : 'text-muted-foreground hover:text-foreground'
                   )}
                 >
                   Withdraw
@@ -72,8 +72,8 @@ export function FlexvaultsModal({ open, onClose }: FlexvaultsModalProps) {
               )}
             </div>
 
-            <div className="mt-4 border-t border-zinc-800 px-4 py-4">
-              <h3 className="mb-3 text-[10px] font-medium tracking-wider text-zinc-500 uppercase">
+            <div className="mt-4 border-t border-border px-4 py-4">
+              <h3 className="mb-3 text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
                 Locked Funds
               </h3>
               <LockedFundsList />
