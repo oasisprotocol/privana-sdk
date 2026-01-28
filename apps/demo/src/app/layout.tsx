@@ -25,18 +25,16 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Providers network="testnet">
           {children}
           <Toaster
-            theme="dark"
+            theme="system"
             position="bottom-right"
             toastOptions={{
-              style: {
-                background: '#18181b',
-                border: '1px solid #27272a',
-                color: '#e4e4e7',
+              classNames: {
+                toast: 'bg-card border-border text-foreground',
               },
             }}
           />
