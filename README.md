@@ -67,4 +67,4 @@ bun run release
 
 ## License
 
-MIT
+Apache-2.0

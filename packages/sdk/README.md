@@ -113,4 +113,4 @@ A customizable button that opens the wallet modal.
 
 ## License
 
-MIT
+Apache-2.0

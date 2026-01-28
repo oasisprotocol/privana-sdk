@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "React SDK for Flexvaults - manage deposits, withdrawals, locks, and transfers",
   "author": "",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "",
