@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Encumbered Accounting SDK',
-  description: 'SDK for the Encumbered Accounting Module',
+  title: 'Flexvaults SDK',
+  description: 'SDK for Flexvaults',
 }
 
 export default function RootLayout({

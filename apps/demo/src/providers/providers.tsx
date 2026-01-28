@@ -5,7 +5,7 @@ import { WagmiProvider } from 'wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit'
 import { wagmiConfig } from './wagmi-config'
-import { AccountingProvider, type Network } from '@encumbered/sdk'
+import { FlexvaultsProvider, type Network } from '@oasisprotocol/flexvaults-sdk'
 import '@rainbow-me/rainbowkit/styles.css'
 
 interface ProvidersProps {
@@ -39,7 +39,7 @@ export function Providers({ children, network = 'testnet' }: ProvidersProps) {
           })}
           modalSize="compact"
         >
-          <AccountingProvider network={network}>{children}</AccountingProvider>
+          <FlexvaultsProvider network={network}>{children}</FlexvaultsProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>

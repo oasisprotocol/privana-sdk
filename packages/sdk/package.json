@@ -1,7 +1,7 @@
 {
-  "name": "@encumbered/sdk",
+  "name": "@oasisprotocol/flexvaults-sdk",
   "version": "0.1.0",
-  "description": "React SDK for Encumbered Accounting Module - manage deposits, withdrawals, locks, and transfers",
+  "description": "React SDK for Flexvaults - manage deposits, withdrawals, locks, and transfers",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -10,8 +10,7 @@
     "directory": "packages/sdk"
   },
   "keywords": [
-    "encumbered",
-    "accounting",
+    "flexvaults",
     "sdk",
     "react",
     "wagmi",

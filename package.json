@@ -1,5 +1,5 @@
 {
-  "name": "encumbered-accounting",
+  "name": "flexvaults",
   "private": true,
   "type": "module",
   "workspaces": [
@@ -17,7 +17,7 @@
     "clean": "turbo clean && rm -rf node_modules",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "turbo build --filter=@encumbered/sdk && changeset publish"
+    "release": "turbo build --filter=@oasisprotocol/flexvaults-sdk && changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.12",

@@ -1,5 +1,5 @@
-export * from './encumbered-wallet-button'
-export * from './encumbered-wallet-modal'
+export * from './flexvaults-button'
+export * from './flexvaults-modal'
 export * from './token-selector-modal'
 export * from './deposit-form'
 export * from './withdraw-form'

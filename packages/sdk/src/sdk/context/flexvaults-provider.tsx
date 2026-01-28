@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useMemo, type ReactNode } from 'react'
-import { AccountingClient } from '../client'
+import { FlexvaultsClient } from '../client'
 import type { Network } from '../types'
 import {
   getApiUrl,
@@ -11,17 +11,17 @@ import {
   SUPPORTED_TOKENS,
 } from '../types'
 
-export interface AccountingContextValue {
-  client: AccountingClient
+export interface FlexvaultsContextValue {
+  client: FlexvaultsClient
   network: Network
   enabledTokens: TokenConfig[]
   defaultToken: TokenConfig
   pollingInterval: number
 }
 
-const AccountingContext = createContext<AccountingContextValue | null>(null)
+const FlexvaultsContext = createContext<FlexvaultsContextValue | null>(null)
 
-export interface AccountingProviderProps {
+export interface FlexvaultsProviderProps {
   network: Network
   children: ReactNode
   tokens?: SupportedToken[]
@@ -29,13 +29,13 @@ export interface AccountingProviderProps {
   pollingInterval?: number
 }
 
-export function AccountingProvider({
+export function FlexvaultsProvider({
   network,
   children,
   tokens,
   baseUrl,
   pollingInterval = 10000,
-}: AccountingProviderProps) {
+}: FlexvaultsProviderProps) {
   const apiUrl = baseUrl ?? getApiUrl(network)
 
   const enabledTokens = useMemo(() => {
@@ -47,9 +47,9 @@ export function AccountingProvider({
 
   const defaultToken = enabledTokens[0] as TokenConfig
 
-  const value = useMemo<AccountingContextValue>(
+  const value = useMemo<FlexvaultsContextValue>(
     () => ({
-      client: new AccountingClient({ baseUrl: apiUrl }),
+      client: new FlexvaultsClient({ baseUrl: apiUrl }),
       network,
       enabledTokens,
       defaultToken,
@@ -58,17 +58,17 @@ export function AccountingProvider({
     [apiUrl, network, enabledTokens, defaultToken, pollingInterval]
   )
 
-  return <AccountingContext.Provider value={value}>{children}</AccountingContext.Provider>
+  return <FlexvaultsContext.Provider value={value}>{children}</FlexvaultsContext.Provider>
 }
 
-export function useAccountingContext(): AccountingContextValue {
-  const context = useContext(AccountingContext)
+export function useFlexvaultsContext(): FlexvaultsContextValue {
+  const context = useContext(FlexvaultsContext)
   if (!context) {
-    throw new Error('useAccountingContext must be used within an AccountingProvider')
+    throw new Error('useFlexvaultsContext must be used within a FlexvaultsProvider')
   }
   return context
 }
 
-export function useSafeAccountingContext(): AccountingContextValue | null {
-  return useContext(AccountingContext)
+export function useSafeFlexvaultsContext(): FlexvaultsContextValue | null {
+  return useContext(FlexvaultsContext)
 }

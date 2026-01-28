@@ -3,7 +3,7 @@
 import { useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAccount, useWalletClient } from 'wagmi'
-import { useAccountingContext } from '../context/accounting-provider'
+import { useFlexvaultsContext } from '../context/flexvaults-provider'
 import { signTransferMessage, signTransferLockedMessage } from '../signatures'
 import { getAccountingContract } from '../types'
 import type { Bytes32, Address, TransactionSubmissionResponse } from '../types'
@@ -39,7 +39,7 @@ export interface UseTransferResult {
 export function useTransfer(options: UseTransferOptions = {}): UseTransferResult {
   const { address } = useAccount()
   const { data: walletClient } = useWalletClient()
-  const { client, network } = useAccountingContext()
+  const { client, network } = useFlexvaultsContext()
   const queryClient = useQueryClient()
 
   const transferMutation = useMutation({

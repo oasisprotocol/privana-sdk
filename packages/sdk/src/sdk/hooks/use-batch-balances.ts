@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { useAccount } from 'wagmi'
-import { useAccountingContext } from '../context/accounting-provider'
+import { useFlexvaultsContext } from '../context/flexvaults-provider'
 import type { Bytes32, BatchBalancesResponse, TokenBalance } from '../types'
 
 export interface UseBatchBalancesOptions {
@@ -20,7 +20,7 @@ export interface UseBatchBalancesResult {
 
 export function useBatchBalances(options: UseBatchBalancesOptions): UseBatchBalancesResult {
   const { address, isConnected } = useAccount()
-  const { client, pollingInterval } = useAccountingContext()
+  const { client, pollingInterval } = useFlexvaultsContext()
 
   const query = useQuery<BatchBalancesResponse, Error>({
     queryKey: ['accounting-batch-balances', address, options.tokenIds],

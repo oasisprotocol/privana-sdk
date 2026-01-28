@@ -10,12 +10,12 @@ import { LockedFundsList } from './locked-funds-list'
 import { SUPPORTED_TOKENS, type TokenConfig } from '@/sdk/types/tokens'
 import { cn } from '@/lib/utils'
 
-interface EncumberedWalletModalProps {
+interface FlexvaultsModalProps {
   open: boolean
   onClose: () => void
 }
 
-export function EncumberedWalletModal({ open, onClose }: EncumberedWalletModalProps) {
+export function FlexvaultsModal({ open, onClose }: FlexvaultsModalProps) {
   const [selectedToken, setSelectedToken] = useState<TokenConfig>(SUPPORTED_TOKENS.USDC)
   const [tokenSelectorOpen, setTokenSelectorOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>('deposit')
@@ -29,9 +29,7 @@ export function EncumberedWalletModal({ open, onClose }: EncumberedWalletModalPr
       <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
         <DialogContent className="flex max-h-[85vh] flex-col gap-0 overflow-hidden rounded-xl border border-zinc-800 bg-[#18181b] p-0 sm:max-w-[380px]">
           <DialogHeader className="border-b border-zinc-800 px-4 py-3">
-            <DialogTitle className="text-sm font-medium text-zinc-200">
-              Encumbered Wallet
-            </DialogTitle>
+            <DialogTitle className="text-sm font-medium text-zinc-200">Flexvaults</DialogTitle>
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto">

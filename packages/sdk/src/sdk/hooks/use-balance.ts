@@ -2,7 +2,7 @@
 
 import { useContext } from 'react'
 import { useQuery, QueryClientContext } from '@tanstack/react-query'
-import { useSafeAccountingContext } from '../context/accounting-provider'
+import { useSafeFlexvaultsContext } from '../context/flexvaults-provider'
 import type { Bytes32, BalanceResponse } from '../types'
 import { formatTokenAmount } from '@/lib/utils'
 import { useSafeAccount } from './use-safe-account'
@@ -27,7 +27,7 @@ export interface UseBalanceResult {
 export function useBalance(options: UseBalanceOptions = {}): UseBalanceResult {
   const queryClient = useContext(QueryClientContext)
   const { address, isConnected } = useSafeAccount()
-  const accountingContext = useSafeAccountingContext()
+  const accountingContext = useSafeFlexvaultsContext()
 
   const hasProviders = !!queryClient && !!accountingContext
   const client = accountingContext?.client

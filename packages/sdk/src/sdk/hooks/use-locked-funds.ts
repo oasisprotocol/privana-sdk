@@ -2,7 +2,7 @@
 
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { useAccount } from 'wagmi'
-import { useAccountingContext } from '../context/accounting-provider'
+import { useFlexvaultsContext } from '../context/flexvaults-provider'
 import type { Address, LockInfo, LockedFundsResponse } from '../types'
 
 export interface UseLockedFundsOptions {
@@ -21,7 +21,7 @@ export interface UseLockedFundsResult {
 
 export function useLockedFunds(options: UseLockedFundsOptions = {}): UseLockedFundsResult {
   const { address, isConnected } = useAccount()
-  const { client, pollingInterval } = useAccountingContext()
+  const { client, pollingInterval } = useFlexvaultsContext()
 
   const query = useQuery<LockedFundsResponse, Error>({
     queryKey: ['accounting-locked-funds', address, options.serviceAddress],

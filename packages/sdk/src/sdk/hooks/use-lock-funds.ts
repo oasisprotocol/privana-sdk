@@ -3,7 +3,7 @@
 import { useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAccount, useWalletClient } from 'wagmi'
-import { useAccountingContext } from '../context/accounting-provider'
+import { useFlexvaultsContext } from '../context/flexvaults-provider'
 import { signLockMessage } from '../signatures'
 import { getAccountingContract } from '../types'
 import type { Bytes32, Address, TransactionSubmissionResponse } from '../types'
@@ -31,7 +31,7 @@ export interface UseLockFundsResult {
 export function useLockFunds(options: UseLockFundsOptions = {}): UseLockFundsResult {
   const { address } = useAccount()
   const { data: walletClient } = useWalletClient()
-  const { client, network } = useAccountingContext()
+  const { client, network } = useFlexvaultsContext()
   const queryClient = useQueryClient()
 
   const mutation = useMutation({

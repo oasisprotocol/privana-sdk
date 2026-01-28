@@ -1,1 +1,1 @@
-export * from './accounting-provider'
+export * from './flexvaults-provider'

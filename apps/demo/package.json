@@ -1,5 +1,5 @@
 {
-  "name": "@encumbered/demo",
+  "name": "flexvaults-demo",
   "version": "0.0.0",
   "private": true,
   "scripts": {
@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@encumbered/sdk": "workspace:*",
+    "@oasisprotocol/flexvaults-sdk": "workspace:*",
     "@metamask/sdk": "^0.34.0",
     "@rainbow-me/rainbowkit": "^2.2.10",
     "@tanstack/react-query": "^5.90.19",

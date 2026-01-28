@@ -2,7 +2,7 @@
 
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { useAccount } from 'wagmi'
-import { useAccountingContext } from '../context/accounting-provider'
+import { useFlexvaultsContext } from '../context/flexvaults-provider'
 import type { PendingWithdrawal, PendingWithdrawalsResponse } from '../types'
 
 export interface UsePendingWithdrawalsOptions {
@@ -22,7 +22,7 @@ export function usePendingWithdrawals(
   options: UsePendingWithdrawalsOptions = {}
 ): UsePendingWithdrawalsResult {
   const { address, isConnected } = useAccount()
-  const { client, pollingInterval } = useAccountingContext()
+  const { client, pollingInterval } = useFlexvaultsContext()
 
   const query = useQuery<PendingWithdrawalsResponse, Error>({
     queryKey: ['accounting-pending-withdrawals', address],
