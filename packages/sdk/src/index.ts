@@ -1,5 +1,7 @@
 'use client'
 
+import './compiled.css'
+
 export * from './sdk'
 
 export { FlexvaultsButton } from './components/flexvaults/flexvaults-button'
