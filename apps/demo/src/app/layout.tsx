@@ -15,8 +15,9 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Flexvaults SDK',
-  description: 'SDK for Flexvaults',
+  title: 'Flexvaults SDK - Theme Editor & Component Preview',
+  description:
+    'Interactive theme editor for the @oasisprotocol/flexvaults-sdk. Customize colors, border radius, and preview components in real time.',
 }
 
 export default function RootLayout({
