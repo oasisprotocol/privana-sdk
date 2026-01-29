@@ -4,6 +4,31 @@ import { useState, useCallback, useEffect } from 'react'
 import { useTheme } from '@/providers/theme-provider'
 import { cn } from '@/lib/utils'
 
+function hexToOklch(hex: string): string {
+  const r = parseInt(hex.slice(1, 3), 16) / 255
+  const g = parseInt(hex.slice(3, 5), 16) / 255
+  const b = parseInt(hex.slice(5, 7), 16) / 255
+
+  const toLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4))
+  const lr = toLinear(r)
+  const lg = toLinear(g)
+  const lb = toLinear(b)
+
+  const l_ = Math.cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb)
+  const m_ = Math.cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb)
+  const s_ = Math.cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb)
+
+  const okL = 0.2104542553 * l_ + 0.793617785 * m_ - 0.0040720468 * s_
+  const okA = 1.9779984951 * l_ - 2.428592205 * m_ + 0.4505937099 * s_
+  const okB = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.808675766 * s_
+
+  const C = Math.sqrt(okA * okA + okB * okB)
+  const H = C < 0.001 ? 0 : ((Math.atan2(okB, okA) * 180) / Math.PI + 360) % 360
+
+  const round = (n: number, d: number) => parseFloat(n.toFixed(d))
+  return `oklch(${round(okL, 3)} ${round(C, 3)} ${round(H, 3)})`
+}
+
 interface ThemeColor {
   variable: string
   label: string
@@ -350,7 +375,8 @@ export function ThemeEditor() {
     const lines = [`${selector} {`, `  --radius: ${radius}rem;`]
     for (const group of THEME_GROUPS) {
       for (const color of group.colors) {
-        lines.push(`  ${color.variable}: ${colors[color.variable]};`)
+        const hex = colors[color.variable]
+        lines.push(`  ${color.variable}: ${hex?.startsWith('#') ? hexToOklch(hex) : hex};`)
       }
     }
     lines.push('}')
