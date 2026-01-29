@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useTheme } from '@/providers/theme-provider'
+import { cn } from '@/lib/utils'
 
 interface ThemeColor {
   variable: string
@@ -242,20 +243,29 @@ function ColorInput({
   label,
   value,
   onChange,
+  isDark,
 }: {
   label: string
   value: string
   onChange: (value: string) => void
+  isDark: boolean
 }) {
   return (
     <div className="flex items-center justify-between gap-2 min-w-0">
-      <span className="text-[11px] text-neutral-400 truncate shrink min-w-0">{label}</span>
+      <span className={cn('text-[11px] truncate shrink min-w-0', isDark ? 'text-neutral-400' : 'text-neutral-500')}>
+        {label}
+      </span>
       <div className="flex items-center gap-1.5 shrink-0">
         <input
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-17 rounded border border-neutral-700 bg-neutral-800 px-1.5 py-0.5 text-[11px] text-neutral-200 font-mono outline-none focus:border-neutral-500"
+          className={cn(
+            'w-17 rounded border px-1.5 py-0.5 text-[11px] font-mono outline-none transition-colors',
+            isDark
+              ? 'border-neutral-700 bg-neutral-800 text-neutral-200 focus:border-neutral-500'
+              : 'border-neutral-300 bg-white text-neutral-800 focus:border-neutral-400'
+          )}
         />
         <label className="relative cursor-pointer">
           <input
@@ -265,7 +275,7 @@ function ColorInput({
             className="absolute inset-0 opacity-0 cursor-pointer"
           />
           <div
-            className="size-6 rounded border border-neutral-600 shrink-0"
+            className={cn('size-6 rounded border shrink-0', isDark ? 'border-neutral-600' : 'border-neutral-300')}
             style={{ backgroundColor: value }}
           />
         </label>
@@ -281,7 +291,9 @@ export function ThemeEditor() {
   const [colors, setColors] = useState<Record<string, string>>(() => getDefaults(true))
   const [radius, setRadius] = useState(0.625)
   const [copied, setCopied] = useState(false)
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set(['Base', 'Primary', 'Borders & Input']))
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
+    () => new Set(['Base', 'Primary', 'Borders & Input'])
+  )
 
   const applyTheme = useCallback((newColors: Record<string, string>, newRadius: number) => {
     const root = document.documentElement
@@ -301,23 +313,19 @@ export function ThemeEditor() {
 
   const switchMode = (dark: boolean) => {
     setTheme(dark ? 'dark' : 'light')
-    const defaults = getDefaults(dark)
-    setColors(defaults)
+    setColors(getDefaults(dark))
   }
 
   const handlePreset = (preset: Preset) => {
     if (preset.isDark !== isDark) {
       setTheme(preset.isDark ? 'dark' : 'light')
     }
-    const defaults = getDefaults(preset.isDark)
-    const merged = { ...defaults, ...preset.colors }
-    setColors(merged)
+    setColors({ ...getDefaults(preset.isDark), ...preset.colors })
     setRadius(preset.radius)
   }
 
   const handleReset = () => {
-    const defaults = getDefaults(isDark)
-    setColors(defaults)
+    setColors(getDefaults(isDark))
     setRadius(0.625)
     const root = document.documentElement
     for (const group of THEME_GROUPS) {
@@ -331,25 +339,22 @@ export function ThemeEditor() {
   const toggleGroup = (label: string) => {
     setExpandedGroups((prev) => {
       const next = new Set(prev)
-      if (next.has(label)) {
-        next.delete(label)
-      } else {
-        next.add(label)
-      }
+      if (next.has(label)) next.delete(label)
+      else next.add(label)
       return next
     })
   }
 
   const generateCSS = () => {
     const selector = isDark ? '.dark' : ':root'
-    let css = `${selector} {\n  --radius: ${radius}rem;\n`
+    const lines = [`${selector} {`, `  --radius: ${radius}rem;`]
     for (const group of THEME_GROUPS) {
       for (const color of group.colors) {
-        css += `  ${color.variable}: ${colors[color.variable]};\n`
+        lines.push(`  ${color.variable}: ${colors[color.variable]};`)
       }
     }
-    css += '}'
-    return css
+    lines.push('}')
+    return lines.join('\n')
   }
 
   const copyCSS = () => {
@@ -359,19 +364,41 @@ export function ThemeEditor() {
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-neutral-900 text-neutral-200">
-      <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3 shrink-0">
-        <span className="text-xs font-semibold tracking-wide uppercase text-neutral-400">Theme Editor</span>
+    <div
+      className={cn(
+        'flex h-full flex-col overflow-hidden transition-colors',
+        isDark ? 'bg-neutral-900 text-neutral-200' : 'bg-neutral-50 text-neutral-800'
+      )}
+    >
+      <div
+        className={cn(
+          'flex items-center justify-between border-b px-4 py-3 shrink-0',
+          isDark ? 'border-neutral-800' : 'border-neutral-200'
+        )}
+      >
+        <span className={cn('text-xs font-semibold tracking-wide uppercase', isDark ? 'text-neutral-400' : 'text-neutral-500')}>
+          Theme Editor
+        </span>
         <div className="flex items-center gap-2">
           <button
             onClick={handleReset}
-            className="rounded px-2 py-1 text-[11px] text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-neutral-200"
+            className={cn(
+              'rounded px-2 py-1 text-[11px] transition-colors',
+              isDark
+                ? 'text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200'
+                : 'text-neutral-500 hover:bg-neutral-200 hover:text-neutral-800'
+            )}
           >
             Reset
           </button>
           <button
             onClick={copyCSS}
-            className="rounded bg-neutral-800 px-2.5 py-1 text-[11px] font-medium text-neutral-200 transition-colors hover:bg-neutral-700"
+            className={cn(
+              'rounded px-2.5 py-1 text-[11px] font-medium transition-colors',
+              isDark
+                ? 'bg-neutral-800 text-neutral-200 hover:bg-neutral-700'
+                : 'bg-neutral-200 text-neutral-800 hover:bg-neutral-300'
+            )}
           >
             {copied ? 'Copied!' : 'Copy CSS'}
           </button>
@@ -379,44 +406,52 @@ export function ThemeEditor() {
       </div>
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
-        <div className="border-b border-neutral-800 px-4 py-3">
-          <span className="mb-2 block text-[10px] font-semibold tracking-wider uppercase text-neutral-500">Mode</span>
-          <div className="flex gap-1 rounded-lg bg-neutral-800 p-0.5">
-            <button
-              onClick={() => switchMode(false)}
-              className={`flex-1 rounded-md py-1.5 text-[11px] font-medium transition-colors ${
-                !isDark ? 'bg-neutral-700 text-neutral-100' : 'text-neutral-400 hover:text-neutral-200'
-              }`}
-            >
-              Light
-            </button>
-            <button
-              onClick={() => switchMode(true)}
-              className={`flex-1 rounded-md py-1.5 text-[11px] font-medium transition-colors ${
-                isDark ? 'bg-neutral-700 text-neutral-100' : 'text-neutral-400 hover:text-neutral-200'
-              }`}
-            >
-              Dark
-            </button>
+        <EditorSection isDark={isDark} label="Mode">
+          <div className={cn('flex gap-1 rounded-lg p-0.5', isDark ? 'bg-neutral-800' : 'bg-neutral-200')}>
+            {(['light', 'dark'] as const).map((mode) => {
+              const isActive = isDark === (mode === 'dark')
+              return (
+                <button
+                  key={mode}
+                  onClick={() => switchMode(mode === 'dark')}
+                  className={cn(
+                    'flex-1 rounded-md py-1.5 text-[11px] font-medium capitalize transition-colors',
+                    isActive
+                      ? isDark
+                        ? 'bg-neutral-700 text-neutral-100'
+                        : 'bg-white text-neutral-900 shadow-sm'
+                      : isDark
+                        ? 'text-neutral-400 hover:text-neutral-200'
+                        : 'text-neutral-500 hover:text-neutral-700'
+                  )}
+                >
+                  {mode}
+                </button>
+              )
+            })}
           </div>
-        </div>
+        </EditorSection>
 
-        <div className="border-b border-neutral-800 px-4 py-3">
-          <span className="mb-2 block text-[10px] font-semibold tracking-wider uppercase text-neutral-500">Presets</span>
+        <EditorSection isDark={isDark} label="Presets">
           <div className="grid grid-cols-2 gap-1.5">
             {PRESETS.map((preset) => (
               <button
                 key={preset.name}
                 onClick={() => handlePreset(preset)}
-                className="flex items-center gap-2 rounded-md border border-neutral-800 px-2.5 py-1.5 text-[11px] text-neutral-300 transition-colors hover:border-neutral-700 hover:bg-neutral-800"
+                className={cn(
+                  'flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-[11px] transition-colors',
+                  isDark
+                    ? 'border-neutral-800 text-neutral-300 hover:border-neutral-700 hover:bg-neutral-800'
+                    : 'border-neutral-200 text-neutral-600 hover:border-neutral-300 hover:bg-neutral-100'
+                )}
               >
                 <div className="flex -space-x-1 shrink-0">
                   <div
-                    className="size-3 rounded-full border border-neutral-700"
+                    className={cn('size-3 rounded-full border', isDark ? 'border-neutral-700' : 'border-neutral-300')}
                     style={{ backgroundColor: preset.colors['--primary'] || (preset.isDark ? '#e5e5e5' : '#171717') }}
                   />
                   <div
-                    className="size-3 rounded-full border border-neutral-700"
+                    className={cn('size-3 rounded-full border', isDark ? 'border-neutral-700' : 'border-neutral-300')}
                     style={{ backgroundColor: preset.colors['--background'] || (preset.isDark ? '#1a1a1a' : '#ffffff') }}
                   />
                 </div>
@@ -424,14 +459,17 @@ export function ThemeEditor() {
               </button>
             ))}
           </div>
-        </div>
+        </EditorSection>
 
-        <div className="border-b border-neutral-800 px-4 py-3">
-          <span className="mb-3 block text-[10px] font-semibold tracking-wider uppercase text-neutral-500">Layout</span>
+        <EditorSection isDark={isDark} label="Layout">
           <div>
             <div className="mb-1.5 flex items-center justify-between">
-              <span className="text-[11px] text-neutral-400">Border Radius</span>
-              <span className="text-[11px] font-mono text-neutral-500">{radius}rem</span>
+              <span className={cn('text-[11px]', isDark ? 'text-neutral-400' : 'text-neutral-500')}>
+                Border Radius
+              </span>
+              <span className={cn('text-[11px] font-mono', isDark ? 'text-neutral-500' : 'text-neutral-400')}>
+                {radius}rem
+              </span>
             </div>
             <input
               type="range"
@@ -440,21 +478,24 @@ export function ThemeEditor() {
               step="0.125"
               value={radius}
               onChange={(e) => setRadius(parseFloat(e.target.value))}
-              className="w-full accent-neutral-400"
+              className={cn('w-full', isDark ? 'accent-neutral-400' : 'accent-neutral-600')}
             />
           </div>
-        </div>
+        </EditorSection>
 
         <div>
           {THEME_GROUPS.map((group) => {
             const isExpanded = expandedGroups.has(group.label)
             return (
-              <div key={group.label} className="border-b border-neutral-800">
+              <div key={group.label} className={cn('border-b', isDark ? 'border-neutral-800' : 'border-neutral-200')}>
                 <button
                   onClick={() => toggleGroup(group.label)}
-                  className="flex w-full items-center justify-between px-4 py-2.5 transition-colors hover:bg-neutral-800/50"
+                  className={cn(
+                    'flex w-full items-center justify-between px-4 py-2.5 transition-colors',
+                    isDark ? 'hover:bg-neutral-800/50' : 'hover:bg-neutral-100'
+                  )}
                 >
-                  <span className="text-[10px] font-semibold tracking-wider uppercase text-neutral-500">
+                  <span className={cn('text-[10px] font-semibold tracking-wider uppercase', isDark ? 'text-neutral-500' : 'text-neutral-400')}>
                     {group.label}
                   </span>
                   <svg
@@ -464,7 +505,11 @@ export function ThemeEditor() {
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="2"
-                    className={`text-neutral-600 transition-transform shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
+                    className={cn(
+                      'shrink-0 transition-transform',
+                      isDark ? 'text-neutral-600' : 'text-neutral-400',
+                      isExpanded && 'rotate-180'
+                    )}
                   >
                     <polyline points="6 9 12 15 18 9" />
                   </svg>
@@ -477,6 +522,7 @@ export function ThemeEditor() {
                         label={color.label}
                         value={colors[color.variable] || ''}
                         onChange={(value) => handleColorChange(color.variable, value)}
+                        isDark={isDark}
                       />
                     ))}
                   </div>
@@ -486,6 +532,25 @@ export function ThemeEditor() {
           })}
         </div>
       </div>
+    </div>
+  )
+}
+
+function EditorSection({
+  isDark,
+  label,
+  children,
+}: {
+  isDark: boolean
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className={cn('border-b px-4 py-3', isDark ? 'border-neutral-800' : 'border-neutral-200')}>
+      <span className={cn('mb-2 block text-[10px] font-semibold tracking-wider uppercase', isDark ? 'text-neutral-500' : 'text-neutral-400')}>
+        {label}
+      </span>
+      {children}
     </div>
   )
 }
