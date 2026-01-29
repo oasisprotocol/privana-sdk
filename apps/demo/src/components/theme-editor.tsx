@@ -338,12 +338,29 @@ export function ThemeEditor() {
   const { theme: currentMode, setTheme } = useTheme()
   const isDark = currentMode === 'dark'
 
-  const [colors, setColors] = useState<Record<string, string>>(() => getDefaults(true))
+  const [colors, setColors] = useState<Record<string, string>>(() => getDefaults(false))
   const [radius, setRadius] = useState(0.625)
   const [copied, setCopied] = useState(false)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
     () => new Set(['Base', 'Primary', 'Borders & Input'])
   )
+
+  useEffect(() => {
+    const savedColors = localStorage.getItem('theme-editor-colors')
+    const savedRadius = localStorage.getItem('theme-editor-radius')
+    const savedMode = localStorage.getItem('theme-editor-mode')
+    if (savedMode && savedMode !== currentMode) {
+      setTheme(savedMode as 'dark' | 'light')
+    }
+    if (savedColors) {
+      setColors(JSON.parse(savedColors))
+    } else {
+      setColors(getDefaults(savedMode === 'dark' || (!savedMode && isDark)))
+    }
+    if (savedRadius) {
+      setRadius(parseFloat(savedRadius))
+    }
+  }, [])
 
   const applyTheme = useCallback((newColors: Record<string, string>, newRadius: number) => {
     const root = document.documentElement
@@ -356,6 +373,12 @@ export function ThemeEditor() {
   useEffect(() => {
     applyTheme(colors, radius)
   }, [colors, radius, applyTheme])
+
+  useEffect(() => {
+    localStorage.setItem('theme-editor-colors', JSON.stringify(colors))
+    localStorage.setItem('theme-editor-radius', String(radius))
+    localStorage.setItem('theme-editor-mode', isDark ? 'dark' : 'light')
+  }, [colors, radius, isDark])
 
   const handleColorChange = (variable: string, value: string) => {
     setColors((prev) => ({ ...prev, [variable]: value }))
@@ -377,6 +400,8 @@ export function ThemeEditor() {
   const handleReset = () => {
     setColors(getDefaults(isDark))
     setRadius(0.625)
+    localStorage.removeItem('theme-editor-colors')
+    localStorage.removeItem('theme-editor-radius')
     const root = document.documentElement
     for (const group of THEME_GROUPS) {
       for (const color of group.colors) {
