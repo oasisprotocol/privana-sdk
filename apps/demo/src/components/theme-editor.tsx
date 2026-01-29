@@ -252,6 +252,31 @@ const PRESETS: Preset[] = [
       '--destructive': '#ef4444',
     },
   },
+  {
+    name: 'Sand',
+    isDark: false,
+    radius: 0.5,
+    colors: {
+      '--background': '#faf8f4',
+      '--foreground': '#4b4336',
+      '--primary': '#b57140',
+      '--primary-foreground': '#ffffff',
+      '--secondary': '#ece7e0',
+      '--secondary-foreground': '#605950',
+      '--card': '#faf8f4',
+      '--card-foreground': '#272727',
+      '--popover': '#ffffff',
+      '--popover-foreground': '#3b3630',
+      '--muted': '#f1ede6',
+      '--muted-foreground': '#918d86',
+      '--accent': '#ece7e0',
+      '--accent-foreground': '#3b3630',
+      '--border': '#e5e1da',
+      '--input': '#b6b0a5',
+      '--ring': '#3b7cc9',
+      '--destructive': '#272727',
+    },
+  },
 ]
 
 function getDefaults(isDark: boolean): Record<string, string> {
