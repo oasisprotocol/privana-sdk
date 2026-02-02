@@ -98,7 +98,7 @@ export function FlexvaultsModal({ open, onClose }: FlexvaultsModalProps) {
 
 export function FlexvaultsInlineModal({ className }: { className?: string }) {
   return (
-    <div className={cn('flex max-h-[85vh] flex-col gap-0 overflow-hidden rounded-xl border border-border bg-card p-0 shadow-lg sm:max-w-95 w-full', className)}>
+    <div data-flexvaults className={cn('flex max-h-[85vh] flex-col gap-0 overflow-hidden rounded-xl border border-border bg-card p-0 shadow-lg sm:max-w-95 w-full', className)}>
       <div className="border-b border-border px-4 py-3">
         <div className="text-sm font-medium text-foreground">Flexvaults</div>
       </div>

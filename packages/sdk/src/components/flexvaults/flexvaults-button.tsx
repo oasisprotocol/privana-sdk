@@ -54,9 +54,9 @@ export function FlexvaultsButton({
   )
 
   return (
-    <>
+    <span data-flexvaults className="contents">
       {buttonElement}
       <FlexvaultsModal open={modalOpen} onClose={() => setModalOpen(false)} />
-    </>
+    </span>
   )
 }

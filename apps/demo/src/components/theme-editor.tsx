@@ -363,11 +363,14 @@ export function ThemeEditor() {
   }, [])
 
   const applyTheme = useCallback((newColors: Record<string, string>, newRadius: number) => {
-    const root = document.documentElement
-    for (const [variable, value] of Object.entries(newColors)) {
-      root.style.setProperty(variable, value)
-    }
-    root.style.setProperty('--radius', `${newRadius}rem`)
+    const targets = document.querySelectorAll<HTMLElement>('[data-flexvaults]')
+    targets.forEach((el) => {
+      for (const [variable, value] of Object.entries(newColors)) {
+        const fvVar = variable.replace('--', '--fv-')
+        el.style.setProperty(fvVar, value)
+      }
+      el.style.setProperty('--fv-radius', `${newRadius}rem`)
+    })
   }, [])
 
   useEffect(() => {
@@ -402,13 +405,15 @@ export function ThemeEditor() {
     setRadius(0.625)
     localStorage.removeItem('theme-editor-colors')
     localStorage.removeItem('theme-editor-radius')
-    const root = document.documentElement
-    for (const group of THEME_GROUPS) {
-      for (const color of group.colors) {
-        root.style.removeProperty(color.variable)
+    const targets = document.querySelectorAll<HTMLElement>('[data-flexvaults]')
+    targets.forEach((el) => {
+      for (const group of THEME_GROUPS) {
+        for (const color of group.colors) {
+          el.style.removeProperty(color.variable.replace('--', '--fv-'))
+        }
       }
-    }
-    root.style.removeProperty('--radius')
+      el.style.removeProperty('--fv-radius')
+    })
   }
 
   const toggleGroup = (label: string) => {
@@ -421,12 +426,13 @@ export function ThemeEditor() {
   }
 
   const generateCSS = () => {
-    const selector = isDark ? '.dark' : ':root'
-    const lines = [`${selector} {`, `  --radius: ${radius}rem;`]
+    const selector = isDark ? '[data-flexvaults].dark, .dark [data-flexvaults]' : '[data-flexvaults]'
+    const lines = [`${selector} {`, `  --fv-radius: ${radius}rem;`]
     for (const group of THEME_GROUPS) {
       for (const color of group.colors) {
         const hex = colors[color.variable]
-        lines.push(`  ${color.variable}: ${hex?.startsWith('#') ? hexToOklch(hex) : hex};`)
+        const fvVar = color.variable.replace('--', '--fv-')
+        lines.push(`  ${fvVar}: ${hex?.startsWith('#') ? hexToOklch(hex) : hex};`)
       }
     }
     lines.push('}')

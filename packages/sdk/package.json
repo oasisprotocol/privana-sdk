@@ -41,7 +41,7 @@
   "sideEffects": true,
   "scripts": {
     "build": "bun run build:css && tsup",
-    "build:css": "bunx @tailwindcss/cli -i src/globals.css -o src/compiled.css --minify",
+    "build:css": "bunx @tailwindcss/cli -i src/globals.css -o src/compiled.css --minify && bun run scripts/scope-css.ts",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",

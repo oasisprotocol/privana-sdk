@@ -31,7 +31,7 @@ export function ComponentPreview() {
           )}
 
           <div>
-            <SectionLabel>Modal Preview</SectionLabel>
+            <SectionLabel>Live SDK Modal</SectionLabel>
             <div className="flex justify-center">
               <FlexvaultsInlineModal />
             </div>
