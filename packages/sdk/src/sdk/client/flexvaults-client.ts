@@ -22,6 +22,7 @@ import type {
   TotalLockedBalanceResponse,
   PendingWithdrawalsResponse,
   WithdrawalInfoResponse,
+  WithdrawalNonceResponse,
 } from '../types'
 import { normalizeAddress, normalizeHex } from '../types'
 
@@ -154,11 +155,17 @@ export class FlexvaultsClient {
     })
   }
 
+  async getWithdrawalNonce(userAddress: Address | string): Promise<WithdrawalNonceResponse> {
+    const user = normalizeAddress(userAddress)
+    return this.http.get<WithdrawalNonceResponse>(`/v1/accounting/withdraw/nonce/${user}`)
+  }
+
   async requestWithdrawal(request: WithdrawalRequest): Promise<TransactionSubmissionResponse> {
     return this.http.post<TransactionSubmissionResponse>('/v1/accounting/withdraw', {
       user_address: normalizeAddress(request.user_address),
       token_id: normalizeHex(request.token_id),
       amount: request.amount,
+      nonce: request.nonce,
       signature: normalizeHex(request.signature),
     })
   }

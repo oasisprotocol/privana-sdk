@@ -38,6 +38,9 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
         throw new Error('Wallet not connected')
       }
 
+      // Fetch the user's current withdrawal nonce
+      const { nonce } = await client.getWithdrawalNonce(address)
+
       const signature = await signWithdrawMessage({
         walletClient,
         network,
@@ -46,6 +49,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
           userAddress: address,
           tokenId: params.tokenId,
           amount: params.amount,
+          nonce: BigInt(nonce),
         },
       })
 
@@ -53,6 +57,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
         user_address: address,
         token_id: params.tokenId,
         amount: Number(params.amount),
+        nonce,
         signature,
       })
     },

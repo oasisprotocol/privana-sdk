@@ -53,6 +53,7 @@ export interface WithdrawalRequest {
   user_address: Address
   token_id: Bytes32
   amount: number
+  nonce: number
   signature: HexString
 }
 

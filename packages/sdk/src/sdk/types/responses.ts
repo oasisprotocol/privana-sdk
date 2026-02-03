@@ -107,3 +107,8 @@ export interface WithdrawalInfoResponse {
   completed_at?: string
   transaction_hash?: string
 }
+
+export interface WithdrawalNonceResponse {
+  user_address: Address
+  nonce: number
+}
