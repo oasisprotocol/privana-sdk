@@ -1,16 +1,32 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { TokenSelectorModal } from './token-selector-modal'
 import { DepositForm } from './deposit-form'
 import { WithdrawForm } from './withdraw-form'
 import { LockedFundsList } from './locked-funds-list'
 import { SUPPORTED_TOKENS, type TokenConfig } from '@/sdk/types/tokens'
 import { useBalance, useLockedFunds } from '@/sdk/hooks'
 import { formatTokenAmount, cn } from '@/lib/utils'
+import { getTokenIcon } from './token-icons'
 
-type ModalView = 'main' | 'locked-funds'
+type ModalView = 'main' | 'locked-funds' | 'select-token'
+
+interface NetworkConfig {
+  id: number
+  name: string
+  color: string
+}
+
+const NETWORKS: NetworkConfig[] = [
+  { id: 84532, name: 'Base Sepolia', color: '#0052FF' },
+  { id: 1, name: 'Ethereum', color: '#627EEA' },
+  { id: 23294, name: 'Sapphire', color: '#0092F6' },
+  { id: 101, name: 'Solana', color: '#00D18C' },
+]
+
+const ENABLED_NETWORKS = [84532]
+const ENABLED_TOKENS = ['USDC']
 
 function CloseIcon() {
   return (
@@ -23,6 +39,12 @@ function CloseIcon() {
         strokeLinejoin="round"
       />
     </svg>
+  )
+}
+
+function SearchIcon() {
+  return (
+    <div className="h-3 w-3 rounded-full border-[1.5px] border-current" />
   )
 }
 
@@ -184,6 +206,173 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
   )
 }
 
+function TokenSelectorView({
+  onBack,
+  onClose,
+  onSelect,
+  selectedTokenId,
+}: {
+  onBack: () => void
+  onClose?: () => void
+  onSelect: (token: TokenConfig) => void
+  selectedTokenId?: string
+}) {
+  const [networkSearch, setNetworkSearch] = useState('')
+  const [tokenSearch, setTokenSearch] = useState('')
+  const [selectedNetwork, setSelectedNetwork] = useState<number>(84532)
+
+  const filteredNetworks = useMemo(() => {
+    if (!networkSearch) return NETWORKS
+    return NETWORKS.filter((n) => n.name.toLowerCase().includes(networkSearch.toLowerCase()))
+  }, [networkSearch])
+
+  const allTokens = useMemo(() => {
+    return Object.entries(SUPPORTED_TOKENS).map(([key, token]) => ({
+      ...token,
+      key,
+      enabled: ENABLED_TOKENS.includes(key),
+    }))
+  }, [])
+
+  const filteredTokens = useMemo(() => {
+    if (!tokenSearch) return allTokens
+    return allTokens.filter(
+      (t) =>
+        t.symbol.toLowerCase().includes(tokenSearch.toLowerCase()) ||
+        t.name.toLowerCase().includes(tokenSearch.toLowerCase())
+    )
+  }, [tokenSearch, allTokens])
+
+  const handleTokenSelect = (token: TokenConfig & { enabled: boolean }) => {
+    if (!token.enabled) return
+    onSelect(token)
+    onBack()
+  }
+
+  return (
+    <>
+      <div className="flex items-center justify-between px-5 py-4">
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={onBack}
+            className="flex h-5 w-5 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ChevronLeft />
+          </button>
+          <span className="text-base font-medium text-foreground">Select Token</span>
+        </div>
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="flex h-5 w-5 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <CloseIcon />
+          </button>
+        )}
+      </div>
+
+      <div className="flex min-h-0 flex-1 gap-2">
+        <div className="flex flex-1 flex-col overflow-hidden rounded-[10px] bg-muted p-2">
+          <div className="flex flex-col gap-1">
+            <div className="px-4 pt-4 pb-2">
+              <span className="text-sm text-muted-foreground">Network</span>
+            </div>
+            <div className="px-3">
+              <div className="flex items-center gap-2.5 rounded-lg border border-border bg-input px-3 py-2.5">
+                <span className="text-muted-foreground">
+                  <SearchIcon />
+                </span>
+                <input
+                  type="text"
+                  placeholder="Search"
+                  value={networkSearch}
+                  onChange={(e) => setNetworkSearch(e.target.value)}
+                  className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="mt-2 flex-1 overflow-y-auto">
+            {filteredNetworks.map((network) => {
+              const isSelected = selectedNetwork === network.id
+              const isDisabled = !ENABLED_NETWORKS.includes(network.id)
+
+              return (
+                <button
+                  key={network.id}
+                  onClick={() => !isDisabled && setSelectedNetwork(network.id)}
+                  disabled={isDisabled}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-lg p-3 text-left transition-colors',
+                    isDisabled
+                      ? 'cursor-not-allowed opacity-40'
+                      : 'cursor-pointer hover:bg-secondary',
+                    isSelected && !isDisabled && 'bg-secondary'
+                  )}
+                >
+                  <div
+                    className="h-6 w-6 rounded-full"
+                    style={{ backgroundColor: network.color }}
+                  />
+                  <span className="flex-1 text-sm text-foreground">{network.name}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="flex flex-1 flex-col overflow-hidden rounded-[10px] bg-muted p-2">
+          <div className="flex flex-col gap-1">
+            <div className="px-4 pt-4 pb-2">
+              <span className="text-sm text-muted-foreground">Token</span>
+            </div>
+            <div className="px-3">
+              <div className="flex items-center gap-2.5 rounded-lg border border-border bg-input px-3 py-2.5">
+                <span className="text-muted-foreground">
+                  <SearchIcon />
+                </span>
+                <input
+                  type="text"
+                  placeholder="Search"
+                  value={tokenSearch}
+                  onChange={(e) => setTokenSearch(e.target.value)}
+                  className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                />
+              </div>
+            </div>
+          </div>
+          <div className="mt-2 flex-1 overflow-y-auto">
+            {filteredTokens.map((token) => {
+              const isSelected = selectedTokenId === token.id
+              const isDisabled = !token.enabled
+
+              return (
+                <button
+                  key={token.id}
+                  onClick={() => handleTokenSelect(token)}
+                  disabled={isDisabled}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-lg p-3 text-left transition-colors',
+                    isDisabled
+                      ? 'cursor-not-allowed opacity-40'
+                      : 'cursor-pointer hover:bg-secondary',
+                    isSelected && !isDisabled && 'bg-secondary'
+                  )}
+                >
+                  <div className="h-6 w-6 overflow-hidden rounded-full">
+                    {getTokenIcon(token.symbol, 24)}
+                  </div>
+                  <span className="flex-1 text-sm text-foreground">{token.symbol}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 interface ModalBodyProps {
   onClose?: () => void
   onViewChange?: (view: ModalView) => void
@@ -191,7 +380,6 @@ interface ModalBodyProps {
 
 function ModalBody({ onClose, onViewChange }: ModalBodyProps) {
   const [selectedToken, setSelectedToken] = useState<TokenConfig>(SUPPORTED_TOKENS.USDC)
-  const [tokenSelectorOpen, setTokenSelectorOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>('deposit')
   const [currentView, setCurrentView] = useState<ModalView>('main')
 
@@ -204,7 +392,22 @@ function ModalBody({ onClose, onViewChange }: ModalBodyProps) {
     setSelectedToken(token)
   }
 
-  const mainContent = (
+  if (currentView === 'locked-funds') {
+    return <LockedFundsView onBack={() => handleViewChange('main')} onClose={onClose} />
+  }
+
+  if (currentView === 'select-token') {
+    return (
+      <TokenSelectorView
+        onBack={() => handleViewChange('main')}
+        onClose={onClose}
+        onSelect={handleTokenSelect}
+        selectedTokenId={selectedToken.id}
+      />
+    )
+  }
+
+  return (
     <>
       <div className="flex items-center justify-between px-5 py-4">
         <span className="text-base font-medium text-foreground">Flexvaults</span>
@@ -230,31 +433,18 @@ function ModalBody({ onClose, onViewChange }: ModalBodyProps) {
           {activeTab === 'deposit' ? (
             <DepositForm
               selectedToken={selectedToken}
-              onTokenSelect={() => setTokenSelectorOpen(true)}
+              onTokenSelect={() => handleViewChange('select-token')}
             />
           ) : (
             <WithdrawForm
               selectedToken={selectedToken}
-              onTokenSelect={() => setTokenSelectorOpen(true)}
+              onTokenSelect={() => handleViewChange('select-token')}
             />
           )}
         </div>
       </div>
-
-      <TokenSelectorModal
-        open={tokenSelectorOpen}
-        onClose={() => setTokenSelectorOpen(false)}
-        onSelect={handleTokenSelect}
-        selectedTokenId={selectedToken.id}
-      />
     </>
   )
-
-  if (currentView === 'locked-funds') {
-    return <LockedFundsView onBack={() => handleViewChange('main')} onClose={onClose} />
-  }
-
-  return mainContent
 }
 
 interface FlexvaultsModalProps {
