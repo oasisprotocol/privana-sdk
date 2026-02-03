@@ -89,20 +89,20 @@ function BalanceCards({
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 rounded-lg bg-muted p-5">
-        <div className="flex items-center justify-between">
+      <button
+        onClick={onLockedFundsClick}
+        className="flex flex-1 cursor-pointer flex-col gap-2 rounded-lg bg-muted p-5 text-left transition-colors hover:bg-muted/80"
+      >
+        <div className="flex w-full items-center justify-between">
           <div className="flex items-center gap-1">
             <span className="text-sm text-muted-foreground">Locked Funds</span>
             <span className="rounded-full bg-secondary px-2 py-1 text-[10px] font-bold text-muted-foreground">
               {selectedToken.symbol}
             </span>
           </div>
-          <button
-            onClick={onLockedFundsClick}
-            className="flex h-5 w-5 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-          >
+          <div className="flex h-5 w-5 items-center justify-center text-muted-foreground">
             <ChevronRight />
-          </button>
+          </div>
         </div>
         <div className="text-xl font-medium text-foreground">
           {lockedLoading ? (
@@ -111,7 +111,7 @@ function BalanceCards({
             formattedLocked
           )}
         </div>
-      </div>
+      </button>
     </div>
   )
 }
@@ -175,7 +175,7 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
           </button>
         )}
       </div>
-      <div className="flex flex-1 flex-col rounded-lg bg-muted p-2">
+      <div className="flex min-h-0 flex-1 flex-col rounded-lg bg-muted p-2">
         <div className="flex-1 overflow-y-auto">
           <LockedFundsList />
         </div>
@@ -184,21 +184,27 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
   )
 }
 
-function ModalBody({ onClose }: { onClose?: () => void }) {
+interface ModalBodyProps {
+  onClose?: () => void
+  onViewChange?: (view: ModalView) => void
+}
+
+function ModalBody({ onClose, onViewChange }: ModalBodyProps) {
   const [selectedToken, setSelectedToken] = useState<TokenConfig>(SUPPORTED_TOKENS.USDC)
   const [tokenSelectorOpen, setTokenSelectorOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>('deposit')
   const [currentView, setCurrentView] = useState<ModalView>('main')
 
+  const handleViewChange = (view: ModalView) => {
+    setCurrentView(view)
+    onViewChange?.(view)
+  }
+
   const handleTokenSelect = (token: TokenConfig) => {
     setSelectedToken(token)
   }
 
-  if (currentView === 'locked-funds') {
-    return <LockedFundsView onBack={() => setCurrentView('main')} onClose={onClose} />
-  }
-
-  return (
+  const mainContent = (
     <>
       <div className="flex items-center justify-between px-5 py-4">
         <span className="text-base font-medium text-foreground">Flexvaults</span>
@@ -215,7 +221,7 @@ function ModalBody({ onClose }: { onClose?: () => void }) {
       <div className="flex flex-col gap-2">
         <BalanceCards
           selectedToken={selectedToken}
-          onLockedFundsClick={() => setCurrentView('locked-funds')}
+          onLockedFundsClick={() => handleViewChange('locked-funds')}
         />
 
         <Tabs activeTab={activeTab} onTabChange={setActiveTab} />
@@ -243,6 +249,12 @@ function ModalBody({ onClose }: { onClose?: () => void }) {
       />
     </>
   )
+
+  if (currentView === 'locked-funds') {
+    return <LockedFundsView onBack={() => handleViewChange('main')} onClose={onClose} />
+  }
+
+  return mainContent
 }
 
 interface FlexvaultsModalProps {
@@ -251,28 +263,37 @@ interface FlexvaultsModalProps {
 }
 
 export function FlexvaultsModal({ open, onClose }: FlexvaultsModalProps) {
+  const [currentView, setCurrentView] = useState<ModalView>('main')
+
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent
+        data-flexvaults
         showCloseButton={false}
-        className="flex w-[520px] max-w-[95vw] flex-col gap-2 overflow-hidden rounded-2xl border-0 bg-card p-2"
+        className={cn(
+          'flex w-[520px] max-w-[95vw] flex-col gap-2 overflow-hidden rounded-2xl border-0 bg-card p-2',
+          currentView !== 'main' && 'h-[496px]'
+        )}
       >
-        <ModalBody onClose={onClose} />
+        <ModalBody onClose={onClose} onViewChange={setCurrentView} />
       </DialogContent>
     </Dialog>
   )
 }
 
 export function FlexvaultsInlineModal({ className }: { className?: string }) {
+  const [currentView, setCurrentView] = useState<ModalView>('main')
+
   return (
     <div
       data-flexvaults
       className={cn(
-        'flex w-[520px] max-w-full flex-col gap-2 rounded-2xl bg-card p-2 shadow-lg',
+        'flex w-[520px] max-w-full flex-col gap-2 overflow-hidden rounded-2xl bg-card p-2 shadow-lg',
+        currentView !== 'main' && 'h-[496px]',
         className
       )}
     >
-      <ModalBody />
+      <ModalBody onViewChange={setCurrentView} />
     </div>
   )
 }
