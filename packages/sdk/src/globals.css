@@ -2,6 +2,20 @@
 
 @source "./";
 
+/* Scope base styles to flexvaults elements only */
+@layer base {
+
+  [data-flexvaults],
+  [data-flexvaults] *,
+  [data-flexvaults] ::before,
+  [data-flexvaults] ::after {
+    box-sizing: border-box;
+    border-width: 0;
+    border-style: solid;
+    border-color: var(--fv-border, currentColor);
+  }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -23,15 +37,15 @@
   --color-popover: var(--fv-popover);
   --color-card-foreground: var(--fv-card-foreground);
   --color-card: var(--fv-card);
-  --radius-sm: calc(var(--fv-radius) - 4px);
-  --radius-md: calc(var(--fv-radius) - 2px);
-  --radius-lg: var(--fv-radius);
-  --radius-xl: calc(var(--fv-radius) + 4px);
 }
 
 
 [data-flexvaults] {
   --fv-radius: 0.625rem;
+  --fv-radius-sm: calc(var(--fv-radius) - 4px);
+  --fv-radius-md: calc(var(--fv-radius) - 2px);
+  --fv-radius-lg: var(--fv-radius);
+  --fv-radius-xl: calc(var(--fv-radius) + 4px);
   --fv-background: oklch(1 0 0);
   --fv-foreground: oklch(0.145 0 0);
   --fv-card: oklch(0.97 0 0);
@@ -52,7 +66,8 @@
   --fv-ring: oklch(0.708 0 0);
 }
 
-[data-flexvaults].dark, .dark [data-flexvaults] {
+[data-flexvaults].dark,
+.dark [data-flexvaults] {
   --fv-background: oklch(0.07 0 0);
   --fv-foreground: oklch(1 0 0);
   --fv-card: oklch(0.07 0 0);

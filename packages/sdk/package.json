@@ -32,7 +32,8 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
-    }
+    },
+    "./styles.css": "./dist/index.css"
   },
   "files": [
     "dist",
