@@ -15,8 +15,9 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Encumbered Accounting SDK',
-  description: 'SDK for the Encumbered Accounting Module',
+  title: 'Flexvaults SDK - Theme Editor & Component Preview',
+  description:
+    'Interactive theme editor for the @oasisprotocol/flexvaults-sdk. Customize colors, border radius, and preview components in real time.',
 }
 
 export default function RootLayout({
@@ -25,18 +26,16 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Providers network="testnet">
           {children}
           <Toaster
-            theme="dark"
+            theme="system"
             position="bottom-right"
             toastOptions={{
-              style: {
-                background: '#18181b',
-                border: '1px solid #27272a',
-                color: '#e4e4e7',
+              classNames: {
+                toast: 'bg-card border-border text-foreground',
               },
             }}
           />

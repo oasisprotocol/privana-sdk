@@ -3,7 +3,7 @@
 import { useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAccount } from 'wagmi'
-import { useAccountingContext } from '../context/accounting-provider'
+import { useFlexvaultsContext } from '../context/flexvaults-provider'
 import type { TransactionSubmissionResponse } from '../types'
 
 export interface UseUnlockFundsOptions {
@@ -26,7 +26,7 @@ export interface UseUnlockFundsResult {
 
 export function useUnlockFunds(options: UseUnlockFundsOptions = {}): UseUnlockFundsResult {
   const { address } = useAccount()
-  const { client } = useAccountingContext()
+  const { client } = useFlexvaultsContext()
   const queryClient = useQueryClient()
 
   const unlockMutation = useMutation({

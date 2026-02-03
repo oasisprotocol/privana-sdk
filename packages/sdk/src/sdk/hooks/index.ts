@@ -1,4 +1,4 @@
-export * from './use-accounting-client'
+export * from './use-flexvaults-client'
 export * from './use-balance'
 export * from './use-batch-balances'
 export * from './use-deposit'

@@ -62,9 +62,9 @@ export function TokenSelectorModal({
         if (!isOpen) handleClose()
       }}
     >
-      <DialogContent className="gap-0 overflow-hidden rounded-xl border border-zinc-800 bg-[#18181b] p-0 sm:max-w-[340px]">
-        <DialogHeader className="border-b border-zinc-800 px-4 py-3">
-          <DialogTitle className="text-sm font-medium text-zinc-200">Select Token</DialogTitle>
+      <DialogContent className="gap-0 overflow-hidden rounded-xl border border-border bg-card p-0 sm:max-w-[340px]">
+        <DialogHeader className="border-b border-border px-4 py-3">
+          <DialogTitle className="text-sm font-medium text-foreground">Select Token</DialogTitle>
         </DialogHeader>
 
         <div className="p-3">
@@ -72,7 +72,7 @@ export function TokenSelectorModal({
             placeholder="Search"
             value={tokenSearch}
             onChange={(e) => setTokenSearch(e.target.value)}
-            className="h-9 w-full rounded-lg border border-zinc-800 bg-zinc-800/50 px-3 text-sm text-white placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+            className="h-9 w-full rounded-lg border border-border bg-muted/50 px-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none"
           />
         </div>
 
@@ -86,8 +86,8 @@ export function TokenSelectorModal({
                 key={token.id}
                 className={cn(
                   'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors',
-                  isDisabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer hover:bg-zinc-800',
-                  isSelected && !isDisabled && 'bg-zinc-800'
+                  isDisabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer hover:bg-muted',
+                  isSelected && !isDisabled && 'bg-muted'
                 )}
                 onClick={() => handleSelect(token)}
                 disabled={isDisabled}
@@ -95,21 +95,21 @@ export function TokenSelectorModal({
                 {getTokenIcon(token.symbol, 24)}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-zinc-200">{token.symbol}</span>
+                    <span className="text-sm font-medium text-foreground">{token.symbol}</span>
                     {isDisabled && (
-                      <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-500">
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                         Soon
                       </span>
                     )}
                   </div>
-                  <div className="text-[11px] text-zinc-500">{token.name}</div>
+                  <div className="text-[11px] text-muted-foreground">{token.name}</div>
                 </div>
                 {isSelected && !isDisabled && (
-                  <div className="flex h-4 w-4 items-center justify-center rounded-full bg-zinc-100">
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                  <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className="text-primary-foreground">
                       <path
                         d="M2 5L4 7L8 3"
-                        stroke="#18181b"
+                        stroke="currentColor"
                         strokeWidth="1.5"
                         strokeLinecap="round"
                         strokeLinejoin="round"

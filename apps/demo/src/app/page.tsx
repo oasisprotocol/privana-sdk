@@ -1,30 +1,17 @@
 'use client'
 
-import { ConnectButton } from '@rainbow-me/rainbowkit'
-import { useAccount } from 'wagmi'
-import { EncumberedWalletButton } from '@encumbered/sdk'
+import { ThemeEditor } from '@/components/theme-editor'
+import { ComponentPreview } from '@/components/component-preview'
 
 export default function Home() {
-  const { isConnected } = useAccount()
-
   return (
-    <main className="flex min-h-screen flex-col bg-[#111113]">
-      <header className="px-6 py-4">
-        <div className="mx-auto flex max-w-screen-lg items-center justify-between">
-          <span className="text-sm text-zinc-600">
-            @oasisprotocol/encumbered-sdk <span className="font-semibold text-zinc-400">Demo</span>
-          </span>
-          <ConnectButton showBalance={false} chainStatus="icon" accountStatus="address" />
-        </div>
-      </header>
-
-      <div className="flex flex-1 items-center justify-center">
-        {isConnected ? (
-          <EncumberedWalletButton />
-        ) : (
-          <p className="text-sm text-zinc-600">Connect wallet to continue</p>
-        )}
-      </div>
-    </main>
+    <div className="flex h-screen">
+      <aside className="w-[320px] shrink-0 border-r border-neutral-200 dark:border-neutral-800 overflow-hidden">
+        <ThemeEditor />
+      </aside>
+      <main className="flex-1 overflow-hidden">
+        <ComponentPreview />
+      </main>
+    </div>
   )
 }

@@ -6,6 +6,8 @@ dist/
 .next/
 out/
 build/
+*.compiled.css
+packages/sdk/src/compiled.css
 
 # turbo
 .turbo/

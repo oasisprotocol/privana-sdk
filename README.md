@@ -1,13 +1,13 @@
-# Encumbered Accounting SDK
+# Flexvaults SDK
 
-Monorepo for the Encumbered Accounting Module SDK and demo application.
+Monorepo for the Flexvaults SDK and demo application.
 
 ## Packages
 
-| Package                           | Description                                    |
-| --------------------------------- | ---------------------------------------------- |
-| [@encumbered/sdk](./packages/sdk) | React SDK for the Encumbered Accounting Module |
-| [@encumbered/demo](./apps/demo)   | Demo application showcasing the SDK            |
+| Package                                         | Description                         |
+| ----------------------------------------------- | ----------------------------------- |
+| [@oasisprotocol/flexvaults-sdk](./packages/sdk) | React SDK for Flexvaults            |
+| [flexvaults-demo](./apps/demo)                  | Demo application showcasing the SDK |
 
 ## Development
 
@@ -67,4 +67,4 @@ bun run release
 
 ## License
 
-MIT
+Apache-2.0

@@ -1,13 +1,13 @@
-# @encumbered/sdk
+# @oasisprotocol/flexvaults-sdk
 
-React SDK for the Encumbered Accounting Module - manage deposits, withdrawals, locks, and transfers with ease.
+React SDK for Flexvaults - manage deposits, withdrawals, locks, and transfers with ease.
 
 ## Installation
 
 ```bash
-npm install @encumbered/sdk
+npm install @oasisprotocol/flexvaults-sdk
 # or
-bun add @encumbered/sdk
+bun add @oasisprotocol/flexvaults-sdk
 ```
 
 ## Peer Dependencies
@@ -20,10 +20,10 @@ npm install react react-dom wagmi viem @tanstack/react-query
 
 ## Quick Start
 
-### 1. Wrap your app with the AccountingProvider
+### 1. Wrap your app with the FlexvaultsProvider
 
 ```tsx
-import { AccountingProvider } from '@encumbered/sdk'
+import { FlexvaultsProvider } from '@oasisprotocol/flexvaults-sdk'
 import { WagmiProvider } from 'wagmi'
 import { QueryClientProvider } from '@tanstack/react-query'
 
@@ -31,29 +31,29 @@ function App() {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <AccountingProvider network="testnet">
+        <FlexvaultsProvider network="testnet">
           <YourApp />
-        </AccountingProvider>
+        </FlexvaultsProvider>
       </QueryClientProvider>
     </WagmiProvider>
   )
 }
 ```
 
-### 2. Use the EncumberedWalletButton
+### 2. Use the FlexvaultsButton
 
 ```tsx
-import { EncumberedWalletButton } from '@encumbered/sdk'
+import { FlexvaultsButton } from '@oasisprotocol/flexvaults-sdk'
 
 function MyComponent() {
-  return <EncumberedWalletButton />
+  return <FlexvaultsButton />
 }
 ```
 
 ### 3. Or build custom UI with hooks
 
 ```tsx
-import { useBalance, useDeposit, useWithdraw } from '@encumbered/sdk'
+import { useBalance, useDeposit, useWithdraw } from '@oasisprotocol/flexvaults-sdk'
 
 function CustomWallet() {
   const { data: balance } = useBalance({ token: 'USDC' })
@@ -71,29 +71,29 @@ function CustomWallet() {
 
 ## Components
 
-### EncumberedWalletButton
+### FlexvaultsButton
 
 A customizable button that opens the wallet modal.
 
 ```tsx
 // Basic usage
-<EncumberedWalletButton />
+<FlexvaultsButton />
 
 // Custom text
-<EncumberedWalletButton>Open Wallet</EncumberedWalletButton>
+<FlexvaultsButton>Open Wallet</FlexvaultsButton>
 
 // Custom styling
-<EncumberedWalletButton variant="default" size="lg" className="my-class" />
+<FlexvaultsButton variant="default" size="lg" className="my-class" />
 
 // Full control with render prop
-<EncumberedWalletButton
+<FlexvaultsButton
   renderButton={({ onClick, isOpen }) => (
     <MyButton onClick={onClick}>Custom Button</MyButton>
   )}
 />
 
 // Show when wallet disconnected (disabled state)
-<EncumberedWalletButton hideWhenDisconnected={false} />
+<FlexvaultsButton hideWhenDisconnected={false} />
 ```
 
 ## Hooks
@@ -113,4 +113,4 @@ A customizable button that opens the wallet modal.
 
 ## License
 
-MIT
+Apache-2.0

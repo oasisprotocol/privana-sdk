@@ -103,19 +103,19 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
     <div className="space-y-3">
       <div>
         <div className="mb-1.5 flex items-center justify-between">
-          <label className="text-[10px] font-medium tracking-wider text-zinc-500 uppercase">
+          <label className="text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
             Token
           </label>
         </div>
         <button
           onClick={onTokenSelect}
-          className="flex w-full cursor-pointer items-center justify-between rounded-lg border border-zinc-800 bg-zinc-800/50 px-3 py-2 transition-colors hover:border-zinc-700"
+          className="flex w-full cursor-pointer items-center justify-between rounded-lg border border-border bg-muted/50 px-3 py-2 transition-colors hover:border-ring"
         >
           <div className="flex items-center gap-2">
             {getTokenIcon(selectedToken.symbol, 20)}
-            <span className="text-sm font-medium text-zinc-200">{selectedToken.symbol}</span>
+            <span className="text-sm font-medium text-foreground">{selectedToken.symbol}</span>
           </div>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-zinc-500">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-muted-foreground">
             <path
               d="M3 5L6 8L9 5"
               stroke="currentColor"
@@ -129,10 +129,10 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
 
       <div>
         <div className="mb-1.5 flex items-center justify-between">
-          <label className="text-[10px] font-medium tracking-wider text-zinc-500 uppercase">
+          <label className="text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
             Amount
           </label>
-          <span className="text-[10px] text-zinc-500">{formattedWalletBalance}</span>
+          <span className="text-[10px] text-muted-foreground">{formattedWalletBalance}</span>
         </div>
         <div className="relative">
           <input
@@ -148,9 +148,9 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
               }
             }}
             className={cn(
-              'h-10 w-full rounded-lg bg-zinc-800/50 px-3 pr-14 text-sm text-white',
-              'border border-zinc-800 placeholder:text-zinc-600',
-              'focus:border-zinc-600 focus:outline-none',
+              'h-10 w-full rounded-lg bg-muted/50 px-3 pr-14 text-sm text-foreground',
+              'border border-border placeholder:text-muted-foreground',
+              'focus:border-ring focus:outline-none',
               'transition-colors',
               isPending && 'opacity-50'
             )}
@@ -159,7 +159,7 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
           <button
             onClick={handleMaxClick}
             disabled={isPending}
-            className="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer px-2 py-0.5 text-[10px] font-medium text-zinc-400 transition-colors hover:text-zinc-200"
+            className="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer px-2 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:text-foreground"
           >
             MAX
           </button>
@@ -167,7 +167,7 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
       </div>
 
       {error && (
-        <div className="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400">
+        <div className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
           {error.message.length > 80 ? `${error.message.slice(0, 80)}...` : error.message}
         </div>
       )}
@@ -179,8 +179,8 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
         }
         className={cn(
           'w-full cursor-pointer rounded-lg py-2.5 text-sm font-medium transition-colors',
-          'bg-zinc-100 text-zinc-900 hover:bg-white',
-          'disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-600'
+          'bg-primary text-primary-foreground hover:bg-primary/90',
+          'disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground'
         )}
       >
         {getButtonText()}

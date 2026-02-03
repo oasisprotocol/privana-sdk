@@ -24,6 +24,7 @@ export default defineConfig({
   external: ['react', 'react-dom', 'react/jsx-runtime', 'wagmi', 'viem', '@tanstack/react-query'],
   treeshake: true,
   minify: false,
+  injectStyle: true,
   esbuildOptions(options) {
     options.alias = {
       '@': resolve(__dirname, 'src'),

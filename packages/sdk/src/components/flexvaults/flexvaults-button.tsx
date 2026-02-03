@@ -3,13 +3,13 @@
 import { useState, type ReactNode, type ComponentProps, type ReactElement } from 'react'
 import { useAccount } from 'wagmi'
 import { Button, type buttonVariants } from '@/components/ui/button'
-import { EncumberedWalletModal } from './encumbered-wallet-modal'
+import { FlexvaultsModal } from './flexvaults-modal'
 import { cn } from '@/lib/utils'
 import type { VariantProps } from 'class-variance-authority'
 
 type ButtonVariantProps = VariantProps<typeof buttonVariants>
 
-export interface EncumberedWalletButtonProps extends Omit<ComponentProps<'button'>, 'children'> {
+export interface FlexvaultsButtonProps extends Omit<ComponentProps<'button'>, 'children'> {
   children?: ReactNode
   variant?: ButtonVariantProps['variant']
   size?: ButtonVariantProps['size']
@@ -18,7 +18,7 @@ export interface EncumberedWalletButtonProps extends Omit<ComponentProps<'button
   hideWhenDisconnected?: boolean
 }
 
-export function EncumberedWalletButton({
+export function FlexvaultsButton({
   children,
   className,
   variant = 'outline',
@@ -27,7 +27,7 @@ export function EncumberedWalletButton({
   renderButton,
   hideWhenDisconnected = true,
   ...buttonProps
-}: EncumberedWalletButtonProps) {
+}: FlexvaultsButtonProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const { isConnected } = useAccount()
 
@@ -49,14 +49,14 @@ export function EncumberedWalletButton({
       disabled={!isConnected}
       {...buttonProps}
     >
-      {children ?? 'Encumbered Wallet'}
+      {children ?? 'Flexvaults'}
     </Button>
   )
 
   return (
-    <>
+    <span data-flexvaults className="contents">
       {buttonElement}
-      <EncumberedWalletModal open={modalOpen} onClose={() => setModalOpen(false)} />
-    </>
+      <FlexvaultsModal open={modalOpen} onClose={() => setModalOpen(false)} />
+    </span>
   )
 }

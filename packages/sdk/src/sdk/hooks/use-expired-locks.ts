@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { useAccount } from 'wagmi'
-import { useAccountingContext } from '../context/accounting-provider'
+import { useFlexvaultsContext } from '../context/flexvaults-provider'
 import type { LockInfo, ExpiredLocksResponse } from '../types'
 
 export interface UseExpiredLocksOptions {
@@ -20,7 +20,7 @@ export interface UseExpiredLocksResult {
 
 export function useExpiredLocks(options: UseExpiredLocksOptions = {}): UseExpiredLocksResult {
   const { address, isConnected } = useAccount()
-  const { client, pollingInterval } = useAccountingContext()
+  const { client, pollingInterval } = useFlexvaultsContext()
 
   const query = useQuery<ExpiredLocksResponse, Error>({
     queryKey: ['accounting-expired-locks', address],

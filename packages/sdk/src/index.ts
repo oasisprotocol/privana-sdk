@@ -1,10 +1,12 @@
 'use client'
 
+import './compiled.css'
+
 export * from './sdk'
 
-export { EncumberedWalletButton } from './components/encumbered-wallet/encumbered-wallet-button'
-export type { EncumberedWalletButtonProps } from './components/encumbered-wallet/encumbered-wallet-button'
+export { FlexvaultsButton } from './components/flexvaults/flexvaults-button'
+export type { FlexvaultsButtonProps } from './components/flexvaults/flexvaults-button'
 
-export { EncumberedWalletModal } from './components/encumbered-wallet/encumbered-wallet-modal'
+export { FlexvaultsModal, FlexvaultsInlineModal } from './components/flexvaults/flexvaults-modal'
 
 export { Button, buttonVariants } from './components/ui/button'

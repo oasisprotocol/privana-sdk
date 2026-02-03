@@ -1,17 +1,16 @@
 {
-  "name": "@encumbered/sdk",
+  "name": "@oasisprotocol/flexvaults-sdk",
   "version": "0.1.0",
-  "description": "React SDK for Encumbered Accounting Module - manage deposits, withdrawals, locks, and transfers",
+  "description": "React SDK for Flexvaults - manage deposits, withdrawals, locks, and transfers",
   "author": "",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "",
     "directory": "packages/sdk"
   },
   "keywords": [
-    "encumbered",
-    "accounting",
+    "flexvaults",
     "sdk",
     "react",
     "wagmi",
@@ -39,9 +38,10 @@
     "dist",
     "README.md"
   ],
-  "sideEffects": false,
+  "sideEffects": true,
   "scripts": {
-    "build": "tsup",
+    "build": "bun run build:css && tsup",
+    "build:css": "bunx @tailwindcss/cli -i src/globals.css -o src/compiled.css --minify && bun run scripts/scope-css.ts",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
@@ -69,11 +69,14 @@
     "wagmi": ">=2.0.0"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "postcss": "^8",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "tailwindcss": "^4",
     "tsup": "^8.5.1",
     "typescript": "^5",
     "viem": "^2.44.4",

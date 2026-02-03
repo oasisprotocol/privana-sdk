@@ -8,7 +8,7 @@ import {
   useSendTransaction,
   useWaitForTransactionReceipt,
 } from 'wagmi'
-import { useAccountingContext } from '../context/accounting-provider'
+import { useFlexvaultsContext } from '../context/flexvaults-provider'
 import type { Bytes32, DepositQuoteResponse } from '../types'
 
 export interface UseDepositOptions {
@@ -40,7 +40,7 @@ export interface UseDepositResult {
 
 export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   const { address } = useAccount()
-  const { client } = useAccountingContext()
+  const { client } = useFlexvaultsContext()
   const { data: walletClient } = useWalletClient()
   const queryClient = useQueryClient()
 

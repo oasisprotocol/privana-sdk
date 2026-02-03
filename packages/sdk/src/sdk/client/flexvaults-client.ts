@@ -25,12 +25,12 @@ import type {
 } from '../types'
 import { normalizeAddress, normalizeHex } from '../types'
 
-export type AccountingClientConfig = HttpClientConfig
+export type FlexvaultsClientConfig = HttpClientConfig
 
-export class AccountingClient {
+export class FlexvaultsClient {
   private readonly http: HttpClient
 
-  constructor(config: AccountingClientConfig) {
+  constructor(config: FlexvaultsClientConfig) {
     this.http = new HttpClient(config)
   }
 

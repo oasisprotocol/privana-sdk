@@ -1,0 +1,74 @@
+@import 'tailwindcss';
+
+@source "./";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--fv-background);
+  --color-foreground: var(--fv-foreground);
+  --color-ring: var(--fv-ring);
+  --color-input: var(--fv-input);
+  --color-border: var(--fv-border);
+  --color-destructive: var(--fv-destructive);
+  --color-accent-foreground: var(--fv-accent-foreground);
+  --color-accent: var(--fv-accent);
+  --color-muted-foreground: var(--fv-muted-foreground);
+  --color-muted: var(--fv-muted);
+  --color-secondary-foreground: var(--fv-secondary-foreground);
+  --color-secondary: var(--fv-secondary);
+  --color-primary-foreground: var(--fv-primary-foreground);
+  --color-primary: var(--fv-primary);
+  --color-popover-foreground: var(--fv-popover-foreground);
+  --color-popover: var(--fv-popover);
+  --color-card-foreground: var(--fv-card-foreground);
+  --color-card: var(--fv-card);
+  --radius-sm: calc(var(--fv-radius) - 4px);
+  --radius-md: calc(var(--fv-radius) - 2px);
+  --radius-lg: var(--fv-radius);
+  --radius-xl: calc(var(--fv-radius) + 4px);
+}
+
+
+[data-flexvaults] {
+  --fv-radius: 0.625rem;
+  --fv-background: oklch(1 0 0);
+  --fv-foreground: oklch(0.145 0 0);
+  --fv-card: oklch(1 0 0);
+  --fv-card-foreground: oklch(0.145 0 0);
+  --fv-popover: oklch(1 0 0);
+  --fv-popover-foreground: oklch(0.145 0 0);
+  --fv-primary: oklch(0.205 0 0);
+  --fv-primary-foreground: oklch(0.985 0 0);
+  --fv-secondary: oklch(0.97 0 0);
+  --fv-secondary-foreground: oklch(0.205 0 0);
+  --fv-muted: oklch(0.97 0 0);
+  --fv-muted-foreground: oklch(0.556 0 0);
+  --fv-accent: oklch(0.97 0 0);
+  --fv-accent-foreground: oklch(0.205 0 0);
+  --fv-destructive: oklch(0.577 0.245 27.325);
+  --fv-border: oklch(0.922 0 0);
+  --fv-input: oklch(0.922 0 0);
+  --fv-ring: oklch(0.708 0 0);
+}
+
+[data-flexvaults].dark, .dark [data-flexvaults] {
+  --fv-background: oklch(0.145 0 0);
+  --fv-foreground: oklch(0.985 0 0);
+  --fv-card: oklch(0.205 0 0);
+  --fv-card-foreground: oklch(0.985 0 0);
+  --fv-popover: oklch(0.205 0 0);
+  --fv-popover-foreground: oklch(0.985 0 0);
+  --fv-primary: oklch(0.922 0 0);
+  --fv-primary-foreground: oklch(0.205 0 0);
+  --fv-secondary: oklch(0.269 0 0);
+  --fv-secondary-foreground: oklch(0.985 0 0);
+  --fv-muted: oklch(0.269 0 0);
+  --fv-muted-foreground: oklch(0.708 0 0);
+  --fv-accent: oklch(0.269 0 0);
+  --fv-accent-foreground: oklch(0.985 0 0);
+  --fv-destructive: oklch(0.704 0.191 22.216);
+  --fv-border: oklch(1 0 0 / 10%);
+  --fv-input: oklch(1 0 0 / 15%);
+  --fv-ring: oklch(0.556 0 0);
+}
