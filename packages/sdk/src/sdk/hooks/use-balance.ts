@@ -62,7 +62,7 @@ export function useBalance(options: UseBalanceOptions = {}): UseBalanceResult {
     balanceFormatted: formatTokenAmount(balanceWei),
     tokenSymbol: query.data?.token_symbol ?? '',
     chainId: query.data?.chain_id ?? '',
-    isLoading: query.isLoading,
+    isLoading: query.isPending || query.isLoading,
     isError: query.isError,
     error: query.error,
     refetch: query.refetch,

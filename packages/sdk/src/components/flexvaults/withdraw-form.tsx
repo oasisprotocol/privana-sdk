@@ -147,7 +147,7 @@ export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps
         className={cn(
           'flex h-10 w-full cursor-pointer items-center justify-center rounded-lg px-3 py-2 text-sm font-medium transition-colors',
           'bg-primary text-primary-foreground hover:bg-primary/90',
-          'disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground'
+          'disabled:cursor-not-allowed disabled:opacity-50'
         )}
       >
         {getButtonText()}
