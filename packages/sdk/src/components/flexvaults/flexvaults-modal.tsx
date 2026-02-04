@@ -4,10 +4,9 @@ import { useState, useMemo } from 'react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { DepositForm } from './deposit-form'
 import { WithdrawForm } from './withdraw-form'
-import { LockedFundsList } from './locked-funds-list'
 import { SUPPORTED_TOKENS, type TokenConfig } from '@/sdk/types/tokens'
 import { useBalance, useLockedFunds } from '@/sdk/hooks'
-import { formatTokenAmount, cn } from '@/lib/utils'
+import { formatTokenAmount, cn, shortenAddress } from '@/lib/utils'
 import { getTokenIcon } from './token-icons'
 
 type ModalView = 'main' | 'locked-funds' | 'select-token'
@@ -19,10 +18,10 @@ interface NetworkConfig {
 }
 
 const NETWORKS: NetworkConfig[] = [
-  { id: 84532, name: 'Base Sepolia', color: '#0052FF' },
   { id: 1, name: 'Ethereum', color: '#627EEA' },
-  { id: 23294, name: 'Sapphire', color: '#0092F6' },
   { id: 101, name: 'Solana', color: '#00D18C' },
+  { id: 23294, name: 'Sapphire', color: '#0092F6' },
+  { id: 84532, name: 'Base', color: '#0052FF' },
 ]
 
 const ENABLED_NETWORKS = [84532]
@@ -43,9 +42,7 @@ function CloseIcon() {
 }
 
 function SearchIcon() {
-  return (
-    <div className="h-3 w-3 rounded-full border-[1.5px] border-current" />
-  )
+  return <div className="h-3 w-3 rounded-full border-[1.5px] border-current" />
 }
 
 function ChevronRight() {
@@ -78,12 +75,34 @@ function ChevronLeft() {
   )
 }
 
+function ChevronDown({ collapsed }: { collapsed?: boolean }) {
+  return (
+    <svg
+      width="12"
+      height="6"
+      viewBox="0 0 12 6"
+      className={cn('transition-transform', collapsed && '-rotate-90')}
+    >
+      <path
+        d="M0 0l6 6 6-6"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </svg>
+  )
+}
+
 function BalanceCards({
   selectedToken,
   onLockedFundsClick,
+  onBalanceClick,
 }: {
   selectedToken: TokenConfig
   onLockedFundsClick: () => void
+  onBalanceClick: () => void
 }) {
   const { balanceWei, isLoading: balanceLoading } = useBalance({
     tokenId: selectedToken.id,
@@ -95,12 +114,20 @@ function BalanceCards({
 
   return (
     <div className="flex gap-2">
-      <div className="flex flex-1 flex-col gap-2 rounded-lg bg-muted p-5">
-        <div className="flex items-center gap-1">
-          <span className="text-sm text-muted-foreground">Balance</span>
-          <span className="rounded-full bg-secondary px-2 py-1 text-[10px] font-bold text-muted-foreground">
-            {selectedToken.symbol}
-          </span>
+      <button
+        onClick={onBalanceClick}
+        className="flex flex-1 cursor-pointer flex-col gap-2 rounded-[10px] bg-muted p-5 text-left transition-colors hover:bg-muted/80"
+      >
+        <div className="flex w-full items-center justify-between">
+          <div className="flex items-center gap-1">
+            <span className="text-sm text-muted-foreground">Balance</span>
+            <span className="rounded-full bg-secondary px-2 py-[5px] text-[10px] font-bold text-muted-foreground">
+              {selectedToken.symbol}
+            </span>
+          </div>
+          <div className="flex h-6 w-6 items-center justify-center text-muted-foreground">
+            <ChevronRight />
+          </div>
         </div>
         <div className="text-xl font-medium text-foreground">
           {balanceLoading ? (
@@ -109,20 +136,20 @@ function BalanceCards({
             formattedBalance
           )}
         </div>
-      </div>
+      </button>
 
       <button
         onClick={onLockedFundsClick}
-        className="flex flex-1 cursor-pointer flex-col gap-2 rounded-lg bg-muted p-5 text-left transition-colors hover:bg-muted/80"
+        className="flex flex-1 cursor-pointer flex-col gap-2 rounded-[10px] bg-muted p-5 text-left transition-colors hover:bg-muted/80"
       >
         <div className="flex w-full items-center justify-between">
           <div className="flex items-center gap-1">
             <span className="text-sm text-muted-foreground">Locked Funds</span>
-            <span className="rounded-full bg-secondary px-2 py-1 text-[10px] font-bold text-muted-foreground">
+            <span className="rounded-full bg-secondary px-2 py-[5px] text-[10px] font-bold text-muted-foreground">
               {selectedToken.symbol}
             </span>
           </div>
-          <div className="flex h-5 w-5 items-center justify-center text-muted-foreground">
+          <div className="flex h-6 w-6 items-center justify-center text-muted-foreground">
             <ChevronRight />
           </div>
         </div>
@@ -146,17 +173,17 @@ function Tabs({
   onTabChange: (tab: 'deposit' | 'withdraw') => void
 }) {
   return (
-    <div className="relative flex overflow-hidden rounded-lg bg-muted p-1">
+    <div className="relative flex gap-2 overflow-hidden rounded-[10px] bg-muted p-1">
       <div
         className={cn(
           'absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-md bg-input transition-transform duration-200',
-          activeTab === 'withdraw' && 'translate-x-[100%]'
+          activeTab === 'withdraw' && 'translate-x-[calc(100%+8px)]'
         )}
       />
       <button
         onClick={() => onTabChange('deposit')}
         className={cn(
-          'relative z-10 flex-1 cursor-pointer rounded-md px-3 py-2.5 text-sm transition-colors',
+          'relative z-10 flex-1 cursor-pointer rounded-md px-3 py-[9px] text-sm transition-colors',
           activeTab === 'deposit' ? 'text-foreground' : 'text-muted-foreground'
         )}
       >
@@ -165,7 +192,7 @@ function Tabs({
       <button
         onClick={() => onTabChange('withdraw')}
         className={cn(
-          'relative z-10 flex-1 cursor-pointer rounded-md px-3 py-2.5 text-sm transition-colors',
+          'relative z-10 flex-1 cursor-pointer rounded-md px-3 py-[9px] text-sm transition-colors',
           activeTab === 'withdraw' ? 'text-foreground' : 'text-muted-foreground'
         )}
       >
@@ -175,32 +202,149 @@ function Tabs({
   )
 }
 
+interface LockedFundsSection {
+  title: string
+  items: {
+    lockIndex: number
+    amount: string
+    serviceAddress: string
+    time: string
+    isExpired: boolean
+  }[]
+}
+
 function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: () => void }) {
+  const { locks, isLoading } = useLockedFunds()
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
+
+  const sections = useMemo(() => {
+    const sectionMap: Record<string, LockedFundsSection> = {}
+
+    locks.forEach((lock) => {
+      const serviceName = shortenAddress(lock.service_address)
+      if (!sectionMap[lock.service_address]) {
+        sectionMap[lock.service_address] = {
+          title: `Service ${serviceName}`,
+          items: [],
+        }
+      }
+      sectionMap[lock.service_address].items.push({
+        lockIndex: lock.lock_index,
+        amount: formatTokenAmount(String(lock.amount), 18),
+        serviceAddress: lock.service_address,
+        time: lock.is_expired ? 'Click to unlock' : `${Math.floor((lock.expiry - Date.now()) / 3600000)}h`,
+        isExpired: lock.is_expired,
+      })
+    })
+
+    return Object.values(sectionMap)
+  }, [locks])
+
+  const toggleSection = (title: string) => {
+    setCollapsedSections((prev) => ({
+      ...prev,
+      [title]: !prev[title],
+    }))
+  }
+
+  const expiredCount = locks.filter((l) => l.is_expired).length
+
   return (
     <>
       <div className="flex items-center justify-between px-5 py-4">
         <div className="flex items-center gap-2.5">
           <button
             onClick={onBack}
-            className="flex h-5 w-5 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+            className="flex h-6 w-6 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
           >
             <ChevronLeft />
           </button>
-          <span className="text-base font-medium text-foreground">Locked Funds</span>
+          <span className="text-xl font-medium leading-6 text-foreground">Locked Funds</span>
         </div>
         {onClose && (
           <button
             onClick={onClose}
-            className="flex h-5 w-5 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+            className="flex h-6 w-6 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
           >
             <CloseIcon />
           </button>
         )}
       </div>
-      <div className="flex min-h-0 flex-1 flex-col rounded-lg bg-muted p-2">
+
+      <div className="flex min-h-0 flex-1 flex-col rounded-[10px] bg-muted p-2">
         <div className="flex-1 overflow-y-auto">
-          <LockedFundsList />
+          {isLoading ? (
+            <div className="flex flex-col gap-2 p-3">
+              {[1, 2].map((i) => (
+                <div key={i} className="flex animate-pulse items-center gap-3 rounded-lg p-3">
+                  <div className="h-10 w-10 rounded-full bg-secondary" />
+                  <div className="flex-1">
+                    <div className="mb-2 h-3.5 w-24 rounded bg-secondary" />
+                    <div className="h-3 w-32 rounded bg-secondary" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : sections.length === 0 ? (
+            <div className="flex items-center justify-center p-8">
+              <span className="text-sm text-muted-foreground">No locked funds</span>
+            </div>
+          ) : (
+            sections.map((section) => (
+              <div key={section.title}>
+                <button
+                  onClick={() => toggleSection(section.title)}
+                  className="flex w-full cursor-pointer items-center justify-between rounded-lg px-4 py-4 text-muted-foreground transition-colors hover:bg-secondary"
+                >
+                  <span className="text-sm">{section.title}</span>
+                  <ChevronDown collapsed={collapsedSections[section.title]} />
+                </button>
+
+                {!collapsedSections[section.title] &&
+                  section.items.map((item, _index) => (
+                    <div
+                      key={item.lockIndex}
+                      className={cn(
+                        'flex items-center justify-between gap-3 rounded-lg p-3',
+                        item.isExpired && 'bg-secondary'
+                      )}
+                    >
+                      <div className="flex flex-1 items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-secondary" />
+                        <div className="flex flex-col gap-2">
+                          <span className="text-sm font-medium text-foreground">
+                            {item.amount} USDC
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            Service: {shortenAddress(item.serviceAddress)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-1 flex-col items-end gap-2">
+                        <span
+                          className={cn(
+                            'text-sm',
+                            item.isExpired ? 'text-foreground' : 'text-amber-500'
+                          )}
+                        >
+                          {item.time}
+                        </span>
+                        <span className="text-xs text-muted-foreground">on Base Sepolia</span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ))
+          )}
         </div>
+
+        {expiredCount > 0 && (
+          <div className="p-3">
+            <button className="flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary">
+              Unlock All ({expiredCount})
+            </button>
+          </div>
+        )}
       </div>
     </>
   )
@@ -217,14 +361,8 @@ function TokenSelectorView({
   onSelect: (token: TokenConfig) => void
   selectedTokenId?: string
 }) {
-  const [networkSearch, setNetworkSearch] = useState('')
   const [tokenSearch, setTokenSearch] = useState('')
   const [selectedNetwork, setSelectedNetwork] = useState<number>(84532)
-
-  const filteredNetworks = useMemo(() => {
-    if (!networkSearch) return NETWORKS
-    return NETWORKS.filter((n) => n.name.toLowerCase().includes(networkSearch.toLowerCase()))
-  }, [networkSearch])
 
   const allTokens = useMemo(() => {
     return Object.entries(SUPPORTED_TOKENS).map(([key, token]) => ({
@@ -255,16 +393,16 @@ function TokenSelectorView({
         <div className="flex items-center gap-2.5">
           <button
             onClick={onBack}
-            className="flex h-5 w-5 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+            className="flex h-6 w-6 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
           >
             <ChevronLeft />
           </button>
-          <span className="text-base font-medium text-foreground">Select Token</span>
+          <span className="text-xl font-medium leading-6 text-foreground">Select Token</span>
         </div>
         {onClose && (
           <button
             onClick={onClose}
-            className="flex h-5 w-5 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+            className="flex h-6 w-6 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
           >
             <CloseIcon />
           </button>
@@ -273,27 +411,11 @@ function TokenSelectorView({
 
       <div className="flex min-h-0 flex-1 gap-2">
         <div className="flex flex-1 flex-col overflow-hidden rounded-[10px] bg-muted p-2">
-          <div className="flex flex-col gap-1">
-            <div className="px-4 pt-4 pb-2">
-              <span className="text-sm text-muted-foreground">Network</span>
-            </div>
-            <div className="px-3">
-              <div className="flex items-center gap-2.5 rounded-lg border border-border bg-input px-3 py-2.5">
-                <span className="text-muted-foreground">
-                  <SearchIcon />
-                </span>
-                <input
-                  type="text"
-                  placeholder="Search"
-                  value={networkSearch}
-                  onChange={(e) => setNetworkSearch(e.target.value)}
-                  className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-                />
-              </div>
-            </div>
+          <div className="px-4 pt-4 pb-2">
+            <span className="text-sm text-muted-foreground">Network</span>
           </div>
-          <div className="mt-2 flex-1 overflow-y-auto">
-            {filteredNetworks.map((network) => {
+          <div className="mt-1 flex-1 overflow-y-auto">
+            {NETWORKS.map((network) => {
               const isSelected = selectedNetwork === network.id
               const isDisabled = !ENABLED_NETWORKS.includes(network.id)
 
@@ -303,7 +425,7 @@ function TokenSelectorView({
                   onClick={() => !isDisabled && setSelectedNetwork(network.id)}
                   disabled={isDisabled}
                   className={cn(
-                    'flex w-full items-center gap-2 rounded-lg p-3 text-left transition-colors',
+                    'flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left transition-colors',
                     isDisabled
                       ? 'cursor-not-allowed opacity-40'
                       : 'cursor-pointer hover:bg-secondary',
@@ -311,7 +433,7 @@ function TokenSelectorView({
                   )}
                 >
                   <div
-                    className="h-6 w-6 rounded-full"
+                    className="h-[18px] w-[18px] rounded-full"
                     style={{ backgroundColor: network.color }}
                   />
                   <span className="flex-1 text-sm text-foreground">{network.name}</span>
@@ -321,7 +443,7 @@ function TokenSelectorView({
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col overflow-hidden rounded-[10px] bg-muted p-2">
+        <div className="flex flex-[2] flex-col overflow-hidden rounded-[10px] bg-muted p-2">
           <div className="flex flex-col gap-1">
             <div className="px-4 pt-4 pb-2">
               <span className="text-sm text-muted-foreground">Token</span>
@@ -352,17 +474,18 @@ function TokenSelectorView({
                   onClick={() => handleTokenSelect(token)}
                   disabled={isDisabled}
                   className={cn(
-                    'flex w-full items-center gap-2 rounded-lg p-3 text-left transition-colors',
+                    'flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left transition-colors',
                     isDisabled
                       ? 'cursor-not-allowed opacity-40'
                       : 'cursor-pointer hover:bg-secondary',
                     isSelected && !isDisabled && 'bg-secondary'
                   )}
                 >
-                  <div className="h-6 w-6 overflow-hidden rounded-full">
-                    {getTokenIcon(token.symbol, 24)}
+                  <div className="h-[18px] w-[18px] overflow-hidden rounded-full">
+                    {getTokenIcon(token.symbol, 18)}
                   </div>
                   <span className="flex-1 text-sm text-foreground">{token.symbol}</span>
+                  <span className="text-sm text-muted-foreground">0.00</span>
                 </button>
               )
             })}
@@ -410,11 +533,11 @@ function ModalBody({ onClose, onViewChange }: ModalBodyProps) {
   return (
     <>
       <div className="flex items-center justify-between px-5 py-4">
-        <span className="text-base font-medium text-foreground">Flexvaults</span>
+        <span className="text-xl font-medium leading-6 text-foreground">Flexvaults</span>
         {onClose && (
           <button
             onClick={onClose}
-            className="flex h-5 w-5 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+            className="flex h-6 w-6 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
           >
             <CloseIcon />
           </button>
@@ -425,11 +548,12 @@ function ModalBody({ onClose, onViewChange }: ModalBodyProps) {
         <BalanceCards
           selectedToken={selectedToken}
           onLockedFundsClick={() => handleViewChange('locked-funds')}
+          onBalanceClick={() => handleViewChange('select-token')}
         />
 
         <Tabs activeTab={activeTab} onTabChange={setActiveTab} />
 
-        <div className="rounded-lg bg-muted p-5">
+        <div className="rounded-[10px] bg-muted p-5">
           {activeTab === 'deposit' ? (
             <DepositForm
               selectedToken={selectedToken}
@@ -453,37 +577,29 @@ interface FlexvaultsModalProps {
 }
 
 export function FlexvaultsModal({ open, onClose }: FlexvaultsModalProps) {
-  const [currentView, setCurrentView] = useState<ModalView>('main')
-
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent
         data-flexvaults
         showCloseButton={false}
-        className={cn(
-          'flex w-[520px] max-w-[95vw] flex-col gap-2 overflow-hidden rounded-2xl border-0 bg-card p-2',
-          currentView !== 'main' && 'h-[496px]'
-        )}
+        className="flex h-[534.5px] w-[560px] max-w-[95vw] flex-col gap-2 overflow-hidden rounded-2xl border-0 bg-card p-2"
       >
-        <ModalBody onClose={onClose} onViewChange={setCurrentView} />
+        <ModalBody onClose={onClose} />
       </DialogContent>
     </Dialog>
   )
 }
 
 export function FlexvaultsInlineModal({ className }: { className?: string }) {
-  const [currentView, setCurrentView] = useState<ModalView>('main')
-
   return (
     <div
       data-flexvaults
       className={cn(
-        'flex w-[520px] max-w-full flex-col gap-2 overflow-hidden rounded-2xl bg-card p-2 shadow-lg',
-        currentView !== 'main' && 'h-[496px]',
+        'flex h-[534.5px] w-[560px] max-w-full flex-col gap-2 overflow-hidden rounded-2xl bg-card p-2 shadow-lg',
         className
       )}
     >
-      <ModalBody onViewChange={setCurrentView} />
+      <ModalBody />
     </div>
   )
 }

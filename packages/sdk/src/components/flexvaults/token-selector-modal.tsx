@@ -62,7 +62,7 @@ export function TokenSelectorModal({
         if (!isOpen) handleClose()
       }}
     >
-      <DialogContent className="gap-0 overflow-hidden rounded-xl border border-border bg-card p-0 sm:max-w-[340px]">
+      <DialogContent className="gap-0 overflow-hidden rounded-xl border border-border bg-card p-0 sm:max-w-85">
         <DialogHeader className="border-b border-border px-4 py-3">
           <DialogTitle className="text-sm font-medium text-foreground">Select Token</DialogTitle>
         </DialogHeader>
@@ -76,7 +76,7 @@ export function TokenSelectorModal({
           />
         </div>
 
-        <div className="max-h-[280px] overflow-y-auto px-3 pb-3">
+        <div className="max-h-70 overflow-y-auto px-3 pb-3">
           {filteredTokens.map((token) => {
             const isSelected = selectedTokenId === token.id
             const isDisabled = !token.enabled

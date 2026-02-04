@@ -49,7 +49,7 @@ export function LockedFundsList() {
   return (
     <div className="flex flex-col">
       <div className="flex flex-col">
-        {locks.map((lock, index) => {
+        {locks.map((lock, _index) => {
           const token = getTokenById(lock.token_id)
           const formattedAmount = formatTokenAmount(String(lock.amount), token?.decimals ?? 18)
           const isHighlighted = lock.is_expired
@@ -59,7 +59,7 @@ export function LockedFundsList() {
               key={lock.lock_index}
               className={`flex items-center gap-3 rounded-lg p-3 ${isHighlighted ? 'bg-muted' : ''}`}
             >
-              <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-full bg-secondary">
+              <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-secondary">
                 {token && getTokenIcon(token.symbol, 40)}
               </div>
 
@@ -79,7 +79,7 @@ export function LockedFundsList() {
                 </button>
               </div>
 
-              <div className="flex flex-shrink-0 flex-col items-end gap-2">
+              <div className="flex shrink-0 flex-col items-end gap-2">
                 {lock.is_expired ? (
                   <button
                     onClick={() => unlockFunds({ lockIndex: lock.lock_index })}

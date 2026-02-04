@@ -122,7 +122,7 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
           onClick={onTokenSelect}
           className="flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border bg-input p-3"
         >
-          <div className="h-8 w-8 flex-shrink-0 overflow-hidden rounded-full">
+          <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full">
             {getTokenIcon(selectedToken.symbol, 32)}
           </div>
           <div className="flex flex-1 flex-col items-start gap-1">
@@ -139,7 +139,7 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
 
       <div className="flex w-full flex-col gap-3">
         <label className="text-sm text-muted-foreground">Amount</label>
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-input py-1 pr-1 pl-3">
+        <div className="flex items-center gap-2 rounded-[10px] border border-border bg-input py-1 pr-1 pl-3">
           <input
             type="text"
             inputMode="decimal"
@@ -181,7 +181,7 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
           !isConnected || (!isWrongChain && !hasValidAmount) || isPending || isSwitchingChain
         }
         className={cn(
-          'flex h-10 w-full cursor-pointer items-center justify-center rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+          'flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors',
           'bg-primary text-primary-foreground hover:bg-primary/90',
           'disabled:cursor-not-allowed disabled:opacity-50'
         )}
