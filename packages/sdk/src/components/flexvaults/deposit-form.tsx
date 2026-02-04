@@ -138,7 +138,12 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
       </div>
 
       <div className="flex w-full flex-col gap-3">
-        <label className="text-sm text-muted-foreground">Amount</label>
+        <div className="flex items-center justify-between">
+          <label className="text-sm text-muted-foreground">Amount</label>
+          <span className="text-sm text-muted-foreground">
+            {formattedWalletBalance} {selectedToken.symbol}
+          </span>
+        </div>
         <div className="flex items-center gap-2 rounded-[10px] border border-border bg-input py-1 pr-1 pl-3">
           <input
             type="text"
