@@ -55,21 +55,18 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
   const handleMaxClick = () => {
     if (formattedWalletBalance && parseFloat(formattedWalletBalance) > 0) {
       setAmount(formattedWalletBalance)
-      if (quote) reset()
     }
   }
 
   const hasValidAmount = amount && parseFloat(amount) > 0
 
   const {
-    quote,
     isGettingQuote,
     isSendingTransaction,
     isWaitingForConfirmation,
     isPending,
     error,
-    getQuote,
-    executeDeposit,
+    deposit,
     reset,
   } = useDeposit({
     onIncludeSuccess: () => {
@@ -78,25 +75,11 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
     },
   })
 
-  const handleGetQuote = async () => {
-    if (!amount || !selectedToken) return
-    const amountInWei = parseTokenAmount(amount, selectedToken.decimals)
-    await getQuote({
-      tokenId: selectedToken.id,
-      amount: Number(amountInWei),
-    })
-  }
-
-  const handleDeposit = async () => {
-    if (!quote) return
-    await executeDeposit()
-  }
-
   const getButtonText = () => {
     if (!isConnected) return 'Connect Wallet'
     if (isSwitchingChain) return 'Switching...'
     if (isWrongChain) return `Switch to ${targetChain?.name ?? 'Base Sepolia'}`
-    if (isGettingQuote) return 'Getting Quote...'
+    if (isGettingQuote) return 'Processing...'
     if (isSendingTransaction) return 'Confirm in Wallet...'
     if (isWaitingForConfirmation) return 'Confirming...'
     return 'Deposit'
@@ -107,11 +90,12 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
       switchChain({ chainId: targetChain.id as 84532 })
       return
     }
-    if (quote) {
-      handleDeposit()
-    } else {
-      handleGetQuote()
-    }
+    if (!amount || !selectedToken) return
+    const amountInWei = parseTokenAmount(amount, selectedToken.decimals)
+    await deposit({
+      tokenId: selectedToken.id,
+      amount: Number(amountInWei),
+    })
   }
 
   return (
@@ -154,7 +138,6 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
               const value = e.target.value.replace(/[^0-9.]/g, '')
               if (value.split('.').length <= 2) {
                 setAmount(value)
-                if (quote) reset()
               }
             }}
             className={cn(

@@ -33,6 +33,7 @@ export interface UseDepositResult {
   isIncludingDeposit: boolean
   isPending: boolean
   error: Error | null
+  deposit: (params: DepositParams) => Promise<void>
   getQuote: (params: DepositParams) => Promise<DepositQuoteResponse | undefined>
   executeDeposit: () => Promise<void>
   reset: () => void
@@ -114,6 +115,21 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     })
   }, [quote, walletClient, sendTransaction])
 
+  const deposit = useCallback(
+    async (params: DepositParams) => {
+      const quoteResult = await quoteMutation.mutateAsync(params)
+      if (!quoteResult || !walletClient) {
+        throw new Error('Failed to get quote or wallet not connected')
+      }
+      sendTransaction({
+        to: quoteResult.transaction.to,
+        value: BigInt(quoteResult.transaction.value),
+        data: quoteResult.transaction.data as `0x${string}`,
+      })
+    },
+    [quoteMutation, walletClient, sendTransaction]
+  )
+
   const reset = useCallback(() => {
     setQuote(null)
     setSubmissionId(null)
@@ -136,6 +152,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     isIncludingDeposit: includeMutation.isPending,
     isPending,
     error: error as Error | null,
+    deposit,
     getQuote,
     executeDeposit,
     reset,
