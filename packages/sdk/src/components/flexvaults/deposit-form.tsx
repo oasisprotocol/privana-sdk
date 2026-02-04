@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { useAccount, useChainId, useSwitchChain, useReadContract } from 'wagmi'
 import { useDeposit } from '@/sdk/hooks'
 import type { TokenConfig } from '@/sdk/types/tokens'
@@ -72,8 +73,15 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
     onIncludeSuccess: () => {
       setAmount('')
       reset()
+      toast.success('Deposit successful')
     },
   })
+
+  useEffect(() => {
+    if (error) {
+      toast.error(error.message.length > 100 ? `${error.message.slice(0, 100)}...` : error.message)
+    }
+  }, [error])
 
   const getButtonText = () => {
     if (!isConnected) return 'Connect Wallet'
@@ -156,12 +164,6 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
           </button>
         </div>
       </div>
-
-      {error && (
-        <div className="rounded-lg bg-destructive/10 px-3 py-2.5 text-xs text-destructive">
-          {error.message.length > 80 ? `${error.message.slice(0, 80)}...` : error.message}
-        </div>
-      )}
 
       <button
         onClick={handleSubmit}

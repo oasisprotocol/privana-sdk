@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { useAccount, useChainId, useSwitchChain } from 'wagmi'
 import { useWithdraw, useBalance } from '@/sdk/hooks'
 import type { TokenConfig } from '@/sdk/types/tokens'
@@ -47,8 +48,15 @@ export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps
     onSuccess: () => {
       setAmount('')
       reset()
+      toast.success('Withdrawal initiated')
     },
   })
+
+  useEffect(() => {
+    if (error) {
+      toast.error(error.message.length > 100 ? `${error.message.slice(0, 100)}...` : error.message)
+    }
+  }, [error])
 
   const handleWithdraw = async () => {
     if (isWrongChain && targetChain) {
@@ -137,12 +145,6 @@ export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps
           </button>
         </div>
       </div>
-
-      {error && (
-        <div className="rounded-lg bg-destructive/10 px-3 py-2.5 text-xs text-destructive">
-          {error.message.length > 80 ? `${error.message.slice(0, 80)}...` : error.message}
-        </div>
-      )}
 
       <button
         onClick={handleWithdraw}

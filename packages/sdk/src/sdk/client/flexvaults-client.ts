@@ -159,6 +159,7 @@ export class FlexvaultsClient {
       user_address: normalizeAddress(request.user_address),
       token_id: normalizeHex(request.token_id),
       amount: request.amount,
+      nonce: request.nonce,
       signature: normalizeHex(request.signature),
     })
   }
