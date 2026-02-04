@@ -1,31 +1,18 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import { useAccount, useReadContract } from 'wagmi'
+import { erc20Abi } from 'viem'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { DepositForm } from './deposit-form'
 import { WithdrawForm } from './withdraw-form'
 import { SUPPORTED_TOKENS, type TokenConfig } from '@/sdk/types/tokens'
+import { SUPPORTED_CHAINS } from '@/sdk/types/chains'
 import { useBalance, useLockedFunds } from '@/sdk/hooks'
 import { formatTokenAmount, cn, shortenAddress } from '@/lib/utils'
-import { getTokenIcon } from './token-icons'
+import { getTokenIcon, getChainIcon } from './token-icons'
 
 type ModalView = 'main' | 'locked-funds' | 'select-token'
-
-interface NetworkConfig {
-  id: number
-  name: string
-  color: string
-}
-
-const NETWORKS: NetworkConfig[] = [
-  { id: 1, name: 'Ethereum', color: '#627EEA' },
-  { id: 101, name: 'Solana', color: '#00D18C' },
-  { id: 23294, name: 'Sapphire', color: '#0092F6' },
-  { id: 84532, name: 'Base', color: '#0052FF' },
-]
-
-const ENABLED_NETWORKS = [84532]
-const ENABLED_TOKENS = ['USDC']
 
 function CloseIcon() {
   return (
@@ -350,6 +337,48 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
   )
 }
 
+function TokenRow({
+  token,
+  isSelected,
+  onClick,
+}: {
+  token: TokenConfig
+  isSelected: boolean
+  onClick: () => void
+}) {
+  const { address } = useAccount()
+
+  const { data: walletBalance } = useReadContract({
+    address: token.contract as `0x${string}`,
+    abi: erc20Abi,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    query: {
+      enabled: !!address,
+    },
+  })
+
+  const formattedBalance = walletBalance
+    ? formatTokenAmount(walletBalance.toString(), token.decimals)
+    : '0.00'
+
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-secondary',
+        isSelected && 'bg-secondary'
+      )}
+    >
+      <div className="h-[18px] w-[18px] overflow-hidden rounded-full">
+        {getTokenIcon(token.symbol, 18)}
+      </div>
+      <span className="flex-1 text-sm text-foreground">{token.symbol}</span>
+      <span className="text-sm text-muted-foreground">{formattedBalance}</span>
+    </button>
+  )
+}
+
 function TokenSelectorView({
   onBack,
   onClose,
@@ -362,27 +391,26 @@ function TokenSelectorView({
   selectedTokenId?: string
 }) {
   const [tokenSearch, setTokenSearch] = useState('')
-  const [selectedNetwork, setSelectedNetwork] = useState<number>(84532)
+  const [selectedChainId, setSelectedChainId] = useState<number>(SUPPORTED_CHAINS[0]?.id ?? 84532)
 
-  const allTokens = useMemo(() => {
-    return Object.entries(SUPPORTED_TOKENS).map(([key, token]) => ({
-      ...token,
-      key,
-      enabled: ENABLED_TOKENS.includes(key),
-    }))
-  }, [])
+  const selectedChain = useMemo(() => {
+    return SUPPORTED_CHAINS.find((c) => c.id === selectedChainId)
+  }, [selectedChainId])
+
+  const chainTokens = useMemo(() => {
+    return selectedChain?.tokens ?? []
+  }, [selectedChain])
 
   const filteredTokens = useMemo(() => {
-    if (!tokenSearch) return allTokens
-    return allTokens.filter(
+    if (!tokenSearch) return chainTokens
+    return chainTokens.filter(
       (t) =>
         t.symbol.toLowerCase().includes(tokenSearch.toLowerCase()) ||
         t.name.toLowerCase().includes(tokenSearch.toLowerCase())
     )
-  }, [tokenSearch, allTokens])
+  }, [tokenSearch, chainTokens])
 
-  const handleTokenSelect = (token: TokenConfig & { enabled: boolean }) => {
-    if (!token.enabled) return
+  const handleTokenSelect = (token: TokenConfig) => {
     onSelect(token)
     onBack()
   }
@@ -415,28 +443,22 @@ function TokenSelectorView({
             <span className="text-sm text-muted-foreground">Network</span>
           </div>
           <div className="mt-1 flex-1 overflow-y-auto">
-            {NETWORKS.map((network) => {
-              const isSelected = selectedNetwork === network.id
-              const isDisabled = !ENABLED_NETWORKS.includes(network.id)
+            {SUPPORTED_CHAINS.map((chain) => {
+              const isSelected = selectedChainId === chain.id
 
               return (
                 <button
-                  key={network.id}
-                  onClick={() => !isDisabled && setSelectedNetwork(network.id)}
-                  disabled={isDisabled}
+                  key={chain.id}
+                  onClick={() => setSelectedChainId(chain.id)}
                   className={cn(
-                    'flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left transition-colors',
-                    isDisabled
-                      ? 'cursor-not-allowed opacity-40'
-                      : 'cursor-pointer hover:bg-secondary',
-                    isSelected && !isDisabled && 'bg-secondary'
+                    'flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-secondary',
+                    isSelected && 'bg-secondary'
                   )}
                 >
-                  <div
-                    className="h-[18px] w-[18px] rounded-full"
-                    style={{ backgroundColor: network.color }}
-                  />
-                  <span className="flex-1 text-sm text-foreground">{network.name}</span>
+                  <div className="h-[18px] w-[18px] overflow-hidden rounded-full">
+                    {getChainIcon(chain.id, 18)}
+                  </div>
+                  <span className="flex-1 text-sm text-foreground">{chain.name}</span>
                 </button>
               )
             })}
@@ -464,31 +486,14 @@ function TokenSelectorView({
             </div>
           </div>
           <div className="mt-2 flex-1 overflow-y-auto">
-            {filteredTokens.map((token) => {
-              const isSelected = selectedTokenId === token.id
-              const isDisabled = !token.enabled
-
-              return (
-                <button
-                  key={token.id}
-                  onClick={() => handleTokenSelect(token)}
-                  disabled={isDisabled}
-                  className={cn(
-                    'flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left transition-colors',
-                    isDisabled
-                      ? 'cursor-not-allowed opacity-40'
-                      : 'cursor-pointer hover:bg-secondary',
-                    isSelected && !isDisabled && 'bg-secondary'
-                  )}
-                >
-                  <div className="h-[18px] w-[18px] overflow-hidden rounded-full">
-                    {getTokenIcon(token.symbol, 18)}
-                  </div>
-                  <span className="flex-1 text-sm text-foreground">{token.symbol}</span>
-                  <span className="text-sm text-muted-foreground">0.00</span>
-                </button>
-              )
-            })}
+            {filteredTokens.map((token) => (
+              <TokenRow
+                key={token.id}
+                token={token}
+                isSelected={selectedTokenId === token.id}
+                onClick={() => handleTokenSelect(token)}
+              />
+            ))}
           </div>
         </div>
       </div>

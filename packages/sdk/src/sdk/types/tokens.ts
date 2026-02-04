@@ -12,25 +12,11 @@ export type SupportedToken = keyof typeof SUPPORTED_TOKENS
 
 export const SUPPORTED_TOKENS = {
   USDC: {
-    id: '0x618e9e14a65a5a02d0ed69d75255989098ebf6bb03a0eef18ca0baa7a144c872' as Bytes32,
+    id: '0xc719650e9f4b0f27d956638c54518932ef9d15e720a1a2b2850250bcd0816514' as Bytes32,
     symbol: 'USDC',
-    decimals: 18,
-    contract: '0x12084E1A0fe92b5ab803a81A0Ae54D91040F89ca' as Address,
-    name: 'USD Coin',
-  },
-  USDT: {
-    id: '0x718e9e14a65a5a02d0ed69d75255989098ebf6bb03a0eef18ca0baa7a144c873' as Bytes32,
-    symbol: 'USDT',
     decimals: 6,
-    contract: '0x22084E1A0fe92b5ab803a81A0Ae54D91040F89cb' as Address,
-    name: 'Tether USD',
-  },
-  WETH: {
-    id: '0x818e9e14a65a5a02d0ed69d75255989098ebf6bb03a0eef18ca0baa7a144c874' as Bytes32,
-    symbol: 'WETH',
-    decimals: 18,
-    contract: '0x32084E1A0fe92b5ab803a81A0Ae54D91040F89cc' as Address,
-    name: 'Wrapped Ether',
+    contract: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address,
+    name: 'USD Coin',
   },
 } as const satisfies Record<string, TokenConfig>
 
