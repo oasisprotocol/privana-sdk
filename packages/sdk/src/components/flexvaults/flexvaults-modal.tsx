@@ -662,7 +662,7 @@ function ModalBody({ onClose, onViewChange }: ModalBodyProps) {
         )}
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 pb-4">
         <BalanceCards
           selectedToken={selectedToken}
           onLockedFundsClick={() => handleViewChange('locked-funds')}
@@ -700,7 +700,7 @@ export function FlexvaultsModal({ open, onClose }: FlexvaultsModalProps) {
       <DialogContent
         data-flexvaults
         showCloseButton={false}
-        className="flex h-[534.5px] w-[560px] max-w-[95vw] flex-col gap-2 overflow-hidden rounded-2xl border-0 bg-card p-2"
+        className="flex w-[560px] max-w-[95vw] flex-col gap-2 overflow-hidden rounded-2xl border-0 bg-card p-2"
       >
         <ModalBody onClose={onClose} />
       </DialogContent>
@@ -713,7 +713,7 @@ export function FlexvaultsInlineModal({ className }: { className?: string }) {
     <div
       data-flexvaults
       className={cn(
-        'flex h-[534.5px] w-[560px] max-w-full flex-col gap-2 overflow-hidden rounded-2xl bg-card p-2 shadow-lg',
+        'flex w-[560px] max-w-full flex-col gap-2 overflow-hidden rounded-2xl bg-card p-2 shadow-lg',
         className
       )}
     >
