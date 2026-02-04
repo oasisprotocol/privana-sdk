@@ -40,7 +40,7 @@ export function LockedFundsList() {
 
   if (locks.length === 0) {
     return (
-      <div className="flex items-center justify-center rounded-lg p-8">
+      <div className="flex h-full items-center justify-center rounded-lg p-8">
         <span className="text-sm text-muted-foreground">No locked funds</span>
       </div>
     )
