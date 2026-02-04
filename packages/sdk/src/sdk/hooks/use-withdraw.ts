@@ -2,10 +2,10 @@
 
 import { useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useAccount, useWalletClient } from 'wagmi'
+import { useAccount, useWalletClient, useSwitchChain, useReadContract } from 'wagmi'
 import { useFlexvaultsContext } from '../context/flexvaults-provider'
 import { signWithdrawMessage } from '../signatures'
-import { getAccountingContract } from '../types'
+import { getAccountingContract, getChainId } from '../types'
 import type { Bytes32, TransactionSubmissionResponse } from '../types'
 
 export interface UseWithdrawOptions {
@@ -26,11 +26,36 @@ export interface UseWithdrawResult {
   reset: () => void
 }
 
+const ACCOUNTING_ABI = [
+  {
+    inputs: [{ name: 'user', type: 'address' }],
+    name: 'withdrawalNonces',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+] as const
+
 export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult {
   const { address } = useAccount()
   const { data: walletClient } = useWalletClient()
   const { client, network } = useFlexvaultsContext()
   const queryClient = useQueryClient()
+  const { switchChainAsync } = useSwitchChain()
+
+  const accountingContract = getAccountingContract(network)
+  const signingChainId = getChainId(network)
+
+  const { data: currentNonce, refetch: refetchNonce } = useReadContract({
+    address: accountingContract,
+    abi: ACCOUNTING_ABI,
+    functionName: 'withdrawalNonces',
+    args: address ? [address] : undefined,
+    chainId: signingChainId,
+    query: {
+      enabled: !!address,
+    },
+  })
 
   const mutation = useMutation({
     mutationFn: async (params: WithdrawParams) => {
@@ -38,14 +63,22 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
         throw new Error('Wallet not connected')
       }
 
+      await switchChainAsync({ chainId: signingChainId })
+
+      const { data: nonce } = await refetchNonce()
+      if (nonce === undefined) {
+        throw new Error('Failed to fetch withdrawal nonce')
+      }
+
       const signature = await signWithdrawMessage({
         walletClient,
         network,
-        verifyingContract: getAccountingContract(network),
+        verifyingContract: accountingContract,
         message: {
           userAddress: address,
           tokenId: params.tokenId,
           amount: params.amount,
+          nonce,
         },
       })
 
@@ -53,6 +86,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
         user_address: address,
         token_id: params.tokenId,
         amount: Number(params.amount),
+        nonce: Number(nonce),
         signature,
       })
     },

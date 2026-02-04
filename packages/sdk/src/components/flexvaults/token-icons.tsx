@@ -10,56 +10,23 @@ export function USDCIcon({ className, size = 24 }: IconProps) {
     <svg
       width={size}
       height={size}
-      viewBox="0 0 32 32"
+      viewBox="0 0 2000 2000"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
     >
-      <circle cx="16" cy="16" r="16" fill="#2775CA" />
       <path
-        d="M20.5 18.5C20.5 20.7 18.7 22 16 22C13.3 22 11.5 20.7 11.5 18.5H13.5C13.5 19.6 14.5 20.5 16 20.5C17.5 20.5 18.5 19.6 18.5 18.5C18.5 17.4 17.5 16.8 16 16.5C13.3 15.9 11.5 14.9 11.5 12.5C11.5 10.3 13.3 9 16 9C18.7 9 20.5 10.3 20.5 12.5H18.5C18.5 11.4 17.5 10.5 16 10.5C14.5 10.5 13.5 11.4 13.5 12.5C13.5 13.6 14.5 14.2 16 14.5C18.7 15.1 20.5 16.1 20.5 18.5Z"
-        fill="white"
+        d="M1000 2000c554.17 0 1000-445.83 1000-1000S1554.17 0 1000 0 0 445.83 0 1000s445.83 1000 1000 1000z"
+        fill="#2775ca"
       />
-      <path d="M16 7V9" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M16 22V24" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-export function USDTIcon({ className, size = 24 }: IconProps) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 32 32"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-    >
-      <circle cx="16" cy="16" r="16" fill="#26A17B" />
-      <path d="M17.5 17.5V22.5H14.5V17.5H9V14.5H23V17.5H17.5Z" fill="white" />
-      <path d="M9 11.5H23V14.5H9V11.5Z" fill="white" />
-    </svg>
-  )
-}
-
-export function WETHIcon({ className, size = 24 }: IconProps) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 32 32"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-    >
-      <circle cx="16" cy="16" r="16" fill="#627EEA" />
-      <path d="M16 4V12.87L23 16.22L16 4Z" fill="white" fillOpacity="0.6" />
-      <path d="M16 4L9 16.22L16 12.87V4Z" fill="white" />
-      <path d="M16 21.97V28L23 17.62L16 21.97Z" fill="white" fillOpacity="0.6" />
-      <path d="M16 28V21.97L9 17.62L16 28Z" fill="white" />
-      <path d="M16 20.57L23 16.22L16 12.87V20.57Z" fill="white" fillOpacity="0.2" />
-      <path d="M9 16.22L16 20.57V12.87L9 16.22Z" fill="white" fillOpacity="0.6" />
+      <path
+        d="M1275 1158.33c0-145.83-87.5-195.83-262.5-216.66-125-16.67-150-50-150-108.34s41.67-95.83 125-95.83c75 0 116.67 25 137.5 87.5 4.17 12.5 16.67 20.83 29.17 20.83h66.66c16.67 0 29.17-12.5 29.17-29.16v-4.17c-16.67-91.67-91.67-162.5-187.5-170.83v-100c0-16.67-12.5-29.17-33.33-33.34h-62.5c-16.67 0-29.17 12.5-33.34 33.34v95.83c-125 16.67-204.16 100-204.16 204.17 0 137.5 83.33 191.66 258.33 212.5 116.67 20.83 154.17 45.83 154.17 112.5s-58.34 112.5-137.5 112.5c-108.34 0-145.84-45.84-158.34-108.34-4.16-16.66-16.66-25-29.16-25h-70.84c-16.66 0-29.16 12.5-29.16 29.17v4.17c16.66 104.16 83.33 179.16 220.83 200v100c0 16.66 12.5 29.16 33.33 33.33h62.5c16.67 0 29.17-12.5 33.34-33.33v-100c125-20.84 208.33-108.34 208.33-220.84z"
+        fill="#fff"
+      />
+      <path
+        d="M787.5 1595.83c-325-116.66-491.67-479.16-370.83-800 62.5-175 200-308.33 370.83-370.83 16.67-8.33 25-20.83 25-41.67V325c0-16.67-8.33-29.17-25-33.33-4.17 0-12.5 0-16.67 4.16-395.83 125-612.5 545.84-487.5 941.67 75 233.33 254.17 412.5 487.5 487.5 16.67 8.33 33.34 0 37.5-16.67 4.17-4.16 4.17-8.33 4.17-16.66v-58.34c0-12.5-12.5-29.16-25-37.5zM1229.17 295.83c-16.67-8.33-33.34 0-37.5 16.67-4.17 4.17-4.17 8.33-4.17 16.67v58.33c0 16.67 12.5 33.33 25 41.67 325 116.66 491.67 479.16 370.83 800-62.5 175-200 308.33-370.83 370.83-16.67 8.33-25 20.83-25 41.67V1700c0 16.67 8.33 29.17 25 33.33 4.17 0 12.5 0 16.67-4.16 395.83-125 612.5-545.84 487.5-941.67-75-237.5-258.34-416.67-487.5-491.67z"
+        fill="#fff"
+      />
     </svg>
   )
 }
@@ -69,18 +36,13 @@ export function BaseIcon({ className, size = 24 }: IconProps) {
     <svg
       width={size}
       height={size}
-      viewBox="0 0 32 32"
-      fill="none"
+      viewBox="0 0 2500 2500"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
     >
-      <circle cx="16" cy="16" r="16" fill="#0052FF" />
+      <circle cx="1250" cy="1250" r="1250" fill="#0052FF" />
       <path
-        d="M16 26C21.5228 26 26 21.5228 26 16C26 10.4772 21.5228 6 16 6C10.4772 6 6 10.4772 6 16C6 21.5228 10.4772 26 16 26Z"
-        fill="#0052FF"
-      />
-      <path
-        d="M15.9 22.8C19.7 22.8 22.8 19.7 22.8 15.9C22.8 12.1 19.7 9 15.9 9C12.3 9 9.3 11.8 9 15.3H18V16.5H9C9.3 20 12.3 22.8 15.9 22.8Z"
+        d="M1247.8,2500c691.6,0,1252.2-559.6,1252.2-1250C2500,559.6,1939.4,0,1247.8,0C591.7,0,53.5,503.8,0,1144.9h1655.1v210.2H0C53.5,1996.2,591.7,2500,1247.8,2500z"
         fill="white"
       />
     </svg>
@@ -92,10 +54,6 @@ export function getTokenIcon(symbol: string, size?: number) {
   switch (symbol.toUpperCase()) {
     case 'USDC':
       return <USDCIcon size={iconSize} />
-    case 'USDT':
-      return <USDTIcon size={iconSize} />
-    case 'WETH':
-      return <WETHIcon size={iconSize} />
     default:
       return (
         <div

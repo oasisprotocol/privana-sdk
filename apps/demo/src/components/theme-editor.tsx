@@ -362,20 +362,41 @@ export function ThemeEditor() {
     }
   }, [])
 
+  const applyThemeToElement = useCallback((el: HTMLElement, newColors: Record<string, string>, newRadius: number) => {
+    for (const [variable, value] of Object.entries(newColors)) {
+      const fvVar = variable.replace('--', '--fv-')
+      el.style.setProperty(fvVar, value)
+    }
+    el.style.setProperty('--fv-radius', `${newRadius}rem`)
+  }, [])
+
   const applyTheme = useCallback((newColors: Record<string, string>, newRadius: number) => {
     const targets = document.querySelectorAll<HTMLElement>('[data-flexvaults]')
-    targets.forEach((el) => {
-      for (const [variable, value] of Object.entries(newColors)) {
-        const fvVar = variable.replace('--', '--fv-')
-        el.style.setProperty(fvVar, value)
-      }
-      el.style.setProperty('--fv-radius', `${newRadius}rem`)
-    })
-  }, [])
+    targets.forEach((el) => applyThemeToElement(el, newColors, newRadius))
+  }, [applyThemeToElement])
 
   useEffect(() => {
     applyTheme(colors, radius)
   }, [colors, radius, applyTheme])
+
+  useEffect(() => {
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+          if (node instanceof HTMLElement) {
+            if (node.hasAttribute('data-flexvaults')) {
+              applyThemeToElement(node, colors, radius)
+            }
+            const nested = node.querySelectorAll<HTMLElement>('[data-flexvaults]')
+            nested.forEach((el) => applyThemeToElement(el, colors, radius))
+          }
+        }
+      }
+    })
+
+    observer.observe(document.body, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [colors, radius, applyThemeToElement])
 
   useEffect(() => {
     localStorage.setItem('theme-editor-colors', JSON.stringify(colors))

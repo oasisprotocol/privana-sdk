@@ -50,6 +50,7 @@ export const WITHDRAW_TYPES = {
     { name: 'userAddress', type: 'address' },
     { name: 'tokenId', type: 'bytes32' },
     { name: 'amount', type: 'uint256' },
+    { name: 'nonce', type: 'uint256' },
   ],
 } as const
 
@@ -79,4 +80,5 @@ export interface WithdrawMessage {
   userAddress: Address
   tokenId: Bytes32
   amount: bigint
+  nonce: bigint
 }

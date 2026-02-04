@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { useAccount, useChainId, useSwitchChain, useReadContract } from 'wagmi'
 import { useDeposit } from '@/sdk/hooks'
 import type { TokenConfig } from '@/sdk/types/tokens'
@@ -12,6 +13,21 @@ import { erc20Abi } from 'viem'
 interface DepositFormProps {
   selectedToken: TokenConfig
   onTokenSelect: () => void
+}
+
+function ChevronRight() {
+  return (
+    <svg width="10" height="5" viewBox="0 0 12 6" className="-rotate-90">
+      <path
+        d="M0 0l6 6 6-6"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </svg>
+  )
 }
 
 export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) {
@@ -40,48 +56,38 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
   const handleMaxClick = () => {
     if (formattedWalletBalance && parseFloat(formattedWalletBalance) > 0) {
       setAmount(formattedWalletBalance)
-      if (quote) reset()
     }
   }
 
   const hasValidAmount = amount && parseFloat(amount) > 0
 
   const {
-    quote,
     isGettingQuote,
     isSendingTransaction,
     isWaitingForConfirmation,
     isPending,
     error,
-    getQuote,
-    executeDeposit,
+    deposit,
     reset,
   } = useDeposit({
     onIncludeSuccess: () => {
       setAmount('')
       reset()
+      toast.success('Deposit successful')
     },
   })
 
-  const handleGetQuote = async () => {
-    if (!amount || !selectedToken) return
-    const amountInWei = parseTokenAmount(amount, selectedToken.decimals)
-    await getQuote({
-      tokenId: selectedToken.id,
-      amount: Number(amountInWei),
-    })
-  }
-
-  const handleDeposit = async () => {
-    if (!quote) return
-    await executeDeposit()
-  }
+  useEffect(() => {
+    if (error) {
+      toast.error(error.message.length > 100 ? `${error.message.slice(0, 100)}...` : error.message)
+    }
+  }, [error])
 
   const getButtonText = () => {
     if (!isConnected) return 'Connect Wallet'
     if (isSwitchingChain) return 'Switching...'
     if (isWrongChain) return `Switch to ${targetChain?.name ?? 'Base Sepolia'}`
-    if (isGettingQuote) return 'Getting Quote...'
+    if (isGettingQuote) return 'Processing...'
     if (isSendingTransaction) return 'Confirm in Wallet...'
     if (isWaitingForConfirmation) return 'Confirming...'
     return 'Deposit'
@@ -92,66 +98,59 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
       switchChain({ chainId: targetChain.id as 84532 })
       return
     }
-    if (quote) {
-      handleDeposit()
-    } else {
-      handleGetQuote()
-    }
+    if (!amount || !selectedToken) return
+    const amountInWei = parseTokenAmount(amount, selectedToken.decimals)
+    await deposit({
+      tokenId: selectedToken.id,
+      amount: Number(amountInWei),
+    })
   }
 
   return (
-    <div className="space-y-3">
-      <div>
-        <div className="mb-1.5 flex items-center justify-between">
-          <label className="text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
-            Token
-          </label>
-        </div>
+    <div className="flex w-full flex-col gap-6">
+      <div className="flex w-full flex-col gap-3">
+        <label className="text-sm text-muted-foreground">Token</label>
         <button
           onClick={onTokenSelect}
-          className="flex w-full cursor-pointer items-center justify-between rounded-lg border border-border bg-muted/50 px-3 py-2 transition-colors hover:border-ring"
+          className="flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border bg-input p-3"
         >
-          <div className="flex items-center gap-2">
-            {getTokenIcon(selectedToken.symbol, 20)}
-            <span className="text-sm font-medium text-foreground">{selectedToken.symbol}</span>
+          <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full">
+            {getTokenIcon(selectedToken.symbol, 32)}
           </div>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className="text-muted-foreground">
-            <path
-              d="M3 5L6 8L9 5"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <div className="flex flex-1 flex-col items-start gap-1">
+            <span className="text-sm font-medium text-foreground">{selectedToken.symbol}</span>
+            <span className="text-xs text-muted-foreground">
+              on {targetChain?.name ?? 'Base Sepolia'}
+            </span>
+          </div>
+          <div className="flex h-5 w-5 items-center justify-center text-muted-foreground">
+            <ChevronRight />
+          </div>
         </button>
       </div>
 
-      <div>
-        <div className="mb-1.5 flex items-center justify-between">
-          <label className="text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
-            Amount
-          </label>
-          <span className="text-[10px] text-muted-foreground">{formattedWalletBalance}</span>
+      <div className="flex w-full flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <label className="text-sm text-muted-foreground">Amount</label>
+          <span className="text-sm text-muted-foreground">
+            {formattedWalletBalance} {selectedToken.symbol}
+          </span>
         </div>
-        <div className="relative">
+        <div className="flex items-center gap-2 rounded-[10px] border border-border bg-input py-1 pr-1 pl-3">
           <input
             type="text"
             inputMode="decimal"
-            placeholder="0.00"
+            placeholder="Enter Amount"
             value={amount}
             onChange={(e) => {
               const value = e.target.value.replace(/[^0-9.]/g, '')
               if (value.split('.').length <= 2) {
                 setAmount(value)
-                if (quote) reset()
               }
             }}
             className={cn(
-              'h-10 w-full rounded-lg bg-muted/50 px-3 pr-14 text-sm text-foreground',
-              'border border-border placeholder:text-muted-foreground',
-              'focus:border-ring focus:outline-none',
-              'transition-colors',
+              'flex-1 bg-transparent text-sm text-foreground outline-none',
+              'placeholder:text-muted-foreground/50',
               isPending && 'opacity-50'
             )}
             disabled={isPending}
@@ -159,18 +158,12 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
           <button
             onClick={handleMaxClick}
             disabled={isPending}
-            className="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer px-2 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+            className="cursor-pointer rounded bg-secondary px-3 py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-secondary/80"
           >
             MAX
           </button>
         </div>
       </div>
-
-      {error && (
-        <div className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
-          {error.message.length > 80 ? `${error.message.slice(0, 80)}...` : error.message}
-        </div>
-      )}
 
       <button
         onClick={handleSubmit}
@@ -178,9 +171,9 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
           !isConnected || (!isWrongChain && !hasValidAmount) || isPending || isSwitchingChain
         }
         className={cn(
-          'w-full cursor-pointer rounded-lg py-2.5 text-sm font-medium transition-colors',
+          'flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors',
           'bg-primary text-primary-foreground hover:bg-primary/90',
-          'disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground'
+          'disabled:cursor-not-allowed disabled:opacity-50'
         )}
       >
         {getButtonText()}

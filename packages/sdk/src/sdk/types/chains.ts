@@ -13,7 +13,7 @@ export const SUPPORTED_CHAINS: ChainConfig[] = [
     name: 'Base Sepolia',
     tokens: [
       {
-        id: '0x618e9e14a65a5a02d0ed69d75255989098ebf6bb03a0eef18ca0baa7a144c872' as Bytes32,
+        id: '0xc719650e9f4b0f27d956638c54518932ef9d15e720a1a2b2850250bcd0816514' as Bytes32,
         symbol: 'USDC',
         decimals: 6,
         contract: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address,
