@@ -6,27 +6,12 @@ import { useAccount, useChainId, useSwitchChain } from 'wagmi'
 import { useWithdraw, useBalance } from '@/sdk/hooks'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import { parseTokenAmount, formatTokenAmount, cn } from '@/lib/utils'
-import { getTokenIcon } from './token-icons'
+import { getTokenIcon, ChevronRightIcon } from './token-icons'
 import { SUPPORTED_CHAINS } from '@/sdk/types/chains'
 
 interface WithdrawFormProps {
   selectedToken: TokenConfig
   onTokenSelect: () => void
-}
-
-function ChevronRight() {
-  return (
-    <svg width="10" height="5" viewBox="0 0 12 6" className="-rotate-90">
-      <path
-        d="M0 0l6 6 6-6"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </svg>
-  )
 }
 
 export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps) {
@@ -60,7 +45,7 @@ export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps
 
   const handleWithdraw = async () => {
     if (isWrongChain && targetChain) {
-      switchChain({ chainId: targetChain.id as 84532 })
+      switchChain({ chainId: targetChain.id })
       return
     }
     if (!amount || !selectedToken) return
@@ -105,7 +90,7 @@ export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps
             </span>
           </div>
           <div className="flex h-5 w-5 items-center justify-center text-muted-foreground">
-            <ChevronRight />
+            <ChevronRightIcon />
           </div>
         </button>
       </div>

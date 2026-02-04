@@ -14,13 +14,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "turbo typecheck",
-    "clean": "turbo clean && rm -rf node_modules",
-    "changeset": "changeset",
-    "version-packages": "changeset version",
-    "release": "turbo build --filter=@oasisprotocol/flexvaults-sdk && changeset publish"
+    "clean": "turbo clean && rm -rf node_modules"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.27.12",
     "@eslint/js": "^9.18.0",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",

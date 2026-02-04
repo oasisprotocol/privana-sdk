@@ -5,6 +5,21 @@ interface IconProps {
   size?: number
 }
 
+export function ChevronRightIcon() {
+  return (
+    <svg width="10" height="5" viewBox="0 0 12 6" className="-rotate-90">
+      <path
+        d="M0 0l6 6 6-6"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </svg>
+  )
+}
+
 export function USDCIcon({ className, size = 24 }: IconProps) {
   return (
     <svg
