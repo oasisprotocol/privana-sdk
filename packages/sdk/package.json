@@ -4,9 +4,12 @@
   "description": "React SDK for Flexvaults - manage deposits, withdrawals, locks, and transfers",
   "author": "",
   "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
-    "url": "",
+    "url": "https://github.com/oasisprotocol/flexvaults-sdk.git",
     "directory": "packages/sdk"
   },
   "keywords": [
