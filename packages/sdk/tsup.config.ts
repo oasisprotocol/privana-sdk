@@ -24,7 +24,9 @@ export default defineConfig({
   external: ['react', 'react-dom', 'react/jsx-runtime', 'wagmi', 'viem', '@tanstack/react-query'],
   treeshake: true,
   minify: false,
-  injectStyle: true,
+  // Disable injectStyle to prevent CSS regeneration
+  // The SDK will export a CSS file that host apps should import
+  injectStyle: false,
   esbuildOptions(options) {
     options.alias = {
       '@': resolve(__dirname, 'src'),
