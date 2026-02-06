@@ -1,6 +1,6 @@
 import { defineConfig } from 'tsup'
 import { resolve } from 'path'
-import { readFileSync, writeFileSync } from 'fs'
+import { readFileSync, writeFileSync, copyFileSync } from 'fs'
 
 const addUseClientDirective = () => {
   const files = ['dist/index.js', 'dist/index.cjs']
@@ -12,6 +12,15 @@ const addUseClientDirective = () => {
       }
     } catch {}
   })
+}
+
+const copyCssToOutput = () => {
+  try {
+    copyFileSync('src/compiled.css', 'dist/index.css')
+    console.log('✓ Copied CSS to dist/index.css')
+  } catch (err) {
+    console.error('✗ Failed to copy CSS:', err)
+  }
 }
 
 export default defineConfig({
@@ -34,6 +43,7 @@ export default defineConfig({
   },
   async onSuccess() {
     addUseClientDirective()
+    copyCssToOutput()
     console.log('✓ Added "use client" directive to output files')
   },
 })
