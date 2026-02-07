@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAccount, useWalletClient, useSwitchChain, useReadContract } from 'wagmi'
 import { useFlexvaultsContext } from '../context/flexvaults-provider'
@@ -18,10 +18,13 @@ export interface WithdrawParams {
   amount: bigint
 }
 
+export type WithdrawStep = 'idle' | 'switching-chain' | 'signing' | 'submitting'
+
 export interface UseWithdrawResult {
   withdraw: (params: WithdrawParams) => Promise<TransactionSubmissionResponse | undefined>
   isPending: boolean
   isSuccess: boolean
+  currentStep: WithdrawStep
   error: Error | null
   reset: () => void
 }
@@ -42,6 +45,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
   const { client, network } = useFlexvaultsContext()
   const queryClient = useQueryClient()
   const { switchChainAsync } = useSwitchChain()
+  const [currentStep, setCurrentStep] = useState<WithdrawStep>('idle')
 
   const accountingContract = getAccountingContract(network)
   const signingChainId = getChainId(network)
@@ -63,6 +67,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
         throw new Error('Wallet not connected')
       }
 
+      setCurrentStep('switching-chain')
       await switchChainAsync({ chainId: signingChainId })
 
       const { data: nonce } = await refetchNonce()
@@ -70,6 +75,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
         throw new Error('Failed to fetch withdrawal nonce')
       }
 
+      setCurrentStep('signing')
       const signature = await signWithdrawMessage({
         walletClient,
         network,
@@ -82,6 +88,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
         },
       })
 
+      setCurrentStep('submitting')
       return client.requestWithdrawal({
         user_address: address,
         token_id: params.tokenId,
@@ -91,11 +98,13 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
       })
     },
     onSuccess: (data) => {
+      setCurrentStep('idle')
       options.onSuccess?.(data)
       queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
       queryClient.invalidateQueries({ queryKey: ['accounting-pending-withdrawals'] })
     },
     onError: (error) => {
+      setCurrentStep('idle')
       options.onError?.(error as Error)
     },
   })
@@ -107,11 +116,17 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
     [mutation]
   )
 
+  const reset = useCallback(() => {
+    setCurrentStep('idle')
+    mutation.reset()
+  }, [mutation])
+
   return {
     withdraw,
     isPending: mutation.isPending,
     isSuccess: mutation.isSuccess,
+    currentStep,
     error: mutation.error as Error | null,
-    reset: mutation.reset,
+    reset,
   }
 }

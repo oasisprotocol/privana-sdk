@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useAccount, useChainId, useSwitchChain } from 'wagmi'
 import { useWithdraw, useBalance } from '@/sdk/hooks'
+import type { WithdrawStep } from '@/sdk/hooks'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import { parseTokenAmount, formatTokenAmount, cn } from '@/lib/utils'
 import { getTokenIcon, ChevronRightIcon } from './token-icons'
-import { SUPPORTED_CHAINS } from '@/sdk/types/chains'
+import { TransactionProgressView, TransactionSuccessView, type Step } from './transaction-steps'
+import { SUPPORTED_CHAINS, getExplorerAddressUrl } from '@/sdk/types/chains'
 
 interface WithdrawFormProps {
   selectedToken: TokenConfig
@@ -15,10 +17,12 @@ interface WithdrawFormProps {
 }
 
 export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps) {
-  const { isConnected } = useAccount()
+  const { isConnected, address } = useAccount()
   const chainId = useChainId()
   const { switchChain, isPending: isSwitchingChain } = useSwitchChain()
   const [amount, setAmount] = useState('')
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [cancelled, setCancelled] = useState(false)
 
   const targetChain = SUPPORTED_CHAINS[0]
   const isWrongChain = isConnected && chainId !== targetChain?.id
@@ -29,13 +33,28 @@ export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps
 
   const formattedBalance = formatTokenAmount(balanceWei, selectedToken.decimals)
 
-  const { withdraw, isPending, error, reset } = useWithdraw({
+  const { withdraw, isPending, currentStep, error, reset } = useWithdraw({
     onSuccess: () => {
       setAmount('')
-      reset()
-      toast.success('Withdrawal initiated')
+      setShowSuccess(true)
     },
   })
+
+  const explorerUrl = address && targetChain
+    ? getExplorerAddressUrl(targetChain.id, address)
+    : undefined
+
+  const getStepStatus = (step: WithdrawStep, after: WithdrawStep[]): Step['status'] => {
+    if (currentStep === step) return 'active'
+    if (after.includes(currentStep)) return 'completed'
+    return 'pending'
+  }
+
+  const withdrawSteps: Step[] = [
+    { label: 'Switching to signing chain', status: getStepStatus('switching-chain', ['signing', 'submitting']) },
+    { label: 'Sign in wallet', status: getStepStatus('signing', ['submitting']) },
+    { label: 'Submitting withdrawal', status: getStepStatus('submitting', []) },
+  ]
 
   useEffect(() => {
     if (error) {
@@ -43,12 +62,24 @@ export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps
     }
   }, [error])
 
+  const handleCancel = () => {
+    setCancelled(true)
+    reset()
+  }
+
+  const handleDone = () => {
+    setShowSuccess(false)
+    setCancelled(false)
+    reset()
+  }
+
   const handleWithdraw = async () => {
     if (isWrongChain && targetChain) {
       switchChain({ chainId: targetChain.id })
       return
     }
     if (!amount || !selectedToken) return
+    setCancelled(false)
     const amountInWei = parseTokenAmount(amount, selectedToken.decimals)
     await withdraw({
       tokenId: selectedToken.id,
@@ -68,8 +99,29 @@ export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps
     if (!isConnected) return 'Connect Wallet'
     if (isSwitchingChain) return 'Switching...'
     if (isWrongChain) return `Switch to ${targetChain?.name ?? 'Base Sepolia'}`
-    if (isPending) return 'Processing...'
     return 'Withdraw'
+  }
+
+  if (showSuccess) {
+    return (
+      <TransactionSuccessView
+        title="Withdrawal Submitted"
+        message={`Your ${selectedToken.symbol} withdrawal is being processed.`}
+        explorerUrl={explorerUrl}
+        explorerLabel="View on BaseScan"
+        onDone={handleDone}
+      />
+    )
+  }
+
+  if (isPending && !cancelled) {
+    return (
+      <TransactionProgressView
+        title="Withdrawing..."
+        steps={withdrawSteps}
+        onCancel={handleCancel}
+      />
+    )
   }
 
   return (
@@ -116,14 +168,11 @@ export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps
             }}
             className={cn(
               'flex-1 bg-transparent text-sm text-foreground outline-none',
-              'placeholder:text-muted-foreground/50',
-              isPending && 'opacity-50'
+              'placeholder:text-muted-foreground/50'
             )}
-            disabled={isPending}
           />
           <button
             onClick={handleMaxClick}
-            disabled={isPending}
             className="cursor-pointer rounded bg-secondary px-3 py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-secondary/80"
           >
             MAX
@@ -133,9 +182,7 @@ export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps
 
       <button
         onClick={handleWithdraw}
-        disabled={
-          !isConnected || (!isWrongChain && !hasValidAmount) || isPending || isSwitchingChain
-        }
+        disabled={!isConnected || (!isWrongChain && !hasValidAmount) || isSwitchingChain}
         className={cn(
           'flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors',
           'bg-primary text-primary-foreground hover:bg-primary/90',

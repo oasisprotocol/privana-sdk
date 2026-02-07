@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   useAccount,
@@ -73,7 +73,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     error: sendError,
   } = useSendTransaction()
 
-  const { isLoading: isConfirming } = useWaitForTransactionReceipt({
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
     hash: txHash,
   })
 
@@ -95,6 +95,12 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
       options.onError?.(error as Error)
     },
   })
+
+  useEffect(() => {
+    if (isConfirmed && txHash && includeMutation.isIdle) {
+      includeMutation.mutate(txHash)
+    }
+  }, [isConfirmed, txHash, includeMutation.isIdle])
 
   const getQuote = useCallback(
     async (params: DepositParams) => {

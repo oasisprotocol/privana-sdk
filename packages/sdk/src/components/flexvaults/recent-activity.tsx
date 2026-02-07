@@ -5,7 +5,7 @@ import { usePendingWithdrawals } from '@/sdk/hooks'
 import { formatTokenAmount, formatRelativeTime } from '@/lib/utils'
 import { getTokenById } from '@/sdk/types/tokens'
 import { getTokenIcon } from './token-icons'
-import { SUPPORTED_CHAINS } from '@/sdk/types/chains'
+import { SUPPORTED_CHAINS, getExplorerAddressUrl } from '@/sdk/types/chains'
 
 function Skeleton() {
   return (
@@ -48,6 +48,10 @@ export function RecentActivity() {
     )
   }
 
+  const explorerUrl = address && chain
+    ? getExplorerAddressUrl(chain.id, address)
+    : undefined
+
   return (
     <div className="space-y-2">
       {withdrawals.map((withdrawal) => {
@@ -68,15 +72,27 @@ export function RecentActivity() {
                   }`}
                 />
                 <span className="text-xs text-zinc-400">Withdrawal</span>
-                <span
-                  className={`rounded px-1.5 py-0.5 text-[10px] ${
-                    isPending
-                      ? 'bg-blue-500/20 text-blue-400'
-                      : 'bg-emerald-500/20 text-emerald-400'
-                  }`}
-                >
-                  {isPending ? 'Processing' : 'Completed'}
-                </span>
+                {isPending ? (
+                  <span className="rounded bg-blue-500/20 px-1.5 py-0.5 text-[10px] text-blue-400">
+                    Processing
+                  </span>
+                ) : explorerUrl ? (
+                  <a
+                    href={explorerUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] text-emerald-400 transition-colors hover:bg-emerald-500/30"
+                  >
+                    Completed
+                    <svg width="8" height="8" viewBox="0 0 12 12" fill="none">
+                      <path d="M3.5 1.5h7v7M10.5 1.5L1.5 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </a>
+                ) : (
+                  <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] text-emerald-400">
+                    Completed
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-1.5">
                 {token && getTokenIcon(token.symbol, 14)}
