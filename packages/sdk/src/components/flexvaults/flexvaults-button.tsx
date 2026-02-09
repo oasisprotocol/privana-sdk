@@ -16,6 +16,7 @@ export interface FlexvaultsButtonProps extends Omit<ComponentProps<'button'>, 'c
   asChild?: boolean
   renderButton?: (props: { onClick: () => void; isOpen: boolean }) => ReactElement
   hideWhenDisconnected?: boolean
+  showLockedFunds?: boolean
 }
 
 export function FlexvaultsButton({
@@ -26,6 +27,7 @@ export function FlexvaultsButton({
   asChild = false,
   renderButton,
   hideWhenDisconnected = true,
+  showLockedFunds = true,
   ...buttonProps
 }: FlexvaultsButtonProps) {
   const [modalOpen, setModalOpen] = useState(false)
@@ -56,7 +58,7 @@ export function FlexvaultsButton({
   return (
     <span data-flexvaults className="contents">
       {buttonElement}
-      <FlexvaultsModal open={modalOpen} onClose={() => setModalOpen(false)} />
+      <FlexvaultsModal open={modalOpen} onClose={() => setModalOpen(false)} showLockedFunds={showLockedFunds} />
     </span>
   )
 }

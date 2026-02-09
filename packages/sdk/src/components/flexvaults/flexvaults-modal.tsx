@@ -86,10 +86,12 @@ function BalanceCards({
   selectedToken,
   onLockedFundsClick,
   onBalanceClick,
+  showLockedFunds = true,
 }: {
   selectedToken: TokenConfig
   onLockedFundsClick: () => void
   onBalanceClick: () => void
+  showLockedFunds?: boolean
 }) {
   const { balanceWei, isLoading: balanceLoading } = useBalance({
     tokenId: selectedToken.id,
@@ -97,7 +99,9 @@ function BalanceCards({
   const { totalLocked, isLoading: lockedLoading } = useLockedFunds()
 
   const formattedBalance = formatTokenAmount(balanceWei, selectedToken.decimals)
-  const formattedLocked = formatTokenAmount(String(totalLocked), selectedToken.decimals)
+  const formattedLocked = showLockedFunds
+    ? formatTokenAmount(String(totalLocked), selectedToken.decimals)
+    : '0'
 
   return (
     <div className="flex gap-2">
@@ -125,29 +129,31 @@ function BalanceCards({
         </div>
       </button>
 
-      <button
-        onClick={onLockedFundsClick}
-        className="flex flex-1 cursor-pointer flex-col gap-2 rounded-[10px] bg-muted p-5 text-left transition-colors hover:bg-muted/80"
-      >
-        <div className="flex w-full items-center justify-between">
-          <div className="flex items-center gap-1">
-            <span className="text-sm text-muted-foreground">Locked Funds</span>
-            <span className="rounded-full bg-secondary px-2 py-[5px] text-[10px] font-bold text-muted-foreground">
-              {selectedToken.symbol}
-            </span>
+      {showLockedFunds && (
+        <button
+          onClick={onLockedFundsClick}
+          className="flex flex-1 cursor-pointer flex-col gap-2 rounded-[10px] bg-muted p-5 text-left transition-colors hover:bg-muted/80"
+        >
+          <div className="flex w-full items-center justify-between">
+            <div className="flex items-center gap-1">
+              <span className="text-sm text-muted-foreground">Locked Funds</span>
+              <span className="rounded-full bg-secondary px-2 py-[5px] text-[10px] font-bold text-muted-foreground">
+                {selectedToken.symbol}
+              </span>
+            </div>
+            <div className="flex h-6 w-6 items-center justify-center text-muted-foreground">
+              <ChevronRight />
+            </div>
           </div>
-          <div className="flex h-6 w-6 items-center justify-center text-muted-foreground">
-            <ChevronRight />
+          <div className="text-xl font-medium text-foreground">
+            {lockedLoading ? (
+              <span className="inline-block h-6 w-20 animate-pulse rounded bg-secondary" />
+            ) : (
+              formattedLocked
+            )}
           </div>
-        </div>
-        <div className="text-xl font-medium text-foreground">
-          {lockedLoading ? (
-            <span className="inline-block h-6 w-20 animate-pulse rounded bg-secondary" />
-          ) : (
-            formattedLocked
-          )}
-        </div>
-      </button>
+        </button>
+      )}
     </div>
   )
 }
@@ -608,9 +614,10 @@ function TokenSelectorView({
 interface ModalBodyProps {
   onClose?: () => void
   onViewChange?: (view: ModalView) => void
+  showLockedFunds?: boolean
 }
 
-function ModalBody({ onClose, onViewChange }: ModalBodyProps) {
+function ModalBody({ onClose, onViewChange, showLockedFunds = true }: ModalBodyProps) {
   const [selectedToken, setSelectedToken] = useState<TokenConfig>(SUPPORTED_TOKENS.USDC)
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>('deposit')
   const [currentView, setCurrentView] = useState<ModalView>('main')
@@ -667,6 +674,7 @@ function ModalBody({ onClose, onViewChange }: ModalBodyProps) {
           selectedToken={selectedToken}
           onLockedFundsClick={() => handleViewChange('locked-funds')}
           onBalanceClick={() => handleViewChange('balance-details')}
+          showLockedFunds={showLockedFunds}
         />
 
         <Tabs activeTab={activeTab} onTabChange={setActiveTab} />
@@ -692,9 +700,10 @@ function ModalBody({ onClose, onViewChange }: ModalBodyProps) {
 interface FlexvaultsModalProps {
   open: boolean
   onClose: () => void
+  showLockedFunds?: boolean
 }
 
-export function FlexvaultsModal({ open, onClose }: FlexvaultsModalProps) {
+export function FlexvaultsModal({ open, onClose, showLockedFunds = true }: FlexvaultsModalProps) {
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent
@@ -702,13 +711,13 @@ export function FlexvaultsModal({ open, onClose }: FlexvaultsModalProps) {
         showCloseButton={false}
         className="flex w-[560px] max-w-[95vw] flex-col gap-2 overflow-hidden rounded-2xl border-0 bg-card p-2"
       >
-        <ModalBody onClose={onClose} />
+        <ModalBody onClose={onClose} showLockedFunds={showLockedFunds} />
       </DialogContent>
     </Dialog>
   )
 }
 
-export function FlexvaultsInlineModal({ className }: { className?: string }) {
+export function FlexvaultsInlineModal({ className, showLockedFunds = true }: { className?: string; showLockedFunds?: boolean }) {
   return (
     <div
       data-flexvaults
@@ -717,7 +726,7 @@ export function FlexvaultsInlineModal({ className }: { className?: string }) {
         className
       )}
     >
-      <ModalBody />
+      <ModalBody showLockedFunds={showLockedFunds} />
     </div>
   )
 }
