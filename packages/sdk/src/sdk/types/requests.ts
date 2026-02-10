@@ -38,6 +38,7 @@ export interface TransferFundsRequest {
   to_address: Address
   token_id: Bytes32
   amount: number
+  nonce: number
   signature: HexString
 }
 

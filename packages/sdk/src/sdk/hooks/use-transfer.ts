@@ -47,6 +47,8 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
         throw new Error('Wallet not connected')
       }
 
+      const { nonce } = await client.getTransferNonce(address)
+
       const signature = await signTransferMessage({
         walletClient,
         chainId: networkConfig.chainId,
@@ -56,6 +58,7 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
           toAddress: params.toAddress,
           tokenId: params.tokenId,
           amount: params.amount,
+          nonce: BigInt(nonce),
         },
       })
 
@@ -64,6 +67,7 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
         to_address: params.toAddress,
         token_id: params.tokenId,
         amount: Number(params.amount),
+        nonce,
         signature,
       })
     },
