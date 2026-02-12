@@ -3,10 +3,9 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { useAccount } from 'wagmi'
 import { useFlexvaultsContext } from '../context/flexvaults-provider'
-import type { Address, LockInfo, LockedFundsResponse } from '../types'
+import type { LockInfo, LockedFundsResponse } from '../types'
 
 export interface UseLockedFundsOptions {
-  serviceAddress?: Address
   enabled?: boolean
 }
 
@@ -21,13 +20,13 @@ export interface UseLockedFundsResult {
 
 export function useLockedFunds(options: UseLockedFundsOptions = {}): UseLockedFundsResult {
   const { address, isConnected } = useAccount()
-  const { client, pollingInterval } = useFlexvaultsContext()
+  const { client, pollingInterval, serviceAddress } = useFlexvaultsContext()
 
   const query = useQuery<LockedFundsResponse, Error>({
-    queryKey: ['accounting-locked-funds', address, options.serviceAddress],
+    queryKey: ['accounting-locked-funds', address, serviceAddress],
     queryFn: async () => {
       if (!address) throw new Error('No wallet connected')
-      return client.getLockedFunds(address, options.serviceAddress)
+      return client.getLockedFunds(address, serviceAddress)
     },
     enabled: (options.enabled ?? true) && isConnected && !!address,
     refetchInterval: pollingInterval,

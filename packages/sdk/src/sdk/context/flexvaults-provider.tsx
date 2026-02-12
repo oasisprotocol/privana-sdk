@@ -2,9 +2,9 @@
 
 import { createContext, useContext, useMemo, type ReactNode } from 'react'
 import { FlexvaultsClient } from '../client'
-import type { Network } from '../types'
+import type { Address, NetworkConfig } from '../types'
 import {
-  getApiUrl,
+  NETWORK_CONFIG,
   type SupportedToken,
   type TokenConfig,
   getTokenConfig,
@@ -13,30 +13,69 @@ import {
 
 export interface FlexvaultsContextValue {
   client: FlexvaultsClient
-  network: Network
+  networkConfig: NetworkConfig
   enabledTokens: TokenConfig[]
   defaultToken: TokenConfig
   pollingInterval: number
+  serviceAddress?: Address
 }
 
 const FlexvaultsContext = createContext<FlexvaultsContextValue | null>(null)
 
+/**
+ * Default network configuration (testnet).
+ */
+const DEFAULT_NETWORK_CONFIG = NETWORK_CONFIG.testnet
+
 export interface FlexvaultsProviderProps {
-  network: Network
   children: ReactNode
+  /**
+   * Network configuration including chainId, accountingContract, apiUrl, and name.
+   * Defaults to testnet config. Partial overrides are merged with defaults.
+   */
+  networkConfig?: Partial<NetworkConfig>
   tokens?: SupportedToken[]
-  baseUrl?: string
   pollingInterval?: number
+  /**
+   * The service address for lock operations.
+   */
+  serviceAddress?: Address
 }
 
 export function FlexvaultsProvider({
-  network,
   children,
+  networkConfig: networkConfigOverride,
   tokens,
-  baseUrl,
   pollingInterval = 10000,
+  serviceAddress,
 }: FlexvaultsProviderProps) {
-  const apiUrl = baseUrl ?? getApiUrl(network)
+  const networkConfig = useMemo<NetworkConfig>(() => {
+    const config: NetworkConfig = {
+      ...DEFAULT_NETWORK_CONFIG,
+      ...networkConfigOverride,
+    }
+
+    // Validate that critical fields are present and valid
+    if (!config.chainId || config.chainId <= 0) {
+      throw new Error('FlexvaultsProvider: networkConfig.chainId must be a positive number')
+    }
+    if (!config.accountingContract || !config.accountingContract.startsWith('0x')) {
+      throw new Error(
+        'FlexvaultsProvider: networkConfig.accountingContract must be a valid address'
+      )
+    }
+    if (!config.apiUrl) {
+      throw new Error('FlexvaultsProvider: networkConfig.apiUrl must be provided')
+    }
+
+    return config
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Use individual properties for stable memoization
+  }, [
+    networkConfigOverride?.chainId,
+    networkConfigOverride?.name,
+    networkConfigOverride?.accountingContract,
+    networkConfigOverride?.apiUrl,
+  ])
 
   const enabledTokens = useMemo(() => {
     if (tokens && tokens.length > 0) {
@@ -49,13 +88,14 @@ export function FlexvaultsProvider({
 
   const value = useMemo<FlexvaultsContextValue>(
     () => ({
-      client: new FlexvaultsClient({ baseUrl: apiUrl }),
-      network,
+      client: new FlexvaultsClient({ baseUrl: networkConfig.apiUrl }),
+      networkConfig,
       enabledTokens,
       defaultToken,
       pollingInterval,
+      serviceAddress,
     }),
-    [apiUrl, network, enabledTokens, defaultToken, pollingInterval]
+    [networkConfig, enabledTokens, defaultToken, pollingInterval, serviceAddress]
   )
 
   return <FlexvaultsContext.Provider value={value}>{children}</FlexvaultsContext.Provider>
