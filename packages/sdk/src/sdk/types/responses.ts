@@ -56,7 +56,7 @@ export interface TokenInfoResponse {
 }
 
 export interface LockInfo {
-  lock_index: number
+  lock_id: number
   user_address: Address
   service_address: Address
   token_id: Bytes32
