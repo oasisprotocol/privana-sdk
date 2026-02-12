@@ -12,7 +12,7 @@ export interface UseUnlockFundsOptions {
 }
 
 export interface UnlockFundsParams {
-  lockIndex: number
+  lockId: number
 }
 
 export interface UseUnlockFundsResult {
@@ -37,7 +37,7 @@ export function useUnlockFunds(options: UseUnlockFundsOptions = {}): UseUnlockFu
 
       return client.unlockFunds({
         user_address: address,
-        lock_index: params.lockIndex,
+        lock_id: params.lockId,
       })
     },
     onSuccess: (data) => {

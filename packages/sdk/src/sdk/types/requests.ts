@@ -26,7 +26,7 @@ export interface LockFundsRequest {
 
 export interface UnlockFundsRequest {
   user_address: Address
-  lock_index: number
+  lock_id: number
 }
 
 export interface UnlockAllExpiredRequest {
@@ -43,7 +43,7 @@ export interface TransferFundsRequest {
 
 export interface TransferLockedFundsRequest {
   user_address: Address
-  lock_index: number
+  lock_id: number
   to_address: Address
   amount: number
   signature: HexString

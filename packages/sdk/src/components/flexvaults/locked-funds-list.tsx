@@ -56,7 +56,7 @@ export function LockedFundsList() {
 
           return (
             <div
-              key={lock.lock_index}
+              key={lock.lock_id}
               className={`flex items-center gap-3 rounded-lg p-3 ${isHighlighted ? 'bg-muted' : ''}`}
             >
               <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-secondary">
@@ -82,11 +82,11 @@ export function LockedFundsList() {
               <div className="flex shrink-0 flex-col items-end gap-2">
                 {lock.is_expired ? (
                   <button
-                    onClick={() => unlockFunds({ lockIndex: lock.lock_index })}
+                    onClick={() => unlockFunds({ lockId: lock.lock_id })}
                     disabled={isPending}
-                    className="cursor-pointer text-sm text-foreground transition-colors hover:text-foreground/80 disabled:opacity-50"
+                    className="cursor-pointer text-sm rounded-md px-3 py-[9px] transition-colors bg-input text-foreground hover:bg-input/90 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Click to unlock
+                    Unlock
                   </button>
                 ) : (
                   <span className="text-sm text-amber-500">{formatTimeRemaining(lock.expiry)}</span>

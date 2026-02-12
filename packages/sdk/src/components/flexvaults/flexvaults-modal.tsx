@@ -8,7 +8,7 @@ import { DepositForm } from './deposit-form'
 import { WithdrawForm } from './withdraw-form'
 import { SUPPORTED_TOKENS, type TokenConfig } from '@/sdk/types/tokens'
 import { SUPPORTED_CHAINS } from '@/sdk/types/chains'
-import { useBalance, useLockedFunds } from '@/sdk/hooks'
+import { useBalance, useLockedFunds, useUnlockFunds } from '@/sdk/hooks'
 import { formatTokenAmount, cn, shortenAddress } from '@/lib/utils'
 import { getTokenIcon, getChainIcon } from './token-icons'
 
@@ -198,7 +198,7 @@ function Tabs({
 interface LockedFundsSection {
   title: string
   items: {
-    lockIndex: number
+    lockId: number
     amount: string
     serviceAddress: string
     time: string
@@ -208,6 +208,7 @@ interface LockedFundsSection {
 
 function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: () => void }) {
   const { locks, isLoading } = useLockedFunds()
+  const { unlockFunds, unlockAllExpired, isPending } = useUnlockFunds()
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
 
   const sections = useMemo(() => {
@@ -222,7 +223,7 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
         }
       }
       sectionMap[lock.service_address].items.push({
-        lockIndex: lock.lock_index,
+        lockId: lock.lock_id,
         amount: formatTokenAmount(String(lock.amount), 18),
         serviceAddress: lock.service_address,
         time: lock.is_expired ? 'Click to unlock' : `${Math.floor((lock.expiry - Date.now()) / 3600000)}h`,
@@ -294,9 +295,9 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
                 </button>
 
                 {!collapsedSections[section.title] &&
-                  section.items.map((item, _index) => (
+                  section.items.map((item) => (
                     <div
-                      key={item.lockIndex}
+                      key={`${item.serviceAddress}-${item.lockId}`}
                       className={cn(
                         'flex items-center justify-between gap-3 rounded-lg p-3',
                         item.isExpired && 'bg-secondary'
@@ -314,14 +315,17 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
                         </div>
                       </div>
                       <div className="flex flex-1 flex-col items-end gap-2">
-                        <span
-                          className={cn(
-                            'text-sm',
-                            item.isExpired ? 'text-foreground' : 'text-amber-500'
-                          )}
-                        >
-                          {item.time}
-                        </span>
+                        {item.isExpired ? (
+                          <button
+                            onClick={() => unlockFunds({ lockId: Number(item.lockId) })}
+                            disabled={isPending}
+                            className="cursor-pointer text-sm text-foreground transition-colors hover:text-foreground/80 disabled:opacity-50"
+                          >
+                            Click to unlock
+                          </button>
+                        ) : (
+                          <span className="text-sm text-amber-500">{item.time}</span>
+                        )}
                         <span className="text-xs text-muted-foreground">on Base Sepolia</span>
                       </div>
                     </div>
@@ -333,7 +337,11 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
 
         {expiredCount > 0 && (
           <div className="p-3">
-            <button className="flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary">
+            <button
+              onClick={() => unlockAllExpired()}
+              disabled={isPending}
+              className="flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary disabled:opacity-50"
+            >
               Unlock All ({expiredCount})
             </button>
           </div>

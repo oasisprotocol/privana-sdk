@@ -40,7 +40,7 @@ export const TRANSFER_LOCKED_TYPES = {
   TransferLocked: [
     { name: 'userAddress', type: 'address' },
     { name: 'toAddress', type: 'address' },
-    { name: 'lockIndex', type: 'uint256' },
+    { name: 'lockId', type: 'uint256' },
     { name: 'amount', type: 'uint256' },
   ],
 } as const
@@ -72,7 +72,7 @@ export interface TransferMessage {
 export interface TransferLockedMessage {
   userAddress: Address
   toAddress: Address
-  lockIndex: bigint
+  lockId: bigint
   amount: bigint
 }
 

@@ -20,7 +20,7 @@ export interface TransferParams {
 }
 
 export interface TransferLockedParams {
-  lockIndex: number
+  lockId: number
   toAddress: Address
   amount: bigint
 }
@@ -90,14 +90,14 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
         message: {
           userAddress: address,
           toAddress: params.toAddress,
-          lockIndex: BigInt(params.lockIndex),
+          lockId: BigInt(params.lockId),
           amount: params.amount,
         },
       })
 
       return client.transferLockedFunds({
         user_address: address,
-        lock_index: params.lockIndex,
+        lock_id: params.lockId,
         to_address: params.toAddress,
         amount: Number(params.amount),
         signature,

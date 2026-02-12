@@ -94,7 +94,7 @@ export class FlexvaultsClient {
   async unlockFunds(request: UnlockFundsRequest): Promise<TransactionSubmissionResponse> {
     return this.http.post<TransactionSubmissionResponse>('/v1/accounting/funds/unlock', {
       user_address: normalizeAddress(request.user_address),
-      lock_index: request.lock_index,
+      lock_id: request.lock_id,
     })
   }
 
@@ -147,7 +147,7 @@ export class FlexvaultsClient {
   ): Promise<TransactionSubmissionResponse> {
     return this.http.post<TransactionSubmissionResponse>('/v1/accounting/funds/transfer-locked', {
       user_address: normalizeAddress(request.user_address),
-      lock_index: request.lock_index,
+      lock_id: request.lock_id,
       to_address: normalizeAddress(request.to_address),
       amount: request.amount,
       signature: normalizeHex(request.signature),
