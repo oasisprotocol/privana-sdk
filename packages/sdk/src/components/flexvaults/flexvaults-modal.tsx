@@ -99,7 +99,9 @@ function BalanceCards({
   const { totalLocked, isLoading: lockedLoading } = useLockedFunds({ enabled: showLockedFunds })
 
   const formattedBalance = formatTokenAmount(balanceWei, selectedToken.decimals)
-  const formattedLocked = formatTokenAmount(String(totalLocked), selectedToken.decimals)
+  const formattedLocked = showLockedFunds
+    ? formatTokenAmount(String(totalLocked), selectedToken.decimals)
+    : '0'
 
   return (
     <div className="flex gap-2">

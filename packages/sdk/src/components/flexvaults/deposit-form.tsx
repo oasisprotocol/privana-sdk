@@ -7,6 +7,7 @@ import { useDeposit } from '@/sdk/hooks'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import { parseTokenAmount, formatTokenAmount, cn } from '@/lib/utils'
 import { getTokenIcon, ChevronRightIcon } from './token-icons'
+import { TransactionProgressView, TransactionSuccessView, type Step } from './transaction-steps'
 import { SUPPORTED_CHAINS } from '@/sdk/types/chains'
 import { erc20Abi } from 'viem'
 
@@ -20,6 +21,8 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
   const chainId = useChainId()
   const { switchChain, isPending: isSwitchingChain } = useSwitchChain()
   const [amount, setAmount] = useState('')
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [cancelled, setCancelled] = useState(false)
 
   const targetChain = SUPPORTED_CHAINS[0]
   const isWrongChain = isConnected && chainId !== targetChain?.id
@@ -50,6 +53,7 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
     isGettingQuote,
     isSendingTransaction,
     isWaitingForConfirmation,
+    isIncludingDeposit,
     isPending,
     error,
     deposit,
@@ -57,10 +61,28 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
   } = useDeposit({
     onIncludeSuccess: () => {
       setAmount('')
-      reset()
-      toast.success('Deposit successful')
+      setShowSuccess(true)
     },
   })
+
+  const depositSteps: Step[] = [
+    {
+      label: 'Getting quote',
+      status: isGettingQuote ? 'active' : (isSendingTransaction || isWaitingForConfirmation || isIncludingDeposit) ? 'completed' : 'pending',
+    },
+    {
+      label: 'Confirm in wallet',
+      status: isSendingTransaction ? 'active' : (isWaitingForConfirmation || isIncludingDeposit) ? 'completed' : 'pending',
+    },
+    {
+      label: 'Confirming transaction',
+      status: isWaitingForConfirmation ? 'active' : isIncludingDeposit ? 'completed' : 'pending',
+    },
+    {
+      label: 'Processing deposit',
+      status: isIncludingDeposit ? 'active' : 'pending',
+    },
+  ]
 
   useEffect(() => {
     if (error) {
@@ -68,14 +90,15 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
     }
   }, [error])
 
-  const getButtonText = () => {
-    if (!isConnected) return 'Connect Wallet'
-    if (isSwitchingChain) return 'Switching...'
-    if (isWrongChain) return `Switch to ${targetChain?.name ?? 'Base Sepolia'}`
-    if (isGettingQuote) return 'Processing...'
-    if (isSendingTransaction) return 'Confirm in Wallet...'
-    if (isWaitingForConfirmation) return 'Confirming...'
-    return 'Deposit'
+  const handleCancel = () => {
+    setCancelled(true)
+    reset()
+  }
+
+  const handleDone = () => {
+    setShowSuccess(false)
+    setCancelled(false)
+    reset()
   }
 
   const handleSubmit = async () => {
@@ -84,11 +107,39 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
       return
     }
     if (!amount || !selectedToken) return
+    setCancelled(false)
     const amountInWei = parseTokenAmount(amount, selectedToken.decimals)
     await deposit({
       tokenId: selectedToken.id,
       amount: Number(amountInWei),
     })
+  }
+
+  const getButtonText = () => {
+    if (!isConnected) return 'Connect Wallet'
+    if (isSwitchingChain) return 'Switching...'
+    if (isWrongChain) return `Switch to ${targetChain?.name ?? 'Base Sepolia'}`
+    return 'Deposit'
+  }
+
+  if (showSuccess) {
+    return (
+      <TransactionSuccessView
+        title="Deposit Successful"
+        message={`Your ${selectedToken.symbol} deposit has been processed.`}
+        onDone={handleDone}
+      />
+    )
+  }
+
+  if (isPending && !cancelled) {
+    return (
+      <TransactionProgressView
+        title="Depositing..."
+        steps={depositSteps}
+        onCancel={handleCancel}
+      />
+    )
   }
 
   return (
@@ -135,14 +186,11 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
             }}
             className={cn(
               'flex-1 bg-transparent text-sm text-foreground outline-none',
-              'placeholder:text-muted-foreground/50',
-              isPending && 'opacity-50'
+              'placeholder:text-muted-foreground/50'
             )}
-            disabled={isPending}
           />
           <button
             onClick={handleMaxClick}
-            disabled={isPending}
             className="cursor-pointer rounded bg-secondary px-3 py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-secondary/80"
           >
             MAX
@@ -152,9 +200,7 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
 
       <button
         onClick={handleSubmit}
-        disabled={
-          !isConnected || (!isWrongChain && !hasValidAmount) || isPending || isSwitchingChain
-        }
+        disabled={!isConnected || (!isWrongChain && !hasValidAmount) || isSwitchingChain}
         className={cn(
           'flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors',
           'bg-primary text-primary-foreground hover:bg-primary/90',
