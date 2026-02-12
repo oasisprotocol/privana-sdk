@@ -96,7 +96,7 @@ function BalanceCards({
   const { balanceWei, isLoading: balanceLoading } = useBalance({
     tokenId: selectedToken.id,
   })
-  const { totalLocked, isLoading: lockedLoading } = useLockedFunds()
+  const { totalLocked, isLoading: lockedLoading } = useLockedFunds({ enabled: showLockedFunds })
 
   const formattedBalance = formatTokenAmount(balanceWei, selectedToken.decimals)
   const formattedLocked = showLockedFunds
@@ -703,7 +703,7 @@ interface FlexvaultsModalProps {
   showLockedFunds?: boolean
 }
 
-export function FlexvaultsModal({ open, onClose, showLockedFunds = true }: FlexvaultsModalProps) {
+export function FlexvaultsModal({ open, onClose, showLockedFunds }: FlexvaultsModalProps) {
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent
@@ -717,7 +717,7 @@ export function FlexvaultsModal({ open, onClose, showLockedFunds = true }: Flexv
   )
 }
 
-export function FlexvaultsInlineModal({ className, showLockedFunds = true }: { className?: string; showLockedFunds?: boolean }) {
+export function FlexvaultsInlineModal({ className, showLockedFunds }: { className?: string; showLockedFunds?: boolean }) {
   return (
     <div
       data-flexvaults
