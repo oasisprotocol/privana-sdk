@@ -50,7 +50,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
   const accountingContract = getAccountingContract(network)
   const signingChainId = getChainId(network)
 
-  const { data: currentNonce, refetch: refetchNonce } = useReadContract({
+  const { refetch: refetchNonce } = useReadContract({
     address: accountingContract,
     abi: ACCOUNTING_ABI,
     functionName: 'withdrawalNonces',

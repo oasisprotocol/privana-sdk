@@ -100,7 +100,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     if (isConfirmed && txHash && includeMutation.isIdle) {
       includeMutation.mutate(txHash)
     }
-  }, [isConfirmed, txHash, includeMutation.isIdle])
+  }, [includeMutation, isConfirmed, txHash, includeMutation.isIdle])
 
   const getQuote = useCallback(
     async (params: DepositParams) => {

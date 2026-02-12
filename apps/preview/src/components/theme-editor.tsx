@@ -418,6 +418,7 @@ export function ThemeEditor() {
     if (savedRadius) {
       setRadius(parseFloat(savedRadius))
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const applyThemeToElement = useCallback(
