@@ -1,0 +1,45 @@
+# NOTE: This name appears in GitHub's Checks API and in workflow's status badge.
+name: ci-build
+
+# Trigger the workflow when:
+on:
+  # A push occurs to one of the matched branches.
+  push:
+    branches:
+      - master
+      - stable/*
+  # Or when a pull request event occurs for a pull request against one of the
+  # matched branches.
+  pull_request:
+    branches:
+      - master
+      - stable/*
+
+jobs:
+  build:
+    # NOTE: This name appears in GitHub's Checks API.
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          submodules: true
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Prettier
+        run: bun run format:check
+        # Always run this step so that all linting errors can be seen at once.
+        if: always()
+      - name: ESLint
+        run: bun run lint
+        # Always run this step so that all linting errors can be seen at once.
+        if: always()
+      - name: Type check
+        run: bun run typecheck
+        # Always run this step so that all linting errors can be seen at once.
+        if: always()
+      - name: Build
+        run: bun run build
