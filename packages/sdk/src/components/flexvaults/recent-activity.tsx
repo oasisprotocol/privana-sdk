@@ -48,9 +48,7 @@ export function RecentActivity() {
     )
   }
 
-  const explorerUrl = address && chain
-    ? getExplorerAddressUrl(chain.id, address)
-    : undefined
+  const explorerUrl = address && chain ? getExplorerAddressUrl(chain.id, address) : undefined
 
   return (
     <div className="space-y-2">
@@ -85,7 +83,13 @@ export function RecentActivity() {
                   >
                     Completed
                     <svg width="8" height="8" viewBox="0 0 12 12" fill="none">
-                      <path d="M3.5 1.5h7v7M10.5 1.5L1.5 10.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      <path
+                        d="M3.5 1.5h7v7M10.5 1.5L1.5 10.5"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
                     </svg>
                   </a>
                 ) : (

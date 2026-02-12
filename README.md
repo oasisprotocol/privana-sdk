@@ -4,10 +4,10 @@ Monorepo for the Flexvaults SDK and preview application.
 
 ## Packages
 
-| Package                                           | Description                            |
-| ------------------------------------------------- | -------------------------------------- |
-| [@oasisprotocol/flexvaults-sdk](./packages/sdk)   | React SDK for Flexvaults               |
-| [flexvaults-preview](./apps/preview)              | Preview application showcasing the SDK |
+| Package                                         | Description                            |
+| ----------------------------------------------- | -------------------------------------- |
+| [@oasisprotocol/flexvaults-sdk](./packages/sdk) | React SDK for Flexvaults               |
+| [flexvaults-preview](./apps/preview)            | Preview application showcasing the SDK |
 
 ## Development
 

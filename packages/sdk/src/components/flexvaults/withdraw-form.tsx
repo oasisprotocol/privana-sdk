@@ -40,9 +40,8 @@ export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps
     },
   })
 
-  const explorerUrl = address && targetChain
-    ? getExplorerAddressUrl(targetChain.id, address)
-    : undefined
+  const explorerUrl =
+    address && targetChain ? getExplorerAddressUrl(targetChain.id, address) : undefined
 
   const getStepStatus = (step: WithdrawStep, after: WithdrawStep[]): Step['status'] => {
     if (currentStep === step) return 'active'
@@ -51,7 +50,10 @@ export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps
   }
 
   const withdrawSteps: Step[] = [
-    { label: 'Switching to signing chain', status: getStepStatus('switching-chain', ['signing', 'submitting']) },
+    {
+      label: 'Switching to signing chain',
+      status: getStepStatus('switching-chain', ['signing', 'submitting']),
+    },
     { label: 'Sign in wallet', status: getStepStatus('signing', ['submitting']) },
     { label: 'Submitting withdrawal', status: getStepStatus('submitting', []) },
   ]
@@ -127,21 +129,21 @@ export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps
   return (
     <div className="flex w-full flex-col gap-6">
       <div className="flex w-full flex-col gap-3">
-        <label className="text-sm text-muted-foreground">Token</label>
+        <label className="text-muted-foreground text-sm">Token</label>
         <button
           onClick={onTokenSelect}
-          className="flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border bg-input p-3"
+          className="border-border bg-input flex w-full cursor-pointer items-center gap-3 rounded-lg border p-3"
         >
           <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full">
             {getTokenIcon(selectedToken.symbol, 32)}
           </div>
           <div className="flex flex-1 flex-col items-start gap-1">
-            <span className="text-sm font-medium text-foreground">{selectedToken.symbol}</span>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-foreground text-sm font-medium">{selectedToken.symbol}</span>
+            <span className="text-muted-foreground text-xs">
               on {targetChain?.name ?? 'Base Sepolia'}
             </span>
           </div>
-          <div className="flex h-5 w-5 items-center justify-center text-muted-foreground">
+          <div className="text-muted-foreground flex h-5 w-5 items-center justify-center">
             <ChevronRightIcon />
           </div>
         </button>
@@ -149,12 +151,12 @@ export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps
 
       <div className="flex w-full flex-col gap-3">
         <div className="flex items-center justify-between">
-          <label className="text-sm text-muted-foreground">Amount</label>
-          <span className="text-sm text-muted-foreground">
+          <label className="text-muted-foreground text-sm">Amount</label>
+          <span className="text-muted-foreground text-sm">
             {formattedBalance} {selectedToken.symbol}
           </span>
         </div>
-        <div className="flex items-center gap-2 rounded-[10px] border border-border bg-input py-1 pr-1 pl-3">
+        <div className="border-border bg-input flex items-center gap-2 rounded-[10px] border py-1 pr-1 pl-3">
           <input
             type="text"
             inputMode="decimal"
@@ -167,13 +169,13 @@ export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps
               }
             }}
             className={cn(
-              'flex-1 bg-transparent text-sm text-foreground outline-none',
+              'text-foreground flex-1 bg-transparent text-sm outline-none',
               'placeholder:text-muted-foreground/50'
             )}
           />
           <button
             onClick={handleMaxClick}
-            className="cursor-pointer rounded bg-secondary px-3 py-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-secondary/80"
+            className="bg-secondary text-foreground hover:bg-secondary/80 cursor-pointer rounded px-3 py-2.5 text-xs font-semibold transition-colors"
           >
             MAX
           </button>
