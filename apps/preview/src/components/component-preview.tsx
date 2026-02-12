@@ -8,11 +8,11 @@ export function ComponentPreview() {
   const { isConnected } = useAccount()
 
   return (
-    <div className="flex h-full flex-col bg-background">
-      <div className="flex items-center justify-between border-b border-border px-6 py-3 shrink-0">
-        <span className="text-sm text-muted-foreground">
+    <div className="bg-background flex h-full flex-col">
+      <div className="border-border flex shrink-0 items-center justify-between border-b px-6 py-3">
+        <span className="text-muted-foreground text-sm">
           @oasisprotocol/flexvaults-sdk{' '}
-          <span className="font-semibold text-foreground">Preview</span>
+          <span className="text-foreground font-semibold">Preview</span>
         </span>
         <div className="flex items-center gap-3">
           <ConnectButton showBalance={false} chainStatus="icon" accountStatus="address" />
@@ -44,7 +44,7 @@ export function ComponentPreview() {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span className="mb-3 block text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+    <span className="text-muted-foreground mb-3 block text-[10px] font-semibold tracking-wider uppercase">
       {children}
     </span>
   )

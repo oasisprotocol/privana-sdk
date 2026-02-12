@@ -107,22 +107,22 @@ function BalanceCards({
     <div className="flex gap-2">
       <button
         onClick={onBalanceClick}
-        className="flex flex-1 cursor-pointer flex-col gap-2 rounded-[10px] bg-muted p-5 text-left transition-colors hover:bg-muted/80"
+        className="bg-muted hover:bg-muted/80 flex flex-1 cursor-pointer flex-col gap-2 rounded-[10px] p-5 text-left transition-colors"
       >
         <div className="flex w-full items-center justify-between">
           <div className="flex items-center gap-1">
-            <span className="text-sm text-muted-foreground">Balance</span>
-            <span className="rounded-full bg-secondary px-2 py-[5px] text-[10px] font-bold text-muted-foreground">
+            <span className="text-muted-foreground text-sm">Balance</span>
+            <span className="bg-secondary text-muted-foreground rounded-full px-2 py-[5px] text-[10px] font-bold">
               {selectedToken.symbol}
             </span>
           </div>
-          <div className="flex h-6 w-6 items-center justify-center text-muted-foreground">
+          <div className="text-muted-foreground flex h-6 w-6 items-center justify-center">
             <ChevronRight />
           </div>
         </div>
-        <div className="text-xl font-medium text-foreground">
+        <div className="text-foreground text-xl font-medium">
           {balanceLoading ? (
-            <span className="inline-block h-6 w-24 animate-pulse rounded bg-secondary" />
+            <span className="bg-secondary inline-block h-6 w-24 animate-pulse rounded" />
           ) : (
             formattedBalance
           )}
@@ -132,22 +132,22 @@ function BalanceCards({
       {showLockedFunds && (
         <button
           onClick={onLockedFundsClick}
-          className="flex flex-1 cursor-pointer flex-col gap-2 rounded-[10px] bg-muted p-5 text-left transition-colors hover:bg-muted/80"
+          className="bg-muted hover:bg-muted/80 flex flex-1 cursor-pointer flex-col gap-2 rounded-[10px] p-5 text-left transition-colors"
         >
           <div className="flex w-full items-center justify-between">
             <div className="flex items-center gap-1">
-              <span className="text-sm text-muted-foreground">Locked Funds</span>
-              <span className="rounded-full bg-secondary px-2 py-[5px] text-[10px] font-bold text-muted-foreground">
+              <span className="text-muted-foreground text-sm">Locked Funds</span>
+              <span className="bg-secondary text-muted-foreground rounded-full px-2 py-[5px] text-[10px] font-bold">
                 {selectedToken.symbol}
               </span>
             </div>
-            <div className="flex h-6 w-6 items-center justify-center text-muted-foreground">
+            <div className="text-muted-foreground flex h-6 w-6 items-center justify-center">
               <ChevronRight />
             </div>
           </div>
-          <div className="text-xl font-medium text-foreground">
+          <div className="text-foreground text-xl font-medium">
             {lockedLoading ? (
-              <span className="inline-block h-6 w-20 animate-pulse rounded bg-secondary" />
+              <span className="bg-secondary inline-block h-6 w-20 animate-pulse rounded" />
             ) : (
               formattedLocked
             )}
@@ -166,10 +166,10 @@ function Tabs({
   onTabChange: (tab: 'deposit' | 'withdraw') => void
 }) {
   return (
-    <div className="relative flex gap-2 overflow-hidden rounded-[10px] bg-muted p-1">
+    <div className="bg-muted relative flex gap-2 overflow-hidden rounded-[10px] p-1">
       <div
         className={cn(
-          'absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-md bg-input transition-transform duration-200',
+          'bg-input absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-md transition-transform duration-200',
           activeTab === 'withdraw' && 'translate-x-[calc(100%+8px)]'
         )}
       />
@@ -226,7 +226,9 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
         lockId: lock.lock_id,
         amount: formatTokenAmount(String(lock.amount), 18),
         serviceAddress: lock.service_address,
-        time: lock.is_expired ? 'Click to unlock' : `${Math.floor((lock.expiry - Date.now()) / 3600000)}h`,
+        time: lock.is_expired
+          ? 'Click to unlock'
+          : `${Math.floor((lock.expiry - Date.now()) / 3600000)}h`,
         isExpired: lock.is_expired,
       })
     })
@@ -249,46 +251,46 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
         <div className="flex items-center gap-2.5">
           <button
             onClick={onBack}
-            className="flex h-6 w-6 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
           >
             <ChevronLeft />
           </button>
-          <span className="text-xl font-medium leading-6 text-foreground">Locked Funds</span>
+          <span className="text-foreground text-xl leading-6 font-medium">Locked Funds</span>
         </div>
         {onClose && (
           <button
             onClick={onClose}
-            className="flex h-6 w-6 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
           >
             <CloseIcon />
           </button>
         )}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col rounded-[10px] bg-muted p-2">
+      <div className="bg-muted flex min-h-0 flex-1 flex-col rounded-[10px] p-2">
         <div className="flex-1 overflow-y-auto">
           {isLoading ? (
             <div className="flex flex-col gap-2 p-3">
               {[1, 2].map((i) => (
                 <div key={i} className="flex animate-pulse items-center gap-3 rounded-lg p-3">
-                  <div className="h-10 w-10 rounded-full bg-secondary" />
+                  <div className="bg-secondary h-10 w-10 rounded-full" />
                   <div className="flex-1">
-                    <div className="mb-2 h-3.5 w-24 rounded bg-secondary" />
-                    <div className="h-3 w-32 rounded bg-secondary" />
+                    <div className="bg-secondary mb-2 h-3.5 w-24 rounded" />
+                    <div className="bg-secondary h-3 w-32 rounded" />
                   </div>
                 </div>
               ))}
             </div>
           ) : sections.length === 0 ? (
             <div className="flex items-center justify-center p-8">
-              <span className="text-sm text-muted-foreground">No locked funds</span>
+              <span className="text-muted-foreground text-sm">No locked funds</span>
             </div>
           ) : (
             sections.map((section) => (
               <div key={section.title}>
                 <button
                   onClick={() => toggleSection(section.title)}
-                  className="flex w-full cursor-pointer items-center justify-between rounded-lg px-4 py-4 text-muted-foreground transition-colors hover:bg-secondary"
+                  className="text-muted-foreground hover:bg-secondary flex w-full cursor-pointer items-center justify-between rounded-lg px-4 py-4 transition-colors"
                 >
                   <span className="text-sm">{section.title}</span>
                   <ChevronDown collapsed={collapsedSections[section.title]} />
@@ -304,12 +306,12 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
                       )}
                     >
                       <div className="flex flex-1 items-center gap-3">
-                        <div className="h-10 w-10 rounded-full bg-secondary" />
+                        <div className="bg-secondary h-10 w-10 rounded-full" />
                         <div className="flex flex-col gap-2">
-                          <span className="text-sm font-medium text-foreground">
+                          <span className="text-foreground text-sm font-medium">
                             {item.amount} USDC
                           </span>
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-muted-foreground text-xs">
                             Service: {shortenAddress(item.serviceAddress)}
                           </span>
                         </div>
@@ -319,14 +321,14 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
                           <button
                             onClick={() => unlockFunds({ lockId: Number(item.lockId) })}
                             disabled={isPending}
-                            className="cursor-pointer text-sm text-foreground transition-colors hover:text-foreground/80 disabled:opacity-50"
+                            className="text-foreground hover:text-foreground/80 cursor-pointer text-sm transition-colors disabled:opacity-50"
                           >
                             Click to unlock
                           </button>
                         ) : (
                           <span className="text-sm text-amber-500">{item.time}</span>
                         )}
-                        <span className="text-xs text-muted-foreground">on Base Sepolia</span>
+                        <span className="text-muted-foreground text-xs">on Base Sepolia</span>
                       </div>
                     </div>
                   ))}
@@ -340,7 +342,7 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
             <button
               onClick={() => unlockAllExpired()}
               disabled={isPending}
-              className="flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary disabled:opacity-50"
+              className="border-border text-foreground hover:bg-secondary flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50"
             >
               Unlock All ({expiredCount})
             </button>
@@ -363,23 +365,17 @@ function BalanceTokenRow({ token }: { token: TokenConfig }) {
       <div className="h-[18px] w-[18px] overflow-hidden rounded-full">
         {getTokenIcon(token.symbol, 18)}
       </div>
-      <span className="flex-1 text-sm text-foreground">{token.symbol}</span>
+      <span className="text-foreground flex-1 text-sm">{token.symbol}</span>
       {isLoading ? (
-        <span className="h-4 w-16 animate-pulse rounded bg-secondary" />
+        <span className="bg-secondary h-4 w-16 animate-pulse rounded" />
       ) : (
-        <span className="text-sm text-muted-foreground">{formattedBalance}</span>
+        <span className="text-muted-foreground text-sm">{formattedBalance}</span>
       )}
     </div>
   )
 }
 
-function BalanceDetailsView({
-  onBack,
-  onClose,
-}: {
-  onBack: () => void
-  onClose?: () => void
-}) {
+function BalanceDetailsView({ onBack, onClose }: { onBack: () => void; onClose?: () => void }) {
   const [selectedChainId, setSelectedChainId] = useState<number>(SUPPORTED_CHAINS[0]?.id ?? 84532)
 
   const selectedChain = useMemo(() => {
@@ -396,16 +392,16 @@ function BalanceDetailsView({
         <div className="flex items-center gap-2.5">
           <button
             onClick={onBack}
-            className="flex h-6 w-6 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
           >
             <ChevronLeft />
           </button>
-          <span className="text-xl font-medium leading-6 text-foreground">Token Balances</span>
+          <span className="text-foreground text-xl leading-6 font-medium">Token Balances</span>
         </div>
         {onClose && (
           <button
             onClick={onClose}
-            className="flex h-6 w-6 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
           >
             <CloseIcon />
           </button>
@@ -413,9 +409,9 @@ function BalanceDetailsView({
       </div>
 
       <div className="flex min-h-0 flex-1 gap-2">
-        <div className="flex flex-1 flex-col overflow-hidden rounded-[10px] bg-muted p-2">
+        <div className="bg-muted flex flex-1 flex-col overflow-hidden rounded-[10px] p-2">
           <div className="px-4 pt-4 pb-2">
-            <span className="text-sm text-muted-foreground">Network</span>
+            <span className="text-muted-foreground text-sm">Network</span>
           </div>
           <div className="mt-1 flex-1 overflow-y-auto">
             {SUPPORTED_CHAINS.map((chain) => {
@@ -426,23 +422,23 @@ function BalanceDetailsView({
                   key={chain.id}
                   onClick={() => setSelectedChainId(chain.id)}
                   className={cn(
-                    'flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-secondary',
+                    'hover:bg-secondary flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-left transition-colors',
                     isSelected && 'bg-secondary'
                   )}
                 >
                   <div className="h-[18px] w-[18px] overflow-hidden rounded-full">
                     {getChainIcon(chain.id, 18)}
                   </div>
-                  <span className="flex-1 text-sm text-foreground">{chain.name}</span>
+                  <span className="text-foreground flex-1 text-sm">{chain.name}</span>
                 </button>
               )
             })}
           </div>
         </div>
 
-        <div className="flex flex-[2] flex-col overflow-hidden rounded-[10px] bg-muted p-2">
+        <div className="bg-muted flex flex-[2] flex-col overflow-hidden rounded-[10px] p-2">
           <div className="px-4 pt-4 pb-2">
-            <span className="text-sm text-muted-foreground">Token Balance</span>
+            <span className="text-muted-foreground text-sm">Token Balance</span>
           </div>
           <div className="mt-2 flex-1 overflow-y-auto">
             {chainTokens.map((token) => (
@@ -484,15 +480,15 @@ function TokenRow({
     <button
       onClick={onClick}
       className={cn(
-        'flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-secondary',
+        'hover:bg-secondary flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-left transition-colors',
         isSelected && 'bg-secondary'
       )}
     >
       <div className="h-[18px] w-[18px] overflow-hidden rounded-full">
         {getTokenIcon(token.symbol, 18)}
       </div>
-      <span className="flex-1 text-sm text-foreground">{token.symbol}</span>
-      <span className="text-sm text-muted-foreground">{formattedBalance}</span>
+      <span className="text-foreground flex-1 text-sm">{token.symbol}</span>
+      <span className="text-muted-foreground text-sm">{formattedBalance}</span>
     </button>
   )
 }
@@ -539,16 +535,16 @@ function TokenSelectorView({
         <div className="flex items-center gap-2.5">
           <button
             onClick={onBack}
-            className="flex h-6 w-6 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
           >
             <ChevronLeft />
           </button>
-          <span className="text-xl font-medium leading-6 text-foreground">Select Token</span>
+          <span className="text-foreground text-xl leading-6 font-medium">Select Token</span>
         </div>
         {onClose && (
           <button
             onClick={onClose}
-            className="flex h-6 w-6 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
           >
             <CloseIcon />
           </button>
@@ -556,9 +552,9 @@ function TokenSelectorView({
       </div>
 
       <div className="flex min-h-0 flex-1 gap-2">
-        <div className="flex flex-1 flex-col overflow-hidden rounded-[10px] bg-muted p-2">
+        <div className="bg-muted flex flex-1 flex-col overflow-hidden rounded-[10px] p-2">
           <div className="px-4 pt-4 pb-2">
-            <span className="text-sm text-muted-foreground">Network</span>
+            <span className="text-muted-foreground text-sm">Network</span>
           </div>
           <div className="mt-1 flex-1 overflow-y-auto">
             {SUPPORTED_CHAINS.map((chain) => {
@@ -569,27 +565,27 @@ function TokenSelectorView({
                   key={chain.id}
                   onClick={() => setSelectedChainId(chain.id)}
                   className={cn(
-                    'flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-secondary',
+                    'hover:bg-secondary flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-left transition-colors',
                     isSelected && 'bg-secondary'
                   )}
                 >
                   <div className="h-[18px] w-[18px] overflow-hidden rounded-full">
                     {getChainIcon(chain.id, 18)}
                   </div>
-                  <span className="flex-1 text-sm text-foreground">{chain.name}</span>
+                  <span className="text-foreground flex-1 text-sm">{chain.name}</span>
                 </button>
               )
             })}
           </div>
         </div>
 
-        <div className="flex flex-[2] flex-col overflow-hidden rounded-[10px] bg-muted p-2">
+        <div className="bg-muted flex flex-[2] flex-col overflow-hidden rounded-[10px] p-2">
           <div className="flex flex-col gap-1">
             <div className="px-4 pt-4 pb-2">
-              <span className="text-sm text-muted-foreground">Token</span>
+              <span className="text-muted-foreground text-sm">Token</span>
             </div>
             <div className="px-3">
-              <div className="flex items-center gap-2.5 rounded-lg border border-border bg-input px-3 py-2.5">
+              <div className="border-border bg-input flex items-center gap-2.5 rounded-lg border px-3 py-2.5">
                 <span className="text-muted-foreground">
                   <SearchIcon />
                 </span>
@@ -598,7 +594,7 @@ function TokenSelectorView({
                   placeholder="Search"
                   value={tokenSearch}
                   onChange={(e) => setTokenSearch(e.target.value)}
-                  className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                  className="text-foreground placeholder:text-muted-foreground flex-1 bg-transparent text-sm outline-none"
                 />
               </div>
             </div>
@@ -644,12 +640,7 @@ function ModalBody({ onClose, onViewChange, showLockedFunds = true }: ModalBodyP
   }
 
   if (currentView === 'balance-details') {
-    return (
-      <BalanceDetailsView
-        onBack={() => handleViewChange('main')}
-        onClose={onClose}
-      />
-    )
+    return <BalanceDetailsView onBack={() => handleViewChange('main')} onClose={onClose} />
   }
 
   if (currentView === 'select-token') {
@@ -666,11 +657,11 @@ function ModalBody({ onClose, onViewChange, showLockedFunds = true }: ModalBodyP
   return (
     <>
       <div className="flex items-center justify-between px-5 py-4">
-        <span className="text-xl font-medium leading-6 text-foreground">Flexvaults</span>
+        <span className="text-foreground text-xl leading-6 font-medium">Flexvaults</span>
         {onClose && (
           <button
             onClick={onClose}
-            className="flex h-6 w-6 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
           >
             <CloseIcon />
           </button>
@@ -687,7 +678,7 @@ function ModalBody({ onClose, onViewChange, showLockedFunds = true }: ModalBodyP
 
         <Tabs activeTab={activeTab} onTabChange={setActiveTab} />
 
-        <div className="rounded-[10px] bg-muted p-5">
+        <div className="bg-muted rounded-[10px] p-5">
           {activeTab === 'deposit' ? (
             <DepositForm
               selectedToken={selectedToken}
@@ -717,7 +708,7 @@ export function FlexvaultsModal({ open, onClose, showLockedFunds }: FlexvaultsMo
       <DialogContent
         data-flexvaults
         showCloseButton={false}
-        className="flex w-[560px] max-w-[95vw] flex-col gap-2 overflow-hidden rounded-2xl border-0 bg-card p-2"
+        className="bg-card flex w-[560px] max-w-[95vw] flex-col gap-2 overflow-hidden rounded-2xl border-0 p-2"
       >
         <ModalBody onClose={onClose} showLockedFunds={showLockedFunds} />
       </DialogContent>
@@ -725,12 +716,18 @@ export function FlexvaultsModal({ open, onClose, showLockedFunds }: FlexvaultsMo
   )
 }
 
-export function FlexvaultsInlineModal({ className, showLockedFunds }: { className?: string; showLockedFunds?: boolean }) {
+export function FlexvaultsInlineModal({
+  className,
+  showLockedFunds,
+}: {
+  className?: string
+  showLockedFunds?: boolean
+}) {
   return (
     <div
       data-flexvaults
       className={cn(
-        'flex w-[560px] max-w-full flex-col gap-2 overflow-hidden rounded-2xl bg-card p-2 shadow-lg',
+        'bg-card flex w-[560px] max-w-full flex-col gap-2 overflow-hidden rounded-2xl p-2 shadow-lg',
         className
       )}
     >

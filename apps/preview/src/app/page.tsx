@@ -6,7 +6,7 @@ import { ComponentPreview } from '@/components/component-preview'
 export default function Home() {
   return (
     <div className="flex h-screen">
-      <aside className="w-[320px] shrink-0 border-r border-neutral-200 dark:border-neutral-800 overflow-hidden">
+      <aside className="w-[320px] shrink-0 overflow-hidden border-r border-neutral-200 dark:border-neutral-800">
         <ThemeEditor />
       </aside>
       <main className="flex-1 overflow-hidden">

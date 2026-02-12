@@ -4,7 +4,6 @@
 
 /* Scope base styles to flexvaults elements only */
 @layer base {
-
   [data-flexvaults],
   [data-flexvaults] *,
   [data-flexvaults] ::before,
@@ -38,7 +37,6 @@
   --color-card-foreground: var(--fv-card-foreground);
   --color-card: var(--fv-card);
 }
-
 
 [data-flexvaults] {
   --fv-radius: 0.625rem;

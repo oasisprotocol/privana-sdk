@@ -12,14 +12,14 @@ function Skeleton() {
     <div className="flex flex-col">
       {[1, 2].map((i) => (
         <div key={i} className="flex animate-pulse items-center gap-3 rounded-lg p-3">
-          <div className="h-10 w-10 rounded-full bg-secondary" />
+          <div className="bg-secondary h-10 w-10 rounded-full" />
           <div className="flex-1">
-            <div className="mb-2 h-3.5 w-24 rounded bg-secondary" />
-            <div className="h-3 w-32 rounded bg-secondary" />
+            <div className="bg-secondary mb-2 h-3.5 w-24 rounded" />
+            <div className="bg-secondary h-3 w-32 rounded" />
           </div>
           <div className="text-right">
-            <div className="mb-2 h-3.5 w-16 rounded bg-secondary" />
-            <div className="h-3 w-20 rounded bg-secondary" />
+            <div className="bg-secondary mb-2 h-3.5 w-16 rounded" />
+            <div className="bg-secondary h-3 w-20 rounded" />
           </div>
         </div>
       ))}
@@ -41,7 +41,7 @@ export function LockedFundsList() {
   if (locks.length === 0) {
     return (
       <div className="flex h-full items-center justify-center rounded-lg p-8">
-        <span className="text-sm text-muted-foreground">No locked funds</span>
+        <span className="text-muted-foreground text-sm">No locked funds</span>
       </div>
     )
   }
@@ -59,12 +59,12 @@ export function LockedFundsList() {
               key={lock.lock_id}
               className={`flex items-center gap-3 rounded-lg p-3 ${isHighlighted ? 'bg-muted' : ''}`}
             >
-              <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-secondary">
+              <div className="bg-secondary h-10 w-10 shrink-0 overflow-hidden rounded-full">
                 {token && getTokenIcon(token.symbol, 40)}
               </div>
 
               <div className="flex min-w-0 flex-1 flex-col gap-2">
-                <span className="text-sm font-medium text-foreground">
+                <span className="text-foreground text-sm font-medium">
                   {formattedAmount} {token?.symbol ?? '?'}
                 </span>
                 <button
@@ -72,7 +72,7 @@ export function LockedFundsList() {
                     navigator.clipboard.writeText(lock.service_address)
                     toast.success('Address copied')
                   }}
-                  className="cursor-pointer self-start text-xs text-muted-foreground transition-colors hover:text-foreground"
+                  className="text-muted-foreground hover:text-foreground cursor-pointer self-start text-xs transition-colors"
                   title="Click to copy"
                 >
                   Service: {shortenAddress(lock.service_address)}
@@ -84,14 +84,14 @@ export function LockedFundsList() {
                   <button
                     onClick={() => unlockFunds({ lockId: lock.lock_id })}
                     disabled={isPending}
-                    className="cursor-pointer text-sm rounded-md px-3 py-[9px] transition-colors bg-input text-foreground hover:bg-input/90 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="bg-input text-foreground hover:bg-input/90 cursor-pointer rounded-md px-3 py-[9px] text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Unlock
                   </button>
                 ) : (
                   <span className="text-sm text-amber-500">{formatTimeRemaining(lock.expiry)}</span>
                 )}
-                <span className="text-xs text-muted-foreground">
+                <span className="text-muted-foreground text-xs">
                   on {chain?.name ?? 'Unknown Chain'}
                 </span>
               </div>
@@ -105,7 +105,7 @@ export function LockedFundsList() {
           <button
             onClick={() => unlockAllExpired()}
             disabled={isPending}
-            className="flex h-10 w-full cursor-pointer items-center justify-center rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+            className="border-border text-foreground hover:bg-muted flex h-10 w-full cursor-pointer items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:opacity-50"
           >
             Unlock All ({expiredLocks.length})
           </button>

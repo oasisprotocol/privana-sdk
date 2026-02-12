@@ -35,20 +35,9 @@ function ExternalLinkIcon() {
 
 function Spinner({ size = 20 }: { size?: number }) {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 20 20"
-      fill="none"
-      className="animate-spin"
-    >
+    <svg width={size} height={size} viewBox="0 0 20 20" fill="none" className="animate-spin">
       <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="2" opacity="0.15" />
-      <path
-        d="M10 2a8 8 0 016.93 4"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
+      <path d="M10 2a8 8 0 016.93 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   )
 }
@@ -71,26 +60,24 @@ export function TransactionProgressView({ title, steps, onCancel }: TransactionP
         <div className="text-primary">
           <Spinner size={20} />
         </div>
-        <span className="text-sm font-medium text-foreground">
-          {active?.label ?? title}
-        </span>
+        <span className="text-foreground text-sm font-medium">{active?.label ?? title}</span>
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+        <div className="bg-secondary h-1.5 w-full overflow-hidden rounded-full">
           <div
-            className="h-full rounded-full bg-primary transition-all duration-500"
+            className="bg-primary h-full rounded-full transition-all duration-500"
             style={{ width: `${progress}%` }}
           />
         </div>
-        <span className="text-xs text-muted-foreground">
+        <span className="text-muted-foreground text-xs">
           Step {completed + (active ? 1 : 0)} of {total}
         </span>
       </div>
 
       <button
         onClick={onCancel}
-        className="flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+        className="border-border text-foreground hover:bg-secondary flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] border px-3 py-2 text-sm font-medium transition-colors"
       >
         Cancel
       </button>
@@ -120,8 +107,8 @@ export function TransactionSuccessView({
           <CheckIcon />
         </div>
         <div className="flex flex-col gap-0.5">
-          <span className="text-sm font-medium text-foreground">{title}</span>
-          <span className="text-xs text-muted-foreground">{message}</span>
+          <span className="text-foreground text-sm font-medium">{title}</span>
+          <span className="text-muted-foreground text-xs">{message}</span>
         </div>
       </div>
 
@@ -131,7 +118,7 @@ export function TransactionSuccessView({
             href={explorerUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-[10px] border border-border text-sm text-foreground transition-colors hover:bg-secondary"
+            className="border-border text-foreground hover:bg-secondary flex h-10 flex-1 items-center justify-center gap-1.5 rounded-[10px] border text-sm transition-colors"
           >
             {explorerLabel ?? 'View on Explorer'}
             <ExternalLinkIcon />
@@ -139,7 +126,7 @@ export function TransactionSuccessView({
         )}
         <button
           onClick={onDone}
-          className="flex h-10 flex-1 cursor-pointer items-center justify-center rounded-[10px] bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 flex-1 cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors"
         >
           Done
         </button>

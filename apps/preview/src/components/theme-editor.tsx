@@ -45,50 +45,95 @@ const THEME_GROUPS: ThemeGroup[] = [
   {
     label: 'Base',
     colors: [
-      { variable: '--background', label: 'Background', defaultLight: '#ffffff', defaultDark: '#1a1a1a' },
-      { variable: '--foreground', label: 'Foreground', defaultLight: '#171717', defaultDark: '#fafafa' },
+      {
+        variable: '--background',
+        label: 'Background',
+        defaultLight: '#ffffff',
+        defaultDark: '#1a1a1a',
+      },
+      {
+        variable: '--foreground',
+        label: 'Foreground',
+        defaultLight: '#171717',
+        defaultDark: '#fafafa',
+      },
     ],
   },
   {
     label: 'Primary',
     colors: [
       { variable: '--primary', label: 'Primary', defaultLight: '#171717', defaultDark: '#e5e5e5' },
-      { variable: '--primary-foreground', label: 'Primary Text', defaultLight: '#fafafa', defaultDark: '#262626' },
+      {
+        variable: '--primary-foreground',
+        label: 'Primary Text',
+        defaultLight: '#fafafa',
+        defaultDark: '#262626',
+      },
     ],
   },
   {
     label: 'Secondary',
     colors: [
-      { variable: '--secondary', label: 'Secondary', defaultLight: '#f5f5f5', defaultDark: '#363636' },
-      { variable: '--secondary-foreground', label: 'Secondary Text', defaultLight: '#171717', defaultDark: '#fafafa' },
+      {
+        variable: '--secondary',
+        label: 'Secondary',
+        defaultLight: '#f5f5f5',
+        defaultDark: '#363636',
+      },
+      {
+        variable: '--secondary-foreground',
+        label: 'Secondary Text',
+        defaultLight: '#171717',
+        defaultDark: '#fafafa',
+      },
     ],
   },
   {
     label: 'Card',
     colors: [
       { variable: '--card', label: 'Card', defaultLight: '#ffffff', defaultDark: '#262626' },
-      { variable: '--card-foreground', label: 'Card Text', defaultLight: '#171717', defaultDark: '#fafafa' },
+      {
+        variable: '--card-foreground',
+        label: 'Card Text',
+        defaultLight: '#171717',
+        defaultDark: '#fafafa',
+      },
     ],
   },
   {
     label: 'Popover',
     colors: [
       { variable: '--popover', label: 'Popover', defaultLight: '#ffffff', defaultDark: '#262626' },
-      { variable: '--popover-foreground', label: 'Popover Text', defaultLight: '#171717', defaultDark: '#fafafa' },
+      {
+        variable: '--popover-foreground',
+        label: 'Popover Text',
+        defaultLight: '#171717',
+        defaultDark: '#fafafa',
+      },
     ],
   },
   {
     label: 'Muted',
     colors: [
       { variable: '--muted', label: 'Muted', defaultLight: '#f5f5f5', defaultDark: '#363636' },
-      { variable: '--muted-foreground', label: 'Muted Text', defaultLight: '#737373', defaultDark: '#a3a3a3' },
+      {
+        variable: '--muted-foreground',
+        label: 'Muted Text',
+        defaultLight: '#737373',
+        defaultDark: '#a3a3a3',
+      },
     ],
   },
   {
     label: 'Accent',
     colors: [
       { variable: '--accent', label: 'Accent', defaultLight: '#f5f5f5', defaultDark: '#363636' },
-      { variable: '--accent-foreground', label: 'Accent Text', defaultLight: '#171717', defaultDark: '#fafafa' },
+      {
+        variable: '--accent-foreground',
+        label: 'Accent Text',
+        defaultLight: '#171717',
+        defaultDark: '#fafafa',
+      },
     ],
   },
   {
@@ -102,7 +147,12 @@ const THEME_GROUPS: ThemeGroup[] = [
   {
     label: 'Destructive',
     colors: [
-      { variable: '--destructive', label: 'Destructive', defaultLight: '#dc2626', defaultDark: '#ef4444' },
+      {
+        variable: '--destructive',
+        label: 'Destructive',
+        defaultLight: '#dc2626',
+        defaultDark: '#ef4444',
+      },
     ],
   },
 ]
@@ -301,17 +351,22 @@ function ColorInput({
   isDark: boolean
 }) {
   return (
-    <div className="flex items-center justify-between gap-2 min-w-0">
-      <span className={cn('text-[11px] truncate shrink min-w-0', isDark ? 'text-neutral-400' : 'text-neutral-500')}>
+    <div className="flex min-w-0 items-center justify-between gap-2">
+      <span
+        className={cn(
+          'min-w-0 shrink truncate text-[11px]',
+          isDark ? 'text-neutral-400' : 'text-neutral-500'
+        )}
+      >
         {label}
       </span>
-      <div className="flex items-center gap-1.5 shrink-0">
+      <div className="flex shrink-0 items-center gap-1.5">
         <input
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           className={cn(
-            'w-17 rounded border px-1.5 py-0.5 text-[11px] font-mono outline-none transition-colors',
+            'w-17 rounded border px-1.5 py-0.5 font-mono text-[11px] transition-colors outline-none',
             isDark
               ? 'border-neutral-700 bg-neutral-800 text-neutral-200 focus:border-neutral-500'
               : 'border-neutral-300 bg-white text-neutral-800 focus:border-neutral-400'
@@ -322,10 +377,13 @@ function ColorInput({
             type="color"
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            className="absolute inset-0 opacity-0 cursor-pointer"
+            className="absolute inset-0 cursor-pointer opacity-0"
           />
           <div
-            className={cn('size-6 rounded border shrink-0', isDark ? 'border-neutral-600' : 'border-neutral-300')}
+            className={cn(
+              'size-6 shrink-0 rounded border',
+              isDark ? 'border-neutral-600' : 'border-neutral-300'
+            )}
             style={{ backgroundColor: value }}
           />
         </label>
@@ -360,20 +418,27 @@ export function ThemeEditor() {
     if (savedRadius) {
       setRadius(parseFloat(savedRadius))
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const applyThemeToElement = useCallback((el: HTMLElement, newColors: Record<string, string>, newRadius: number) => {
-    for (const [variable, value] of Object.entries(newColors)) {
-      const fvVar = variable.replace('--', '--fv-')
-      el.style.setProperty(fvVar, value)
-    }
-    el.style.setProperty('--fv-radius', `${newRadius}rem`)
-  }, [])
+  const applyThemeToElement = useCallback(
+    (el: HTMLElement, newColors: Record<string, string>, newRadius: number) => {
+      for (const [variable, value] of Object.entries(newColors)) {
+        const fvVar = variable.replace('--', '--fv-')
+        el.style.setProperty(fvVar, value)
+      }
+      el.style.setProperty('--fv-radius', `${newRadius}rem`)
+    },
+    []
+  )
 
-  const applyTheme = useCallback((newColors: Record<string, string>, newRadius: number) => {
-    const targets = document.querySelectorAll<HTMLElement>('[data-flexvaults]')
-    targets.forEach((el) => applyThemeToElement(el, newColors, newRadius))
-  }, [applyThemeToElement])
+  const applyTheme = useCallback(
+    (newColors: Record<string, string>, newRadius: number) => {
+      const targets = document.querySelectorAll<HTMLElement>('[data-flexvaults]')
+      targets.forEach((el) => applyThemeToElement(el, newColors, newRadius))
+    },
+    [applyThemeToElement]
+  )
 
   useEffect(() => {
     applyTheme(colors, radius)
@@ -447,7 +512,9 @@ export function ThemeEditor() {
   }
 
   const generateCSS = () => {
-    const selector = isDark ? '[data-flexvaults].dark, .dark [data-flexvaults]' : '[data-flexvaults]'
+    const selector = isDark
+      ? '[data-flexvaults].dark, .dark [data-flexvaults]'
+      : '[data-flexvaults]'
     const lines = [`${selector} {`, `  --fv-radius: ${radius}rem;`]
     for (const group of THEME_GROUPS) {
       for (const color of group.colors) {
@@ -475,11 +542,16 @@ export function ThemeEditor() {
     >
       <div
         className={cn(
-          'flex items-center justify-between border-b px-4 py-3 shrink-0',
+          'flex shrink-0 items-center justify-between border-b px-4 py-3',
           isDark ? 'border-neutral-800' : 'border-neutral-200'
         )}
       >
-        <span className={cn('text-xs font-semibold tracking-wide uppercase', isDark ? 'text-neutral-400' : 'text-neutral-500')}>
+        <span
+          className={cn(
+            'text-xs font-semibold tracking-wide uppercase',
+            isDark ? 'text-neutral-400' : 'text-neutral-500'
+          )}
+        >
           Theme Editor
         </span>
         <div className="flex items-center gap-2">
@@ -508,9 +580,14 @@ export function ThemeEditor() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+      <div className="flex-1 overflow-x-hidden overflow-y-auto">
         <EditorSection isDark={isDark} label="Mode">
-          <div className={cn('flex gap-1 rounded-lg p-0.5', isDark ? 'bg-neutral-800' : 'bg-neutral-200')}>
+          <div
+            className={cn(
+              'flex gap-1 rounded-lg p-0.5',
+              isDark ? 'bg-neutral-800' : 'bg-neutral-200'
+            )}
+          >
             {(['light', 'dark'] as const).map((mode) => {
               const isActive = isDark === (mode === 'dark')
               return (
@@ -548,14 +625,26 @@ export function ThemeEditor() {
                     : 'border-neutral-200 text-neutral-600 hover:border-neutral-300 hover:bg-neutral-100'
                 )}
               >
-                <div className="flex -space-x-1 shrink-0">
+                <div className="flex shrink-0 -space-x-1">
                   <div
-                    className={cn('size-3 rounded-full border', isDark ? 'border-neutral-700' : 'border-neutral-300')}
-                    style={{ backgroundColor: preset.colors['--primary'] || (preset.isDark ? '#e5e5e5' : '#171717') }}
+                    className={cn(
+                      'size-3 rounded-full border',
+                      isDark ? 'border-neutral-700' : 'border-neutral-300'
+                    )}
+                    style={{
+                      backgroundColor:
+                        preset.colors['--primary'] || (preset.isDark ? '#e5e5e5' : '#171717'),
+                    }}
                   />
                   <div
-                    className={cn('size-3 rounded-full border', isDark ? 'border-neutral-700' : 'border-neutral-300')}
-                    style={{ backgroundColor: preset.colors['--background'] || (preset.isDark ? '#1a1a1a' : '#ffffff') }}
+                    className={cn(
+                      'size-3 rounded-full border',
+                      isDark ? 'border-neutral-700' : 'border-neutral-300'
+                    )}
+                    style={{
+                      backgroundColor:
+                        preset.colors['--background'] || (preset.isDark ? '#1a1a1a' : '#ffffff'),
+                    }}
                   />
                 </div>
                 <span className="truncate">{preset.name}</span>
@@ -570,7 +659,12 @@ export function ThemeEditor() {
               <span className={cn('text-[11px]', isDark ? 'text-neutral-400' : 'text-neutral-500')}>
                 Border Radius
               </span>
-              <span className={cn('text-[11px] font-mono', isDark ? 'text-neutral-500' : 'text-neutral-400')}>
+              <span
+                className={cn(
+                  'font-mono text-[11px]',
+                  isDark ? 'text-neutral-500' : 'text-neutral-400'
+                )}
+              >
                 {radius}rem
               </span>
             </div>
@@ -590,7 +684,10 @@ export function ThemeEditor() {
           {THEME_GROUPS.map((group) => {
             const isExpanded = expandedGroups.has(group.label)
             return (
-              <div key={group.label} className={cn('border-b', isDark ? 'border-neutral-800' : 'border-neutral-200')}>
+              <div
+                key={group.label}
+                className={cn('border-b', isDark ? 'border-neutral-800' : 'border-neutral-200')}
+              >
                 <button
                   onClick={() => toggleGroup(group.label)}
                   className={cn(
@@ -598,7 +695,12 @@ export function ThemeEditor() {
                     isDark ? 'hover:bg-neutral-800/50' : 'hover:bg-neutral-100'
                   )}
                 >
-                  <span className={cn('text-[10px] font-semibold tracking-wider uppercase', isDark ? 'text-neutral-500' : 'text-neutral-400')}>
+                  <span
+                    className={cn(
+                      'text-[10px] font-semibold tracking-wider uppercase',
+                      isDark ? 'text-neutral-500' : 'text-neutral-400'
+                    )}
+                  >
                     {group.label}
                   </span>
                   <svg
@@ -650,7 +752,12 @@ function EditorSection({
 }) {
   return (
     <div className={cn('border-b px-4 py-3', isDark ? 'border-neutral-800' : 'border-neutral-200')}>
-      <span className={cn('mb-2 block text-[10px] font-semibold tracking-wider uppercase', isDark ? 'text-neutral-500' : 'text-neutral-400')}>
+      <span
+        className={cn(
+          'mb-2 block text-[10px] font-semibold tracking-wider uppercase',
+          isDark ? 'text-neutral-500' : 'text-neutral-400'
+        )}
+      >
         {label}
       </span>
       {children}
