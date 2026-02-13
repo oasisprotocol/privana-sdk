@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from ._config import CONFIG
+
 Address = str
 Bytes32 = str
 HexString = str
@@ -19,18 +21,13 @@ class NetworkConfig:
 
 
 NETWORK_CONFIG: dict[Network, NetworkConfig] = {
-    "testnet": NetworkConfig(
-        chain_id=23295,
-        name="Sapphire Testnet",
-        accounting_contract="0xaF8e5de153A584528B57DD4B9B0195956BBDF571",
-        api_url="https://p8000.m1356.opf-testnet-rofl-25.rofl.app",
-    ),
-    "mainnet": NetworkConfig(
-        chain_id=23294,
-        name="Sapphire Mainnet",
-        accounting_contract="0x0000000000000000000000000000000000000000",
-        api_url="",
-    ),
+    key: NetworkConfig(
+        chain_id=net["chainId"],
+        name=net["name"],
+        accounting_contract=net["accountingContract"],
+        api_url=net["apiUrl"],
+    )
+    for key, net in CONFIG["networks"].items()
 }
 
 

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from .tokens import TokenConfig
+from ._config import CONFIG
+from .tokens import SUPPORTED_TOKENS, TokenConfig
 
 
 @dataclass(frozen=True)
@@ -15,19 +16,12 @@ class ChainConfig:
 
 SUPPORTED_CHAINS: list[ChainConfig] = [
     ChainConfig(
-        id=84532,
-        name="Base Sepolia",
-        explorer_url="https://sepolia.basescan.org",
-        tokens=(
-            TokenConfig(
-                id="0xc719650e9f4b0f27d956638c54518932ef9d15e720a1a2b2850250bcd0816514",
-                symbol="USDC",
-                decimals=6,
-                contract="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-                name="USD Coin",
-            ),
-        ),
-    ),
+        id=chain["id"],
+        name=chain["name"],
+        explorer_url=chain["explorerUrl"],
+        tokens=tuple(SUPPORTED_TOKENS[key] for key in chain["tokens"]),
+    )
+    for chain in CONFIG["chains"]
 ]
 
 

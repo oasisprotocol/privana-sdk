@@ -1,4 +1,5 @@
 import type { Address, Bytes32 } from './common'
+import config from '@shared/config.json'
 
 export interface TokenConfig {
   id: Bytes32
@@ -8,17 +9,20 @@ export interface TokenConfig {
   name: string
 }
 
-export type SupportedToken = keyof typeof SUPPORTED_TOKENS
+export type SupportedToken = keyof typeof config.tokens
 
-export const SUPPORTED_TOKENS = {
-  USDC: {
-    id: '0xc719650e9f4b0f27d956638c54518932ef9d15e720a1a2b2850250bcd0816514' as Bytes32,
-    symbol: 'USDC',
-    decimals: 6,
-    contract: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address,
-    name: 'USD Coin',
-  },
-} as const satisfies Record<string, TokenConfig>
+export const SUPPORTED_TOKENS = Object.fromEntries(
+  Object.entries(config.tokens).map(([key, t]) => [
+    key,
+    {
+      id: t.id as Bytes32,
+      symbol: t.symbol,
+      decimals: t.decimals,
+      contract: t.contract as Address,
+      name: t.name,
+    },
+  ])
+) as { [K in SupportedToken]: TokenConfig }
 
 export function getTokenConfig(token: SupportedToken): TokenConfig {
   return SUPPORTED_TOKENS[token]

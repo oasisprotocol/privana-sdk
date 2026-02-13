@@ -39,6 +39,7 @@ export default defineConfig({
   esbuildOptions(options) {
     options.alias = {
       '@': resolve(__dirname, 'src'),
+      '@shared': resolve(__dirname, '../../shared'),
     }
   },
   async onSuccess() {

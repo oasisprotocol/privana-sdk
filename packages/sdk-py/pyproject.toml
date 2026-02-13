@@ -49,6 +49,9 @@ Issues = "https://github.com/oasisprotocol/flexvaults-sdk/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["src/flexvaults"]
 
+[tool.hatch.build.force-include]
+"../../shared/config.json" = "flexvaults/_config.json"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

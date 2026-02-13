@@ -1,8 +1,10 @@
+import config from '@shared/config.json'
+
 export type Address = `0x${string}`
 export type Bytes32 = `0x${string}`
 export type HexString = `0x${string}`
 
-export type Network = 'testnet' | 'mainnet'
+export type Network = keyof typeof config.networks
 
 export interface NetworkConfig {
   chainId: number
@@ -11,20 +13,16 @@ export interface NetworkConfig {
   apiUrl: string
 }
 
-export const NETWORK_CONFIG: Record<Network, NetworkConfig> = {
+export const NETWORK_CONFIG = {
   testnet: {
-    chainId: 23295,
-    name: 'Sapphire Testnet',
-    accountingContract: '0xaF8e5de153A584528B57DD4B9B0195956BBDF571',
-    apiUrl: 'https://p8000.m1356.opf-testnet-rofl-25.rofl.app',
+    ...config.networks.testnet,
+    accountingContract: config.networks.testnet.accountingContract as Address,
   },
   mainnet: {
-    chainId: 23294,
-    name: 'Sapphire Mainnet',
-    accountingContract: '0x0000000000000000000000000000000000000000',
-    apiUrl: '',
+    ...config.networks.mainnet,
+    accountingContract: config.networks.mainnet.accountingContract as Address,
   },
-} as const
+} as const satisfies Record<Network, NetworkConfig>
 
 export function getChainId(network: Network): number {
   return NETWORK_CONFIG[network].chainId

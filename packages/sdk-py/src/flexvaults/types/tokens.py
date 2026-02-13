@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from ._config import CONFIG
 from .common import Address, Bytes32
 
 
@@ -17,14 +18,8 @@ class TokenConfig:
 
 SupportedToken = Literal["USDC"]
 
-SUPPORTED_TOKENS: dict[SupportedToken, TokenConfig] = {
-    "USDC": TokenConfig(
-        id="0xc719650e9f4b0f27d956638c54518932ef9d15e720a1a2b2850250bcd0816514",
-        symbol="USDC",
-        decimals=6,
-        contract="0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        name="USD Coin",
-    ),
+SUPPORTED_TOKENS: dict[str, TokenConfig] = {
+    key: TokenConfig(**token) for key, token in CONFIG["tokens"].items()
 }
 
 
