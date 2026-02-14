@@ -224,7 +224,7 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
       }
       sectionMap[lock.service_address].items.push({
         lockId: lock.lock_id,
-        amount: formatTokenAmount(String(lock.amount), 18),
+        amount: formatTokenAmount(String(lock.amount), SUPPORTED_TOKENS.USDC.decimals),
         serviceAddress: lock.service_address,
         time: lock.is_expired
           ? 'Click to unlock'

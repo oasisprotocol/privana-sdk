@@ -5,7 +5,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAccount, useWalletClient } from 'wagmi'
 import { useFlexvaultsContext } from '../context/flexvaults-provider'
 import { signTransferMessage, signTransferLockedMessage } from '../signatures'
-import { getAccountingContract } from '../types'
 import type { Bytes32, Address, TransactionSubmissionResponse } from '../types'
 
 export interface UseTransferOptions {
@@ -39,7 +38,7 @@ export interface UseTransferResult {
 export function useTransfer(options: UseTransferOptions = {}): UseTransferResult {
   const { address } = useAccount()
   const { data: walletClient } = useWalletClient()
-  const { client, network } = useFlexvaultsContext()
+  const { client, networkConfig } = useFlexvaultsContext()
   const queryClient = useQueryClient()
 
   const transferMutation = useMutation({
@@ -50,8 +49,8 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
 
       const signature = await signTransferMessage({
         walletClient,
-        network,
-        verifyingContract: getAccountingContract(network),
+        chainId: networkConfig.chainId,
+        verifyingContract: networkConfig.accountingContract,
         message: {
           userAddress: address,
           toAddress: params.toAddress,
@@ -85,8 +84,8 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
 
       const signature = await signTransferLockedMessage({
         walletClient,
-        network,
-        verifyingContract: getAccountingContract(network),
+        chainId: networkConfig.chainId,
+        verifyingContract: networkConfig.accountingContract,
         message: {
           userAddress: address,
           toAddress: params.toAddress,

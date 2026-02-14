@@ -1,5 +1,4 @@
-import type { Address, Bytes32, Network } from '../types'
-import { NETWORK_CONFIG } from '../types'
+import type { Address, Bytes32 } from '../types'
 
 export interface EIP712Domain {
   name: string
@@ -8,11 +7,11 @@ export interface EIP712Domain {
   verifyingContract: Address
 }
 
-export function createDomain(network: Network, verifyingContract: Address): EIP712Domain {
+export function createDomain(chainId: number, verifyingContract: Address): EIP712Domain {
   return {
     name: 'AccountingModule',
     version: '1',
-    chainId: NETWORK_CONFIG[network].chainId,
+    chainId,
     verifyingContract,
   }
 }
