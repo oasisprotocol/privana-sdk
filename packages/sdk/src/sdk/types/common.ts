@@ -15,7 +15,7 @@ export const NETWORK_CONFIG: Record<Network, NetworkConfig> = {
   testnet: {
     chainId: 23295,
     name: 'Sapphire Testnet',
-    accountingContract: '0xaF8e5de153A584528B57DD4B9B0195956BBDF571',
+    accountingContract: '0xAb32613F406e0017B5d7D8dd7fCb6d2503A2e40c',
     apiUrl: 'https://p8000.m1356.opf-testnet-rofl-25.rofl.app',
   },
   mainnet: {
