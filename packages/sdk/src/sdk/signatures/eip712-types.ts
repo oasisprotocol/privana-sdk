@@ -32,6 +32,7 @@ export const TRANSFER_TYPES = {
     { name: 'toAddress', type: 'address' },
     { name: 'tokenId', type: 'bytes32' },
     { name: 'amount', type: 'uint256' },
+    { name: 'nonce', type: 'uint256' },
   ],
 } as const
 
@@ -66,6 +67,7 @@ export interface TransferMessage {
   toAddress: Address
   tokenId: Bytes32
   amount: bigint
+  nonce: bigint
 }
 
 export interface TransferLockedMessage {

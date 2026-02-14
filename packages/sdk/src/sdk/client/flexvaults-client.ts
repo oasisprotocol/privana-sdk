@@ -22,6 +22,7 @@ import type {
   TotalLockedBalanceResponse,
   PendingWithdrawalsResponse,
   WithdrawalInfoResponse,
+  TransferNonceResponse,
 } from '../types'
 import { normalizeAddress, normalizeHex } from '../types'
 
@@ -138,8 +139,14 @@ export class FlexvaultsClient {
       to_address: normalizeAddress(request.to_address),
       token_id: normalizeHex(request.token_id),
       amount: request.amount,
+      nonce: request.nonce,
       signature: normalizeHex(request.signature),
     })
+  }
+
+  async getTransferNonce(userAddress: Address | string): Promise<TransferNonceResponse> {
+    const user = normalizeAddress(userAddress)
+    return this.http.get<TransferNonceResponse>(`/v1/accounting/funds/transfer/nonce/${user}`)
   }
 
   async transferLockedFunds(
