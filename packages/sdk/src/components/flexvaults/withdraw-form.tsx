@@ -108,7 +108,7 @@ export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps
     return (
       <TransactionSuccessView
         title="Withdrawal Submitted"
-        message={`Your ${selectedToken.symbol} withdrawal is being processed.`}
+        message={`Your ${selectedToken.symbol} withdrawal has been submitted. It may take up to a minute to appear on the destination chain.`}
         explorerUrl={explorerUrl}
         explorerLabel="View on BaseScan"
         onDone={handleDone}

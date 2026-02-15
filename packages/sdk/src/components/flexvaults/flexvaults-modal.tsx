@@ -9,7 +9,7 @@ import { WithdrawForm } from './withdraw-form'
 import { SUPPORTED_TOKENS, type TokenConfig } from '@/sdk/types/tokens'
 import { SUPPORTED_CHAINS } from '@/sdk/types/chains'
 import { useBalance, useLockedFunds, useUnlockFunds } from '@/sdk/hooks'
-import { formatTokenAmount, cn, shortenAddress } from '@/lib/utils'
+import { formatTokenAmount, formatTimeRemaining, cn, shortenAddress } from '@/lib/utils'
 import { getTokenIcon, getChainIcon } from './token-icons'
 
 type ModalView = 'main' | 'locked-funds' | 'select-token' | 'balance-details'
@@ -226,9 +226,7 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
         lockId: lock.lock_id,
         amount: formatTokenAmount(String(lock.amount), SUPPORTED_TOKENS.USDC.decimals),
         serviceAddress: lock.service_address,
-        time: lock.is_expired
-          ? 'Click to unlock'
-          : `${Math.floor((lock.expiry - Date.now()) / 3600000)}h`,
+        time: lock.is_expired ? 'Click to unlock' : formatTimeRemaining(lock.expiry),
         isExpired: lock.is_expired,
       })
     })
