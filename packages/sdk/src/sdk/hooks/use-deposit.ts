@@ -138,7 +138,15 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   // but we don't have a clean way to check if a specific deposit has been processed.
   // Polling balance works but could give false positives if balance changes for other reasons.
   useEffect(() => {
-    if (isConfirmed && txHash && quote && address && !isWaitingForProcessing && !didTimeout && !pollingCompletedRef.current) {
+    if (
+      isConfirmed &&
+      txHash &&
+      quote &&
+      address &&
+      !isWaitingForProcessing &&
+      !didTimeout &&
+      !pollingCompletedRef.current
+    ) {
       // Ensure we have initial balance before starting to poll
       if (!initialBalanceFetchedRef.current) {
         console.warn('Initial balance not fetched, cannot poll for deposit confirmation')
