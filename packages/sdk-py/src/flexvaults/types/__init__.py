@@ -40,6 +40,8 @@ from .responses import (
     LockInfo,
     PendingWithdrawal,
     PendingWithdrawalsResponse,
+    SiweDomainResponse,
+    SiweLoginResponse,
     TokenBalance,
     TokenInfoResponse,
     TotalLockedBalanceResponse,
@@ -104,6 +106,8 @@ __all__ = [
     "TotalLockedBalanceResponse",
     "PendingWithdrawal",
     "PendingWithdrawalsResponse",
+    "SiweDomainResponse",
+    "SiweLoginResponse",
     "WithdrawalInfoResponse",
     "TransferNonceResponse",
 ]

@@ -9,7 +9,7 @@ export interface HttpClientConfig {
 export class HttpClient {
   private readonly baseUrl: string
   private readonly timeout: number
-  private readonly headers: Record<string, string>
+  private headers: Record<string, string>
 
   constructor(config: HttpClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, '')
@@ -26,6 +26,16 @@ export class HttpClient {
 
   async post<T>(path: string, body?: unknown): Promise<T> {
     return this.request<T>('POST', path, body)
+  }
+
+  setHeader(key: string, value: string): void {
+    this.headers = { ...this.headers, [key]: value }
+  }
+
+  removeHeader(key: string): void {
+    const next = { ...this.headers }
+    delete next[key]
+    this.headers = next
   }
 
   private async request<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {

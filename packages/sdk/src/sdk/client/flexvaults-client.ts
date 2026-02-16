@@ -21,16 +21,46 @@ import type {
   PendingWithdrawalsResponse,
   WithdrawalInfoResponse,
   TransferNonceResponse,
+  SiweDomainResponse,
+  SiweLoginResponse,
 } from '../types'
-import { normalizeAddress, normalizeHex } from '../types'
+import { MAX_BATCH_BALANCES_TOKEN_IDS, normalizeAddress, normalizeHex } from '../types'
 
 export type FlexvaultsClientConfig = HttpClientConfig
 
+const SIWE_TOKEN_HEADER = 'X-SIWE-Token'
+
 export class FlexvaultsClient {
   private readonly http: HttpClient
+  private siweToken: string | null = null
 
   constructor(config: FlexvaultsClientConfig) {
     this.http = new HttpClient(config)
+  }
+
+  setSiweToken(token: string): void {
+    this.siweToken = token
+    this.http.setHeader(SIWE_TOKEN_HEADER, token)
+  }
+
+  clearSiweToken(): void {
+    this.siweToken = null
+    this.http.removeHeader(SIWE_TOKEN_HEADER)
+  }
+
+  getSiweToken(): string | null {
+    return this.siweToken
+  }
+
+  async getSiweDomain(): Promise<SiweDomainResponse> {
+    return this.http.get<SiweDomainResponse>('/v1/accounting/auth/domain')
+  }
+
+  async siweLogin(request: {
+    siwe_message: string
+    signature: string
+  }): Promise<SiweLoginResponse> {
+    return this.http.post<SiweLoginResponse>('/v1/accounting/auth/login', request)
   }
 
   async getDepositQuote(request: DepositQuoteRequest): Promise<DepositQuoteResponse> {
@@ -56,6 +86,11 @@ export class FlexvaultsClient {
   }
 
   async getBatchBalances(request: BatchBalancesRequest): Promise<BatchBalancesResponse> {
+    if (request.token_ids.length > MAX_BATCH_BALANCES_TOKEN_IDS) {
+      throw new Error(
+        `token_ids length must be <= ${MAX_BATCH_BALANCES_TOKEN_IDS} (received ${request.token_ids.length}); paginate requests`
+      )
+    }
     return this.http.post<BatchBalancesResponse>('/v1/accounting/balances/batch', {
       user_address: normalizeAddress(request.user_address),
       token_ids: request.token_ids.map((id) => normalizeHex(id)),

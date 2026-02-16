@@ -22,10 +22,15 @@ export function usePendingWithdrawals(
   options: UsePendingWithdrawalsOptions = {}
 ): UsePendingWithdrawalsResult {
   const { address, isConnected } = useAccount()
-  const { client, pollingInterval } = useFlexvaultsContext()
+  const { client, pollingInterval, networkConfig } = useFlexvaultsContext()
 
   const query = useQuery<PendingWithdrawalsResponse, Error>({
-    queryKey: ['accounting-pending-withdrawals', address],
+    queryKey: [
+      'accounting-pending-withdrawals',
+      networkConfig.apiUrl,
+      networkConfig.chainId,
+      address,
+    ],
     queryFn: async (): Promise<PendingWithdrawalsResponse> => {
       if (!address) throw new Error('No wallet connected')
       try {

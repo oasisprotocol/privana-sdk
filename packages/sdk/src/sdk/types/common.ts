@@ -13,6 +13,10 @@ export interface NetworkConfig {
   apiUrl: string
 }
 
+// Max token IDs accepted by the accounting-module batch balances endpoint.
+// Keep this in sync with the backend validation.
+export const MAX_BATCH_BALANCES_TOKEN_IDS = 100
+
 export const NETWORK_CONFIG = {
   testnet: {
     ...config.networks.testnet,

@@ -132,3 +132,13 @@ class WithdrawalInfoResponse:
 class TransferNonceResponse:
     user_address: Address
     nonce: int
+
+
+@dataclass
+class SiweDomainResponse:
+    domain: str
+
+
+@dataclass
+class SiweLoginResponse:
+    token: str

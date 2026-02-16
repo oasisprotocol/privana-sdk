@@ -63,6 +63,44 @@ class TestGetBalance:
         result = await client.get_balance("0xUSER123", "0xTOKEN456")
         assert result.balance == "0"
 
+    @respx.mock
+    async def test_get_balance_sends_siwe_header_when_set(self, client):
+        client.set_siwe_token("0xdeadbeef")
+        route = respx.get(f"{BASE_URL}/v1/accounting/balances/0xuser123/0xtoken456").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "user_address": "0xuser123",
+                    "token_id": "0xtoken456",
+                    "balance": "1000000",
+                    "token_symbol": "USDC",
+                    "chain_id": "84532",
+                },
+            )
+        )
+
+        await client.get_balance("0xuser123", "0xtoken456")
+        assert route.called
+        assert route.calls.last.request.headers.get("X-SIWE-Token") == "0xdeadbeef"
+
+
+class TestSiweAuth:
+    @respx.mock
+    async def test_get_siwe_domain(self, client):
+        respx.get(f"{BASE_URL}/v1/accounting/auth/domain").mock(
+            return_value=httpx.Response(200, json={"domain": "staging.flexvaults.example"})
+        )
+        resp = await client.get_siwe_domain()
+        assert resp.domain == "staging.flexvaults.example"
+
+    @respx.mock
+    async def test_siwe_login(self, client):
+        respx.post(f"{BASE_URL}/v1/accounting/auth/login").mock(
+            return_value=httpx.Response(200, json={"token": "0xabc123"})
+        )
+        resp = await client.siwe_login(siwe_message="msg", signature="0x" + "11" * 65)
+        assert resp.token == "0xabc123"
+
 
 class TestGetDepositQuote:
     @respx.mock

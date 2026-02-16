@@ -1,3 +1,10 @@
+from .auth import (
+    SiweAuthCooldownError,
+    SiweSigner,
+    build_siwe_message,
+    ensure_siwe_token,
+    sign_siwe_message,
+)
 from .client import (
     AccountingApiError,
     FlexvaultsClient,
@@ -54,6 +61,8 @@ from .types import (
     NetworkConfig,
     PendingWithdrawal,
     PendingWithdrawalsResponse,
+    SiweDomainResponse,
+    SiweLoginResponse,
     SupportedToken,
     TokenBalance,
     TokenConfig,
@@ -139,6 +148,8 @@ __all__ = [
     "TotalLockedBalanceResponse",
     "PendingWithdrawal",
     "PendingWithdrawalsResponse",
+    "SiweDomainResponse",
+    "SiweLoginResponse",
     "WithdrawalInfoResponse",
     "FlexvaultsClient",
     "HttpClient",
@@ -175,4 +186,9 @@ __all__ = [
     "is_expired",
     "format_time_remaining",
     "format_relative_time",
+    "SiweAuthCooldownError",
+    "SiweSigner",
+    "build_siwe_message",
+    "ensure_siwe_token",
+    "sign_siwe_message",
 ]

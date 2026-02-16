@@ -11,6 +11,7 @@ import {
 import { useFlexvaultsContext } from '../context/flexvaults-provider'
 import { useEnsureCorrectChain } from './use-ensure-correct-chain'
 import type { Bytes32, DepositQuoteResponse, BalanceResponse } from '../types'
+import { ensureSiweToken } from '../auth'
 
 export interface UseDepositOptions {
   onQuoteSuccess?: (quote: DepositQuoteResponse) => void
@@ -50,7 +51,7 @@ export interface UseDepositResult {
 
 export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   const { address } = useAccount()
-  const { client } = useFlexvaultsContext()
+  const { client, networkConfig } = useFlexvaultsContext()
   const { data: walletClient } = useWalletClient()
   const queryClient = useQueryClient()
 
@@ -65,46 +66,75 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
 
   // Store initial balance before deposit to detect when it changes
   const initialBalanceRef = useRef<bigint | null>(null)
-  const initialBalanceFetchedRef = useRef(false)
   const pollStartTimeRef = useRef<number | null>(null)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
   // Track when polling has completed (success or timeout) to prevent effect re-triggering
   const pollingCompletedRef = useRef(false)
   // Store the original tokenId from deposit params to ensure query key consistency
   const depositTokenIdRef = useRef<Bytes32 | null>(null)
+  const resetSendTransactionRef = useRef<(() => void) | null>(null)
 
   // Use refs for callbacks to avoid re-triggering effects when options object changes
   const onDepositSuccessRef = useRef(options.onDepositSuccess)
   const onIncludeSuccessRef = useRef(options.onIncludeSuccess)
   const onIncludeTimeoutRef = useRef(options.onIncludeTimeout)
+  const onErrorRef = useRef(options.onError)
   useEffect(() => {
     onDepositSuccessRef.current = options.onDepositSuccess
     onIncludeSuccessRef.current = options.onIncludeSuccess
     onIncludeTimeoutRef.current = options.onIncludeTimeout
-  }, [options.onDepositSuccess, options.onIncludeSuccess, options.onIncludeTimeout])
+    onErrorRef.current = options.onError
+  }, [
+    options.onDepositSuccess,
+    options.onIncludeSuccess,
+    options.onIncludeTimeout,
+    options.onError,
+  ])
+
+  const fetchInitialBalance = useCallback(
+    async (tokenId: Bytes32) => {
+      if (!address) throw new Error('No wallet connected')
+      if (!walletClient) throw new Error('No wallet client')
+      if (initialBalanceRef.current !== null) return
+
+      await ensureSiweToken({
+        client,
+        chainId: networkConfig.chainId,
+        walletClient,
+        address,
+        cacheScope: networkConfig.apiUrl,
+      })
+
+      const balanceResponse = await client.getBalance(address, tokenId)
+      initialBalanceRef.current = BigInt(balanceResponse.balance)
+    },
+    [address, walletClient, client, networkConfig.chainId, networkConfig.apiUrl]
+  )
 
   const quoteMutation = useMutation({
+    onMutate: () => {
+      // Reset per-deposit polling state so repeated deposits work without requiring a manual reset().
+      pollingCompletedRef.current = false
+      initialBalanceRef.current = null
+      pollStartTimeRef.current = null
+      setQuote(null)
+      setIsSwitchingChain(false)
+      setIsWaitingForProcessing(false)
+      setDidTimeout(false)
+      setProcessingError(null)
+      resetSendTransactionRef.current?.()
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
+    },
     mutationFn: async (params: DepositParams) => {
       if (!address) throw new Error('No wallet connected')
+      if (!walletClient) throw new Error('No wallet client')
 
       // Store the original tokenId to ensure query key consistency later
       // (API response might have different casing)
       depositTokenIdRef.current = params.tokenId
-
-      // Fetch initial balance FIRST before getting quote
-      // This ensures we have a baseline to compare against when polling
-      // TODO: This polling approach is a workaround. Ideally we should have a dedicated
-      // endpoint to check deposit status by source chain tx hash, or the Deposit event
-      // on Sapphire should include the source tx hash so we can query it directly.
-      try {
-        const balanceResponse = await client.getBalance(address, params.tokenId)
-        initialBalanceRef.current = BigInt(balanceResponse.balance)
-        initialBalanceFetchedRef.current = true
-      } catch {
-        // If we can't get initial balance (e.g., user has no balance yet), start from 0
-        initialBalanceRef.current = BigInt(0)
-        initialBalanceFetchedRef.current = true
-      }
 
       return client.getDepositQuote({
         user_address: address,
@@ -129,6 +159,10 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     reset: resetSendTransaction,
   } = useSendTransaction()
 
+  useEffect(() => {
+    resetSendTransactionRef.current = resetSendTransaction
+  }, [resetSendTransaction])
+
   const { ensureCorrectChain } = useEnsureCorrectChain()
 
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
@@ -150,6 +184,13 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   // but we don't have a clean way to check if a specific deposit has been processed.
   // Polling balance works but could give false positives if balance changes for other reasons.
   useEffect(() => {
+    const stopPolling = () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
+        pollIntervalRef.current = null
+      }
+    }
+
     if (
       isConfirmed &&
       txHash &&
@@ -159,12 +200,6 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
       !didTimeout &&
       !pollingCompletedRef.current
     ) {
-      // Ensure we have initial balance before starting to poll
-      if (!initialBalanceFetchedRef.current) {
-        console.warn('Initial balance not fetched, cannot poll for deposit confirmation')
-        return
-      }
-
       onDepositSuccessRef.current?.(txHash)
       setIsWaitingForProcessing(true)
       pollStartTimeRef.current = Date.now()
@@ -175,16 +210,42 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
 
       const checkBalance = async () => {
         try {
+          if (!walletClient) throw new Error('No wallet client')
+          if (initialBalanceRef.current === null) {
+            const error = new Error(
+              'Unable to establish a pre-deposit balance baseline; cannot automatically track deposit processing'
+            )
+            setProcessingError(error)
+            onErrorRef.current?.(error)
+            pollingCompletedRef.current = true
+            setIsWaitingForProcessing(false)
+            stopPolling()
+            return
+          }
+          try {
+            await ensureSiweToken({
+              client,
+              chainId: networkConfig.chainId,
+              walletClient,
+              address,
+              cacheScope: networkConfig.apiUrl,
+            })
+          } catch (err) {
+            const error = err instanceof Error ? err : new Error('SIWE authentication failed')
+            setProcessingError(error)
+            onErrorRef.current?.(error)
+            pollingCompletedRef.current = true
+            setIsWaitingForProcessing(false)
+            stopPolling()
+            return
+          }
           const balanceResponse = await client.getBalance(address, quote.token_id)
           const currentBalance = BigInt(balanceResponse.balance)
-          const initialBalance = initialBalanceRef.current ?? BigInt(0)
+          const initialBalance = initialBalanceRef.current
 
           // Deposit is processed when balance has changed (increased)
           if (currentBalance > initialBalance) {
-            if (pollIntervalRef.current) {
-              clearInterval(pollIntervalRef.current)
-              pollIntervalRef.current = null
-            }
+            stopPolling()
             pollingCompletedRef.current = true
             setIsWaitingForProcessing(false)
             // Directly update the query cache with the balance we already fetched
@@ -192,7 +253,13 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
             // the query key matches what useBalance uses (avoiding casing mismatches)
             if (depositTokenIdRef.current) {
               queryClient.setQueryData<BalanceResponse>(
-                ['accounting-balance', address, depositTokenIdRef.current],
+                [
+                  'accounting-balance',
+                  networkConfig.apiUrl,
+                  networkConfig.chainId,
+                  address,
+                  depositTokenIdRef.current,
+                ],
                 balanceResponse
               )
             }
@@ -202,17 +269,21 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
 
           // Check for timeout
           if (pollStartTimeRef.current && Date.now() - pollStartTimeRef.current > pollTimeout) {
-            if (pollIntervalRef.current) {
-              clearInterval(pollIntervalRef.current)
-              pollIntervalRef.current = null
-            }
+            stopPolling()
             pollingCompletedRef.current = true
             setIsWaitingForProcessing(false)
             setDidTimeout(true)
             // Call timeout callback - deposit may still be processing in background
             onIncludeTimeoutRef.current?.(txHash)
             // Invalidate balance queries so they refetch when observed
-            queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
+            queryClient.invalidateQueries({
+              queryKey: [
+                'accounting-balance',
+                networkConfig.apiUrl,
+                networkConfig.chainId,
+                address,
+              ],
+            })
           }
         } catch (err) {
           // Don't fail on polling errors, just keep trying
@@ -233,9 +304,12 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     isWaitingForProcessing,
     didTimeout,
     client,
+    networkConfig.chainId,
+    networkConfig.apiUrl,
     queryClient,
     pollInterval,
     pollTimeout,
+    walletClient,
   ])
 
   const getQuote = useCallback(
@@ -248,6 +322,16 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   const executeDeposit = useCallback(async () => {
     if (!quote || !walletClient) {
       throw new Error('No quote available or wallet not connected')
+    }
+
+    // Best-effort baseline for processing detection. If this fails, we still allow the
+    // deposit to be sent, but processing status tracking will error out after confirmation.
+    try {
+      await fetchInitialBalance(depositTokenIdRef.current ?? quote.token_id)
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Failed to fetch initial balance')
+      setProcessingError(error)
+      onErrorRef.current?.(error)
     }
 
     // Switch to the correct chain before sending the deposit transaction
@@ -264,13 +348,23 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
       data: quote.transaction.data as `0x${string}`,
       chainId: quote.transaction.chain_id,
     })
-  }, [quote, walletClient, sendTransaction, ensureCorrectChain])
+  }, [quote, walletClient, sendTransaction, ensureCorrectChain, fetchInitialBalance])
 
   const deposit = useCallback(
     async (params: DepositParams) => {
       const quoteResult = await quoteMutation.mutateAsync(params)
       if (!quoteResult || !walletClient) {
         throw new Error('Failed to get quote or wallet not connected')
+      }
+
+      // Best-effort baseline for processing detection. If this fails, we still allow the
+      // deposit to be sent, but processing status tracking will error out after confirmation.
+      try {
+        await fetchInitialBalance(params.tokenId)
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error('Failed to fetch initial balance')
+        setProcessingError(error)
+        onErrorRef.current?.(error)
       }
 
       // Switch to the correct chain before sending the deposit transaction
@@ -288,7 +382,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
         chainId: quoteResult.transaction.chain_id,
       })
     },
-    [quoteMutation, walletClient, sendTransaction, ensureCorrectChain]
+    [quoteMutation, walletClient, sendTransaction, ensureCorrectChain, fetchInitialBalance]
   )
 
   const reset = useCallback(() => {
@@ -298,7 +392,6 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     setDidTimeout(false)
     setProcessingError(null)
     initialBalanceRef.current = null
-    initialBalanceFetchedRef.current = false
     pollStartTimeRef.current = null
     pollingCompletedRef.current = false
     depositTokenIdRef.current = null

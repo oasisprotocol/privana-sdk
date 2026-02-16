@@ -32,6 +32,16 @@ class HttpClient:
     async def post(self, path: str, body: Any | None = None) -> Any:
         return await self._request("POST", path, body)
 
+    def set_header(self, key: str, value: str) -> None:
+        self._headers = {**self._headers, key: value}
+        self._client.headers[key] = value
+
+    def remove_header(self, key: str) -> None:
+        next_headers = dict(self._headers)
+        next_headers.pop(key, None)
+        self._headers = next_headers
+        self._client.headers.pop(key, None)
+
     async def _request(
         self,
         method: str,

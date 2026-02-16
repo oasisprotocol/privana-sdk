@@ -28,6 +28,8 @@ from ..types.responses import (
     LockInfo,
     PendingWithdrawal,
     PendingWithdrawalsResponse,
+    SiweDomainResponse,
+    SiweLoginResponse,
     TokenBalance,
     TokenInfoResponse,
     TotalLockedBalanceResponse,
@@ -37,6 +39,8 @@ from ..types.responses import (
     WithdrawalInfoResponse,
 )
 from .http_client import HttpClient
+
+_SIWE_TOKEN_HEADER = "X-SIWE-Token"
 
 
 def _parse_transaction_data(data: dict[str, Any]) -> TransactionData:
@@ -98,11 +102,43 @@ class FlexvaultsClient:
         timeout: float = 30.0,
         headers: dict[str, str] | None = None,
     ) -> None:
+        self._base_url = base_url.rstrip("/")
         self._http = HttpClient(
             base_url=base_url,
             timeout=timeout,
             headers=headers,
         )
+        self._siwe_token: str | None = None
+
+    @property
+    def base_url(self) -> str:
+        return self._base_url
+
+    def set_siwe_token(self, token: str) -> None:
+        normalized = normalize_hex(token)
+        self._siwe_token = normalized
+        self._http.set_header(_SIWE_TOKEN_HEADER, normalized)
+
+    def clear_siwe_token(self) -> None:
+        self._siwe_token = None
+        self._http.remove_header(_SIWE_TOKEN_HEADER)
+
+    def get_siwe_token(self) -> str | None:
+        return self._siwe_token
+
+    async def get_siwe_domain(self) -> SiweDomainResponse:
+        data = await self._http.get("/v1/accounting/auth/domain")
+        return SiweDomainResponse(domain=data["domain"])
+
+    async def siwe_login(self, *, siwe_message: str, signature: str) -> SiweLoginResponse:
+        data = await self._http.post(
+            "/v1/accounting/auth/login",
+            {
+                "siwe_message": siwe_message,
+                "signature": normalize_hex(signature),
+            },
+        )
+        return SiweLoginResponse(token=data["token"])
 
     async def get_deposit_quote(self, request: DepositQuoteRequest) -> DepositQuoteResponse:
         data = await self._http.post(

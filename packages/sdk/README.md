@@ -108,8 +108,16 @@ A customizable button that opens the wallet modal.
 | `useUnlockFunds`        | Unlock expired locks                   |
 | `useTransfer`           | Transfer tokens                        |
 | `useLockedFunds`        | Get list of locked funds               |
+| `useTotalLockedBalance` | Get total locked balance for a token   |
 | `usePendingWithdrawals` | Get pending withdrawal requests        |
 | `useExpiredLocks`       | Get expired locks that can be claimed  |
+
+### Private Reads (SIWE)
+
+Balances and lock details are private and require SIWE authentication. On the first private read,
+the SDK will request a wallet signature to obtain an auth token, then attach it as `X-SIWE-Token`
+to protected API calls. The token is cached in `sessionStorage` (scoped by API URL, chain ID, and
+address) for approximately 23 hours.
 
 ## License
 

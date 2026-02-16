@@ -12,10 +12,23 @@ pip install flexvaults-sdk
 
 ```python
 import asyncio
-from flexvaults import FlexvaultsClient, DepositQuoteRequest
+from eth_account import Account
+from flexvaults import FlexvaultsClient, DepositQuoteRequest, ensure_siwe_token
 
 async def main():
     async with FlexvaultsClient(base_url="https://api.example.com") as client:
+        # SIWE authentication is required for private reads (balances and lock details).
+        # For backend services you can sign with a local key. Alternatively, pass an async signer
+        # callback that delegates signing to your wallet integration.
+        account = Account.from_key("0xYourPrivateKey")
+        await ensure_siwe_token(
+            client=client,
+            chain_id=23295,  # Sapphire Testnet
+            address=account.address,
+            signer=account,
+            cache_scope="https://api.example.com",
+        )
+
         # Get a deposit quote
         quote = await client.get_deposit_quote(
             DepositQuoteRequest(
@@ -68,6 +81,9 @@ signature = sign_lock_message(
 ### Client
 
 - `FlexvaultsClient(base_url, timeout=30.0, headers=None)` - Main API client
+  - `get_siwe_domain()` - Fetch SIWE domain for this deployment
+  - `siwe_login(siwe_message, signature)` - Perform SIWE login and return token
+  - `set_siwe_token(token)` / `clear_siwe_token()` - Manage SIWE token header for private reads
   - `get_deposit_quote(request)` - Get deposit quote
   - `include_deposit(request)` - Include deposit proof
   - `get_balance(user_address, token_id)` - Get token balance

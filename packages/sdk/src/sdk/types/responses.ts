@@ -104,3 +104,11 @@ export interface TransferNonceResponse {
   user_address: Address
   nonce: number
 }
+
+export interface SiweDomainResponse {
+  domain: string
+}
+
+export interface SiweLoginResponse {
+  token: string
+}
