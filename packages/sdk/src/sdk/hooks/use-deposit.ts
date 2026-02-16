@@ -9,7 +9,7 @@ import {
   useWaitForTransactionReceipt,
 } from 'wagmi'
 import { useFlexvaultsContext } from '../context/flexvaults-provider'
-import type { Bytes32, DepositQuoteResponse } from '../types'
+import type { Bytes32, DepositQuoteResponse, BalanceResponse } from '../types'
 
 export interface UseDepositOptions {
   onQuoteSuccess?: (quote: DepositQuoteResponse) => void
@@ -67,6 +67,8 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
   // Track when polling has completed (success or timeout) to prevent effect re-triggering
   const pollingCompletedRef = useRef(false)
+  // Store the original tokenId from deposit params to ensure query key consistency
+  const depositTokenIdRef = useRef<Bytes32 | null>(null)
 
   // Use refs for callbacks to avoid re-triggering effects when options object changes
   const onDepositSuccessRef = useRef(options.onDepositSuccess)
@@ -81,6 +83,10 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   const quoteMutation = useMutation({
     mutationFn: async (params: DepositParams) => {
       if (!address) throw new Error('No wallet connected')
+
+      // Store the original tokenId to ensure query key consistency later
+      // (API response might have different casing)
+      depositTokenIdRef.current = params.tokenId
 
       // Fetch initial balance FIRST before getting quote
       // This ensures we have a baseline to compare against when polling
@@ -117,6 +123,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     data: txHash,
     isPending: isSendingTx,
     error: sendError,
+    reset: resetSendTransaction,
   } = useSendTransaction()
 
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
@@ -157,6 +164,10 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
       setIsWaitingForProcessing(true)
       pollStartTimeRef.current = Date.now()
 
+      // Invalidate wagmi wallet balance queries since tokens have left the wallet
+      // This refreshes the "Amount X USDC" display in the deposit form
+      queryClient.invalidateQueries({ queryKey: ['readContract'] })
+
       const checkBalance = async () => {
         try {
           const balanceResponse = await client.getBalance(address, quote.token_id)
@@ -171,8 +182,16 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
             }
             pollingCompletedRef.current = true
             setIsWaitingForProcessing(false)
+            // Directly update the query cache with the balance we already fetched
+            // Use depositTokenIdRef (original param) instead of quote.token_id to ensure
+            // the query key matches what useBalance uses (avoiding casing mismatches)
+            if (depositTokenIdRef.current) {
+              queryClient.setQueryData<BalanceResponse>(
+                ['accounting-balance', address, depositTokenIdRef.current],
+                balanceResponse
+              )
+            }
             onIncludeSuccessRef.current?.(txHash)
-            queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
             return
           }
 
@@ -187,6 +206,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
             setDidTimeout(true)
             // Call timeout callback - deposit may still be processing in background
             onIncludeTimeoutRef.current?.(txHash)
+            // Invalidate balance queries so they refetch when observed
             queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
           }
         } catch (err) {
@@ -256,12 +276,14 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     initialBalanceFetchedRef.current = false
     pollStartTimeRef.current = null
     pollingCompletedRef.current = false
+    depositTokenIdRef.current = null
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current)
       pollIntervalRef.current = null
     }
     quoteMutation.reset()
-  }, [quoteMutation])
+    resetSendTransaction()
+  }, [quoteMutation, resetSendTransaction])
 
   const isPending = quoteMutation.isPending || isSendingTx || isConfirming || isWaitingForProcessing
 
