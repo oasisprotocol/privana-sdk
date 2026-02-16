@@ -1,11 +1,11 @@
-# flexvaults
+# flexvaults-sdk
 
 Python SDK for Flexvaults - manage deposits, withdrawals, locks, and transfers on the accounting module.
 
 ## Installation
 
 ```bash
-pip install flexvaults
+pip install flexvaults-sdk
 ```
 
 ## Quick Start
@@ -74,12 +74,14 @@ signature = sign_lock_message(
   - `get_batch_balances(request)` - Get multiple token balances
   - `get_token_info(token_id)` - Get token information
   - `lock_funds(request)` - Lock funds for a service
+  - `modify_lock(request)` - Modify an existing lock (add funds and/or extend expiry)
   - `unlock_funds(request)` - Unlock specific lock
   - `unlock_all_expired(request)` - Unlock all expired locks
   - `get_locked_funds(user_address, service_address=None)` - Get locked funds
   - `get_total_locked_balance(user_address, token_id)` - Get total locked balance
   - `get_expired_locks(user_address)` - Get expired locks
-  - `transfer_funds(request)` - Transfer tokens
+  - `transfer_funds(request)` - Transfer tokens (requires nonce)
+  - `get_transfer_nonce(user_address)` - Get next transfer nonce
   - `transfer_locked_funds(request)` - Transfer locked tokens
   - `request_withdrawal(request)` - Request withdrawal
   - `get_pending_withdrawals(user_address)` - Get pending withdrawals
@@ -88,6 +90,7 @@ signature = sign_lock_message(
 ### Signing
 
 - `sign_lock_message(params)` - Sign lock message
+- `sign_modify_lock_message(params)` - Sign modify lock message
 - `sign_transfer_message(params)` - Sign transfer message
 - `sign_transfer_locked_message(params)` - Sign transfer locked message
 - `sign_withdraw_message(params)` - Sign withdrawal message
@@ -98,6 +101,7 @@ signature = sign_lock_message(
 - `format_token_amount(amount, decimals=18)` - Format wei to human-readable
 - `parse_token_amount(amount, decimals=18)` - Parse human-readable to wei
 - `shorten_address(address, chars=4)` - Shorten Ethereum address
+- `format_timestamp(timestamp)` - Format Unix timestamp to readable string
 - `is_expired(expiry)` - Check if timestamp is expired
 - `format_time_remaining(expiry_timestamp)` - Format time remaining
 - `format_relative_time(timestamp)` - Format relative time (e.g., "5m ago")

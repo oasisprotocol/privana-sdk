@@ -514,7 +514,7 @@ wheels = [
 ]
 
 [[package]]
-name = "flexvaults"
+name = "flexvaults-sdk"
 version = "0.1.5"
 source = { editable = "." }
 dependencies = [
