@@ -2,7 +2,7 @@
 
 import { useAccount } from 'wagmi'
 import { usePendingWithdrawals } from '@/sdk/hooks'
-import { formatTokenAmount, formatRelativeTime } from '@/lib/utils'
+import { formatTokenAmount } from '@/lib/utils'
 import { getTokenById } from '@/sdk/types/tokens'
 import { getTokenIcon } from './token-icons'
 import { SUPPORTED_CHAINS, getExplorerAddressUrl } from '@/sdk/types/chains'
@@ -55,7 +55,8 @@ export function RecentActivity() {
       {withdrawals.map((withdrawal) => {
         const token = getTokenById(withdrawal.token_id)
         const formattedAmount = formatTokenAmount(String(withdrawal.amount), token?.decimals ?? 18)
-        const isPending = withdrawal.status === 'pending'
+        // Pending withdrawals endpoint only returns unresolved withdrawals
+        const isPending = !withdrawal.resolved
 
         return (
           <div
@@ -107,7 +108,7 @@ export function RecentActivity() {
             </div>
             <div className="flex items-center justify-between text-[10px] text-zinc-500">
               <span>{chain?.name ?? 'Unknown Chain'}</span>
-              <span>{formatRelativeTime(withdrawal.created_at)}</span>
+              <span>Block #{withdrawal.block_number}</span>
             </div>
           </div>
         )
