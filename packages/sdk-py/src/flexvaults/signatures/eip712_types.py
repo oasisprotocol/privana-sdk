@@ -38,6 +38,7 @@ TRANSFER_TYPES = {
         {"name": "toAddress", "type": "address"},
         {"name": "tokenId", "type": "bytes32"},
         {"name": "amount", "type": "uint256"},
+        {"name": "nonce", "type": "uint256"},
     ],
 }
 
@@ -75,6 +76,7 @@ class TransferMessage:
     to_address: Address
     token_id: Bytes32
     amount: int
+    nonce: int
 
 
 @dataclass

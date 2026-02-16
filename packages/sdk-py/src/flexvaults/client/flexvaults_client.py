@@ -32,6 +32,7 @@ from ..types.responses import (
     TotalLockedBalanceResponse,
     TransactionData,
     TransactionSubmissionResponse,
+    TransferNonceResponse,
     WithdrawalInfoResponse,
 )
 from .http_client import HttpClient
@@ -276,6 +277,7 @@ class FlexvaultsClient:
                 "to_address": normalize_address(request.to_address),
                 "token_id": normalize_hex(request.token_id),
                 "amount": request.amount,
+                "nonce": request.nonce,
                 "signature": normalize_hex(request.signature),
             },
         )
@@ -283,6 +285,14 @@ class FlexvaultsClient:
             submission_id=data["submission_id"],
             status=data["status"],
             detail=data.get("detail"),
+        )
+
+    async def get_transfer_nonce(self, user_address: str) -> TransferNonceResponse:
+        user = normalize_address(user_address)
+        data = await self._http.get(f"/v1/accounting/funds/transfer/nonce/{user}")
+        return TransferNonceResponse(
+            user_address=data["user_address"],
+            nonce=data["nonce"],
         )
 
     async def transfer_locked_funds(

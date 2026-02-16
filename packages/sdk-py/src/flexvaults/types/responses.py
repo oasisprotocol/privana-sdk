@@ -126,3 +126,9 @@ class WithdrawalInfoResponse:
     created_at: str
     completed_at: str | None = None
     transaction_hash: str | None = None
+
+
+@dataclass
+class TransferNonceResponse:
+    user_address: Address
+    nonce: int

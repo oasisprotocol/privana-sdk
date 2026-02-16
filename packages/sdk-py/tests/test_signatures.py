@@ -105,6 +105,7 @@ class TestSignTransferMessage:
                     to_address=SERVICE_ADDRESS,
                     token_id=TOKEN_ID,
                     amount=500000,
+                    nonce=1,
                 ),
             )
         )
@@ -187,7 +188,7 @@ class TestEIP712Types:
 
     def test_transfer_types_structure(self):
         assert "Transfer" in TRANSFER_TYPES
-        assert len(TRANSFER_TYPES["Transfer"]) == 4
+        assert len(TRANSFER_TYPES["Transfer"]) == 5
 
     def test_transfer_locked_types_structure(self):
         assert "TransferLocked" in TRANSFER_LOCKED_TYPES

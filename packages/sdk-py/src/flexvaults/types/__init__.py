@@ -44,6 +44,7 @@ from .responses import (
     TotalLockedBalanceResponse,
     TransactionData,
     TransactionSubmissionResponse,
+    TransferNonceResponse,
     WithdrawalInfoResponse,
 )
 from .tokens import (
@@ -102,4 +103,5 @@ __all__ = [
     "PendingWithdrawal",
     "PendingWithdrawalsResponse",
     "WithdrawalInfoResponse",
+    "TransferNonceResponse",
 ]

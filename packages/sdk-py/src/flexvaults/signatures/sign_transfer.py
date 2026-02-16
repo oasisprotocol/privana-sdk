@@ -25,6 +25,7 @@ def sign_transfer_message(params: SignTransferParams) -> HexString:
         "toAddress": params.message.to_address,
         "tokenId": hex_to_bytes(params.message.token_id),
         "amount": params.message.amount,
+        "nonce": params.message.nonce,
     }
 
     return sign_typed_data(

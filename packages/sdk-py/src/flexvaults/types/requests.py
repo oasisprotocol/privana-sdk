@@ -49,6 +49,7 @@ class TransferFundsRequest:
     to_address: Address
     token_id: Bytes32
     amount: int
+    nonce: int
     signature: HexString
 
 

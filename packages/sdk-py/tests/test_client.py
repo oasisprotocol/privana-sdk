@@ -251,6 +251,7 @@ class TestTransfer:
                 to_address="0xto",
                 token_id="0xtoken",
                 amount=100,
+                nonce=1,
                 signature="0xsig",
             )
         )
