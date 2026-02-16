@@ -11,6 +11,7 @@ from ..types.requests import (
     DepositQuoteRequest,
     IncludeDepositRequest,
     LockFundsRequest,
+    ModifyLockRequest,
     TransferFundsRequest,
     TransferLockedFundsRequest,
     UnlockAllExpiredRequest,
@@ -186,6 +187,25 @@ class FlexvaultsClient:
                 "token_id": normalize_hex(request.token_id),
                 "amount": request.amount,
                 "expiry": request.expiry,
+                "signature": normalize_hex(request.signature),
+            },
+        )
+        return TransactionSubmissionResponse(
+            submission_id=data["submission_id"],
+            status=data["status"],
+            detail=data.get("detail"),
+        )
+
+    async def modify_lock(
+        self, request: ModifyLockRequest
+    ) -> TransactionSubmissionResponse:
+        data = await self._http.post(
+            "/v1/accounting/funds/modify-lock",
+            {
+                "user_address": normalize_address(request.user_address),
+                "lock_id": request.lock_id,
+                "amount": request.amount,
+                "new_expiry": request.new_expiry,
                 "signature": normalize_hex(request.signature),
             },
         )

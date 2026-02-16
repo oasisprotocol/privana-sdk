@@ -51,6 +51,15 @@ TRANSFER_LOCKED_TYPES = {
     ],
 }
 
+MODIFY_LOCK_TYPES = {
+    "ModifyLock": [
+        {"name": "userAddress", "type": "address"},
+        {"name": "lockId", "type": "uint256"},
+        {"name": "amount", "type": "uint256"},
+        {"name": "newExpiry", "type": "uint256"},
+    ],
+}
+
 WITHDRAW_TYPES = {
     "Withdraw": [
         {"name": "userAddress", "type": "address"},
@@ -77,6 +86,14 @@ class TransferMessage:
     token_id: Bytes32
     amount: int
     nonce: int
+
+
+@dataclass
+class ModifyLockMessage:
+    user_address: Address
+    lock_id: int
+    amount: int
+    new_expiry: int
 
 
 @dataclass

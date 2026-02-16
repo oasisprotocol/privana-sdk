@@ -2,11 +2,14 @@ from eth_account import Account
 
 from flexvaults.signatures import (
     LOCK_TYPES,
+    MODIFY_LOCK_TYPES,
     TRANSFER_LOCKED_TYPES,
     TRANSFER_TYPES,
     WITHDRAW_TYPES,
     LockMessage,
+    ModifyLockMessage,
     SignLockParams,
+    SignModifyLockParams,
     SignTransferLockedParams,
     SignTransferParams,
     SignWithdrawParams,
@@ -16,6 +19,7 @@ from flexvaults.signatures import (
     create_domain,
     create_lock_expiry,
     sign_lock_message,
+    sign_modify_lock_message,
     sign_transfer_locked_message,
     sign_transfer_message,
     sign_withdraw_message,
@@ -91,6 +95,25 @@ class TestSignLockMessage:
         sig1 = sign_lock_message(params)
         sig2 = sign_lock_message(params)
         assert sig1 == sig2
+
+
+class TestSignModifyLockMessage:
+    def test_produces_valid_signature(self):
+        sig = sign_modify_lock_message(
+            SignModifyLockParams(
+                account=TEST_ACCOUNT,
+                network="testnet",
+                verifying_contract=CONTRACT_ADDRESS,
+                message=ModifyLockMessage(
+                    user_address=TEST_ADDRESS,
+                    lock_id=1,
+                    amount=500000,
+                    new_expiry=9999999999,
+                ),
+            )
+        )
+        assert sig.startswith("0x")
+        assert len(sig) == 132
 
 
 class TestSignTransferMessage:
@@ -185,6 +208,10 @@ class TestEIP712Types:
     def test_lock_types_structure(self):
         assert "Lock" in LOCK_TYPES
         assert len(LOCK_TYPES["Lock"]) == 5
+
+    def test_modify_lock_types_structure(self):
+        assert "ModifyLock" in MODIFY_LOCK_TYPES
+        assert len(MODIFY_LOCK_TYPES["ModifyLock"]) == 4
 
     def test_transfer_types_structure(self):
         assert "Transfer" in TRANSFER_TYPES

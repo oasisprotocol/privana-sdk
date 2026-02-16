@@ -33,6 +33,15 @@ class LockFundsRequest:
 
 
 @dataclass
+class ModifyLockRequest:
+    user_address: Address
+    lock_id: int
+    amount: int
+    new_expiry: int
+    signature: HexString
+
+
+@dataclass
 class UnlockFundsRequest:
     user_address: Address
     lock_id: int

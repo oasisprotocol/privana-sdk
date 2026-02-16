@@ -8,6 +8,7 @@ from flexvaults.types.requests import (
     DepositQuoteRequest,
     IncludeDepositRequest,
     LockFundsRequest,
+    ModifyLockRequest,
     TransferFundsRequest,
     TransferLockedFundsRequest,
     UnlockAllExpiredRequest,
@@ -145,6 +146,32 @@ class TestLockFunds:
             )
         )
         assert result.submission_id == "sub-lock"
+
+
+class TestModifyLock:
+    @respx.mock
+    async def test_modify_lock(self, client):
+        respx.post(f"{BASE_URL}/v1/accounting/funds/modify-lock").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "submission_id": "sub-modify",
+                    "status": "submitted",
+                },
+            )
+        )
+
+        result = await client.modify_lock(
+            ModifyLockRequest(
+                user_address="0xuser",
+                lock_id=1,
+                amount=500,
+                new_expiry=9999999999,
+                signature="0xsig",
+            )
+        )
+        assert result.submission_id == "sub-modify"
+        assert result.status == "submitted"
 
 
 class TestUnlockFunds:
