@@ -1,5 +1,4 @@
-import type { Address, Bytes32, Network } from '../types'
-import { NETWORK_CONFIG } from '../types'
+import type { Address, Bytes32 } from '../types'
 
 export interface EIP712Domain {
   name: string
@@ -8,11 +7,11 @@ export interface EIP712Domain {
   verifyingContract: Address
 }
 
-export function createDomain(network: Network, verifyingContract: Address): EIP712Domain {
+export function createDomain(chainId: number, verifyingContract: Address): EIP712Domain {
   return {
     name: 'AccountingModule',
     version: '1',
-    chainId: NETWORK_CONFIG[network].chainId,
+    chainId,
     verifyingContract,
   }
 }
@@ -33,6 +32,7 @@ export const TRANSFER_TYPES = {
     { name: 'toAddress', type: 'address' },
     { name: 'tokenId', type: 'bytes32' },
     { name: 'amount', type: 'uint256' },
+    { name: 'nonce', type: 'uint256' },
   ],
 } as const
 
@@ -54,6 +54,15 @@ export const WITHDRAW_TYPES = {
   ],
 } as const
 
+export const MODIFY_LOCK_TYPES = {
+  ModifyLock: [
+    { name: 'userAddress', type: 'address' },
+    { name: 'lockId', type: 'uint256' },
+    { name: 'amount', type: 'uint256' },
+    { name: 'newExpiry', type: 'uint256' },
+  ],
+} as const
+
 export interface LockMessage {
   userAddress: Address
   serviceAddress: Address
@@ -67,6 +76,7 @@ export interface TransferMessage {
   toAddress: Address
   tokenId: Bytes32
   amount: bigint
+  nonce: bigint
 }
 
 export interface TransferLockedMessage {
@@ -81,4 +91,11 @@ export interface WithdrawMessage {
   tokenId: Bytes32
   amount: bigint
   nonce: bigint
+}
+
+export interface ModifyLockMessage {
+  userAddress: Address
+  lockId: bigint
+  amount: bigint
+  newExpiry: bigint
 }

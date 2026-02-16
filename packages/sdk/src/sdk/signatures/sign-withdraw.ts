@@ -1,17 +1,17 @@
 import type { WalletClient } from 'viem'
-import type { Address, Network } from '../types'
+import type { Address } from '../types'
 import { createDomain, WITHDRAW_TYPES, type WithdrawMessage } from './eip712-types'
 
 export interface SignWithdrawParams {
   walletClient: WalletClient
-  network: Network
+  chainId: number
   verifyingContract: Address
   message: WithdrawMessage
 }
 
 export async function signWithdrawMessage({
   walletClient,
-  network,
+  chainId,
   verifyingContract,
   message,
 }: SignWithdrawParams): Promise<`0x${string}`> {
@@ -20,7 +20,7 @@ export async function signWithdrawMessage({
     throw new Error('No account connected to wallet client')
   }
 
-  const domain = createDomain(network, verifyingContract)
+  const domain = createDomain(chainId, verifyingContract)
 
   const signature = await walletClient.signTypedData({
     account,

@@ -1,17 +1,17 @@
 import type { WalletClient } from 'viem'
-import type { Address, Network } from '../types'
+import type { Address } from '../types'
 import { createDomain, LOCK_TYPES, type LockMessage } from './eip712-types'
 
 export interface SignLockParams {
   walletClient: WalletClient
-  network: Network
+  chainId: number
   verifyingContract: Address
   message: LockMessage
 }
 
 export async function signLockMessage({
   walletClient,
-  network,
+  chainId,
   verifyingContract,
   message,
 }: SignLockParams): Promise<`0x${string}`> {
@@ -20,7 +20,7 @@ export async function signLockMessage({
     throw new Error('No account connected to wallet client')
   }
 
-  const domain = createDomain(network, verifyingContract)
+  const domain = createDomain(chainId, verifyingContract)
 
   const signature = await walletClient.signTypedData({
     account,

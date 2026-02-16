@@ -1,20 +1,20 @@
 import type { WalletClient } from 'viem'
 import type { Address } from '../types'
-import { createDomain, TRANSFER_LOCKED_TYPES, type TransferLockedMessage } from './eip712-types'
+import { createDomain, MODIFY_LOCK_TYPES, type ModifyLockMessage } from './eip712-types'
 
-export interface SignTransferLockedParams {
+export interface SignModifyLockParams {
   walletClient: WalletClient
   chainId: number
   verifyingContract: Address
-  message: TransferLockedMessage
+  message: ModifyLockMessage
 }
 
-export async function signTransferLockedMessage({
+export async function signModifyLockMessage({
   walletClient,
   chainId,
   verifyingContract,
   message,
-}: SignTransferLockedParams): Promise<`0x${string}`> {
+}: SignModifyLockParams): Promise<`0x${string}`> {
   const account = walletClient.account
   if (!account) {
     throw new Error('No account connected to wallet client')
@@ -25,8 +25,8 @@ export async function signTransferLockedMessage({
   const signature = await walletClient.signTypedData({
     account,
     domain,
-    types: TRANSFER_LOCKED_TYPES,
-    primaryType: 'TransferLocked',
+    types: MODIFY_LOCK_TYPES,
+    primaryType: 'ModifyLock',
     message,
   })
 

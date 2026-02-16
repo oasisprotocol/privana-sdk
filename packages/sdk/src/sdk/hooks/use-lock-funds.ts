@@ -5,8 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAccount, useWalletClient } from 'wagmi'
 import { useFlexvaultsContext } from '../context/flexvaults-provider'
 import { signLockMessage } from '../signatures'
-import { getAccountingContract } from '../types'
-import type { Bytes32, Address, TransactionSubmissionResponse } from '../types'
+import type { Bytes32, TransactionSubmissionResponse } from '../types'
 
 export interface UseLockFundsOptions {
   onSuccess?: (response: TransactionSubmissionResponse) => void
@@ -14,7 +13,6 @@ export interface UseLockFundsOptions {
 }
 
 export interface LockFundsParams {
-  serviceAddress: Address
   tokenId: Bytes32
   amount: bigint
   expiry: bigint
@@ -31,7 +29,7 @@ export interface UseLockFundsResult {
 export function useLockFunds(options: UseLockFundsOptions = {}): UseLockFundsResult {
   const { address } = useAccount()
   const { data: walletClient } = useWalletClient()
-  const { client, network } = useFlexvaultsContext()
+  const { client, networkConfig, serviceAddress } = useFlexvaultsContext()
   const queryClient = useQueryClient()
 
   const mutation = useMutation({
@@ -39,14 +37,17 @@ export function useLockFunds(options: UseLockFundsOptions = {}): UseLockFundsRes
       if (!address || !walletClient) {
         throw new Error('Wallet not connected')
       }
+      if (!serviceAddress) {
+        throw new Error('Service address not configured')
+      }
 
       const signature = await signLockMessage({
         walletClient,
-        network,
-        verifyingContract: getAccountingContract(network),
+        chainId: networkConfig.chainId,
+        verifyingContract: networkConfig.accountingContract,
         message: {
           userAddress: address,
-          serviceAddress: params.serviceAddress,
+          serviceAddress,
           tokenId: params.tokenId,
           amount: params.amount,
           expiry: params.expiry,
@@ -55,7 +56,7 @@ export function useLockFunds(options: UseLockFundsOptions = {}): UseLockFundsRes
 
       return client.lockFunds({
         user_address: address,
-        service_address: params.serviceAddress,
+        service_address: serviceAddress,
         token_id: params.tokenId,
         amount: Number(params.amount),
         expiry: Number(params.expiry),

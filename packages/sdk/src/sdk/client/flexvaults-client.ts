@@ -4,8 +4,6 @@ import type {
   Bytes32,
   DepositQuoteRequest,
   DepositQuoteResponse,
-  IncludeDepositRequest,
-  IncludeDepositResponse,
   LockFundsRequest,
   UnlockFundsRequest,
   UnlockAllExpiredRequest,
@@ -22,6 +20,7 @@ import type {
   TotalLockedBalanceResponse,
   PendingWithdrawalsResponse,
   WithdrawalInfoResponse,
+  TransferNonceResponse,
 } from '../types'
 import { normalizeAddress, normalizeHex } from '../types'
 
@@ -42,22 +41,10 @@ export class FlexvaultsClient {
     })
   }
 
-  async includeDeposit(request: IncludeDepositRequest): Promise<IncludeDepositResponse> {
-    return this.http.post<IncludeDepositResponse>('/v1/accounting/deposits', {
-      user_address: normalizeAddress(request.user_address),
-      token_id: normalizeHex(request.token_id),
-      evm_transaction_data: normalizeHex(request.evm_transaction_data),
-      rlp_block_header: request.rlp_block_header
-        ? normalizeHex(request.rlp_block_header)
-        : undefined,
-      transaction_index_rlp: request.transaction_index_rlp
-        ? normalizeHex(request.transaction_index_rlp)
-        : undefined,
-      transaction_proof_stack: request.transaction_proof_stack
-        ? normalizeHex(request.transaction_proof_stack)
-        : undefined,
-    })
-  }
+  // NOTE: includeDeposit was removed - deposits are now processed automatically
+  // by the accounting module's deposit listener. The SDK polls for balance changes
+  // to detect when the deposit has been credited.
+  // TODO: Add a dedicated deposit status endpoint for more reliable tracking.
 
   async getBalance(
     userAddress: Address | string,
@@ -138,8 +125,14 @@ export class FlexvaultsClient {
       to_address: normalizeAddress(request.to_address),
       token_id: normalizeHex(request.token_id),
       amount: request.amount,
+      nonce: request.nonce,
       signature: normalizeHex(request.signature),
     })
+  }
+
+  async getTransferNonce(userAddress: Address | string): Promise<TransferNonceResponse> {
+    const user = normalizeAddress(userAddress)
+    return this.http.get<TransferNonceResponse>(`/v1/accounting/funds/transfer/nonce/${user}`)
   }
 
   async transferLockedFunds(

@@ -7,7 +7,12 @@ import { useDeposit } from '@/sdk/hooks'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import { parseTokenAmount, formatTokenAmount, cn } from '@/lib/utils'
 import { getTokenIcon, ChevronRightIcon } from './token-icons'
-import { TransactionProgressView, TransactionSuccessView, type Step } from './transaction-steps'
+import {
+  TransactionProgressView,
+  TransactionSuccessView,
+  TransactionWarningView,
+  type Step,
+} from './transaction-steps'
 import { SUPPORTED_CHAINS } from '@/sdk/types/chains'
 import { erc20Abi } from 'viem'
 
@@ -22,6 +27,7 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
   const { switchChain, isPending: isSwitchingChain } = useSwitchChain()
   const [amount, setAmount] = useState('')
   const [showSuccess, setShowSuccess] = useState(false)
+  const [showTimeout, setShowTimeout] = useState(false)
   const [cancelled, setCancelled] = useState(false)
 
   const targetChain = SUPPORTED_CHAINS[0]
@@ -53,7 +59,7 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
     isGettingQuote,
     isSendingTransaction,
     isWaitingForConfirmation,
-    isIncludingDeposit,
+    isWaitingForProcessing,
     isPending,
     error,
     deposit,
@@ -63,6 +69,10 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
       setAmount('')
       setShowSuccess(true)
     },
+    onIncludeTimeout: () => {
+      setAmount('')
+      setShowTimeout(true)
+    },
   })
 
   const depositSteps: Step[] = [
@@ -70,7 +80,7 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
       label: 'Getting quote',
       status: isGettingQuote
         ? 'active'
-        : isSendingTransaction || isWaitingForConfirmation || isIncludingDeposit
+        : isSendingTransaction || isWaitingForConfirmation || isWaitingForProcessing
           ? 'completed'
           : 'pending',
     },
@@ -78,17 +88,21 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
       label: 'Confirm in wallet',
       status: isSendingTransaction
         ? 'active'
-        : isWaitingForConfirmation || isIncludingDeposit
+        : isWaitingForConfirmation || isWaitingForProcessing
           ? 'completed'
           : 'pending',
     },
     {
       label: 'Confirming transaction',
-      status: isWaitingForConfirmation ? 'active' : isIncludingDeposit ? 'completed' : 'pending',
+      status: isWaitingForConfirmation
+        ? 'active'
+        : isWaitingForProcessing
+          ? 'completed'
+          : 'pending',
     },
     {
-      label: 'Processing deposit',
-      status: isIncludingDeposit ? 'active' : 'pending',
+      label: 'Processing deposit — may take up to a minute',
+      status: isWaitingForProcessing ? 'active' : 'pending',
     },
   ]
 
@@ -105,6 +119,7 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
 
   const handleDone = () => {
     setShowSuccess(false)
+    setShowTimeout(false)
     setCancelled(false)
     reset()
   }
@@ -119,7 +134,7 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
     const amountInWei = parseTokenAmount(amount, selectedToken.decimals)
     await deposit({
       tokenId: selectedToken.id,
-      amount: Number(amountInWei),
+      amount: amountInWei,
     })
   }
 
@@ -135,6 +150,16 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
       <TransactionSuccessView
         title="Deposit Successful"
         message={`Your ${selectedToken.symbol} deposit has been processed.`}
+        onDone={handleDone}
+      />
+    )
+  }
+
+  if (showTimeout) {
+    return (
+      <TransactionWarningView
+        title="Deposit Processing"
+        message={`Your transaction was confirmed but the deposit is still being processed. Please check your balance - it should update shortly.`}
         onDone={handleDone}
       />
     )

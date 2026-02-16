@@ -5,7 +5,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAccount, useWalletClient, useSwitchChain, useReadContract } from 'wagmi'
 import { useFlexvaultsContext } from '../context/flexvaults-provider'
 import { signWithdrawMessage } from '../signatures'
-import { getAccountingContract, getChainId } from '../types'
 import type { Bytes32, TransactionSubmissionResponse } from '../types'
 
 export interface UseWithdrawOptions {
@@ -42,13 +41,12 @@ const ACCOUNTING_ABI = [
 export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult {
   const { address } = useAccount()
   const { data: walletClient } = useWalletClient()
-  const { client, network } = useFlexvaultsContext()
+  const { client, networkConfig } = useFlexvaultsContext()
   const queryClient = useQueryClient()
   const { switchChainAsync } = useSwitchChain()
   const [currentStep, setCurrentStep] = useState<WithdrawStep>('idle')
 
-  const accountingContract = getAccountingContract(network)
-  const signingChainId = getChainId(network)
+  const { accountingContract, chainId: signingChainId } = networkConfig
 
   const { refetch: refetchNonce } = useReadContract({
     address: accountingContract,
@@ -78,7 +76,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
       setCurrentStep('signing')
       const signature = await signWithdrawMessage({
         walletClient,
-        network,
+        chainId: signingChainId,
         verifyingContract: accountingContract,
         message: {
           userAddress: address,

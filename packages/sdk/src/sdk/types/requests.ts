@@ -3,7 +3,7 @@ import type { Address, Bytes32, HexString } from './common'
 export interface DepositQuoteRequest {
   user_address: Address
   token_id: Bytes32
-  amount: number
+  amount: string
 }
 
 export interface IncludeDepositRequest {
@@ -38,6 +38,7 @@ export interface TransferFundsRequest {
   to_address: Address
   token_id: Bytes32
   amount: number
+  nonce: number
   signature: HexString
 }
 

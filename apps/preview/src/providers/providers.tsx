@@ -5,7 +5,7 @@ import { WagmiProvider } from 'wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RainbowKitProvider, darkTheme, lightTheme } from '@rainbow-me/rainbowkit'
 import { wagmiConfig } from './wagmi-config'
-import { FlexvaultsProvider, type Network } from '@oasisprotocol/flexvaults-sdk'
+import { FlexvaultsProvider, NETWORK_CONFIG, type Network } from '@oasisprotocol/flexvaults-sdk'
 import { ThemeProvider, useTheme } from './theme-provider'
 import '@rainbow-me/rainbowkit/styles.css'
 
@@ -59,7 +59,9 @@ export function Providers({ children, network = 'testnet' }: ProvidersProps) {
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
           <RainbowKitWrapper>
-            <FlexvaultsProvider network={network}>{children}</FlexvaultsProvider>
+            <FlexvaultsProvider networkConfig={NETWORK_CONFIG[network]}>
+              {children}
+            </FlexvaultsProvider>
           </RainbowKitWrapper>
         </QueryClientProvider>
       </WagmiProvider>

@@ -134,3 +134,46 @@ export function TransactionSuccessView({
     </div>
   )
 }
+
+function WarningIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path
+        d="M7 5v2.5M7 10h.005M6.13 2.5h1.74L13 11.5H1L6.13 2.5z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+interface TransactionWarningViewProps {
+  title: string
+  message: string
+  onDone: () => void
+}
+
+export function TransactionWarningView({ title, message, onDone }: TransactionWarningViewProps) {
+  return (
+    <div className="flex w-full flex-col gap-4">
+      <div className="flex items-center gap-3">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-amber-400">
+          <WarningIcon />
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-foreground text-sm font-medium">{title}</span>
+          <span className="text-muted-foreground text-xs">{message}</span>
+        </div>
+      </div>
+
+      <button
+        onClick={onDone}
+        className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors"
+      >
+        Done
+      </button>
+    </div>
+  )
+}
