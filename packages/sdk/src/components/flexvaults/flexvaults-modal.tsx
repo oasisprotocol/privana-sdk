@@ -3,7 +3,13 @@
 import { useState, useMemo } from 'react'
 import { useAccount, useReadContract } from 'wagmi'
 import { erc20Abi } from 'viem'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { DepositForm } from './deposit-form'
 import { WithdrawForm } from './withdraw-form'
 import { SUPPORTED_TOKENS, type TokenConfig } from '@/sdk/types/tokens'
@@ -687,18 +693,6 @@ function ModalBody({
 
   return (
     <>
-      <div className="flex items-center justify-between px-5 py-4">
-        <span className="text-foreground text-xl leading-6 font-medium">Flexvaults</span>
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
-          >
-            <CloseIcon />
-          </button>
-        )}
-      </div>
-
       <div className="flex flex-col gap-2 pb-4">
         <div className={cn(isTransactionPending && 'pointer-events-none')}>
           <BalanceCards
@@ -761,6 +755,24 @@ export function FlexvaultsModal({ open, onClose, showLockedFunds }: FlexvaultsMo
         className="bg-card flex w-[560px] max-w-[95vw] flex-col gap-2 overflow-hidden rounded-2xl border-0 p-2"
         overlayClassName={isTransactionPending ? 'cursor-not-allowed' : undefined}
       >
+        <DialogHeader>
+          <DialogTitle>
+            <div className="flex items-center justify-between px-5 py-4">
+              <span className="text-foreground text-xl leading-6 font-medium">Flexvaults</span>
+              {onClose && (
+                <button
+                  onClick={onClose}
+                  className="text-muted-foreground hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
+                >
+                  <CloseIcon />
+                </button>
+              )}
+            </div>
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Deposit or withdraw tokens from your Flexvault
+          </DialogDescription>
+        </DialogHeader>
         <ModalBody
           onClose={isTransactionPending ? undefined : onClose}
           onTransactionPendingChange={setIsTransactionPending}
