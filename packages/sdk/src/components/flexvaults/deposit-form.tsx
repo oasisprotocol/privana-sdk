@@ -19,9 +19,10 @@ import { erc20Abi } from 'viem'
 interface DepositFormProps {
   selectedToken: TokenConfig
   onTokenSelect: () => void
+  onPendingChange?: (isPending: boolean) => void
 }
 
-export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) {
+export function DepositForm({ selectedToken, onTokenSelect, onPendingChange }: DepositFormProps) {
   const { isConnected, address } = useAccount()
   const chainId = useChainId()
   const { switchChain, isPending: isSwitchingChain } = useSwitchChain()
@@ -112,6 +113,10 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
     }
   }, [error])
 
+  useEffect(() => {
+    onPendingChange?.(isPending && !cancelled)
+  }, [isPending, cancelled, onPendingChange])
+
   const handleCancel = () => {
     setCancelled(true)
     reset()
@@ -166,8 +171,14 @@ export function DepositForm({ selectedToken, onTokenSelect }: DepositFormProps) 
   }
 
   if (isPending && !cancelled) {
+    // Only allow cancel before transaction is confirmed (during quote/wallet signing)
+    const canCancel = isGettingQuote || isSendingTransaction
     return (
-      <TransactionProgressView title="Depositing..." steps={depositSteps} onCancel={handleCancel} />
+      <TransactionProgressView
+        title="Depositing..."
+        steps={depositSteps}
+        onCancel={canCancel ? handleCancel : undefined}
+      />
     )
   }
 

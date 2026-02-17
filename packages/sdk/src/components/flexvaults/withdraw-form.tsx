@@ -14,9 +14,10 @@ import { SUPPORTED_CHAINS, getExplorerAddressUrl } from '@/sdk/types/chains'
 interface WithdrawFormProps {
   selectedToken: TokenConfig
   onTokenSelect: () => void
+  onPendingChange?: (isPending: boolean) => void
 }
 
-export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps) {
+export function WithdrawForm({ selectedToken, onTokenSelect, onPendingChange }: WithdrawFormProps) {
   const { isConnected, address } = useAccount()
   const chainId = useChainId()
   const { switchChain, isPending: isSwitchingChain } = useSwitchChain()
@@ -63,6 +64,10 @@ export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps
       toast.error(error.message.length > 100 ? `${error.message.slice(0, 100)}...` : error.message)
     }
   }, [error])
+
+  useEffect(() => {
+    onPendingChange?.(isPending && !cancelled)
+  }, [isPending, cancelled, onPendingChange])
 
   const handleCancel = () => {
     setCancelled(true)
@@ -117,11 +122,14 @@ export function WithdrawForm({ selectedToken, onTokenSelect }: WithdrawFormProps
   }
 
   if (isPending && !cancelled) {
+    // Only allow cancel before transaction is submitted (during switching chain / signing)
+    const canCancel =
+      currentStep === 'idle' || currentStep === 'switching-chain' || currentStep === 'signing'
     return (
       <TransactionProgressView
         title="Withdrawing..."
         steps={withdrawSteps}
-        onCancel={handleCancel}
+        onCancel={canCancel ? handleCancel : undefined}
       />
     )
   }
