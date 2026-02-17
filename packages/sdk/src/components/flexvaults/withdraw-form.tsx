@@ -8,7 +8,12 @@ import type { WithdrawStep } from '@/sdk/hooks'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import { parseTokenAmount, formatTokenAmount, cn } from '@/lib/utils'
 import { getTokenIcon, ChevronRightIcon } from './token-icons'
-import { TransactionProgressView, TransactionSuccessView, type Step } from './transaction-steps'
+import {
+  TransactionProgressView,
+  TransactionSuccessView,
+  TransactionWarningView,
+  type Step,
+} from './transaction-steps'
 import { SUPPORTED_CHAINS, getExplorerAddressUrl } from '@/sdk/types/chains'
 
 interface WithdrawFormProps {
@@ -23,6 +28,7 @@ export function WithdrawForm({ selectedToken, onTokenSelect, onPendingChange }: 
   const { switchChain, isPending: isSwitchingChain } = useSwitchChain()
   const [amount, setAmount] = useState('')
   const [showSuccess, setShowSuccess] = useState(false)
+  const [showTimeout, setShowTimeout] = useState(false)
   const [cancelled, setCancelled] = useState(false)
 
   const targetChain = SUPPORTED_CHAINS[0]
@@ -35,9 +41,13 @@ export function WithdrawForm({ selectedToken, onTokenSelect, onPendingChange }: 
   const formattedBalance = formatTokenAmount(balanceWei, selectedToken.decimals)
 
   const { withdraw, isPending, currentStep, error, reset } = useWithdraw({
-    onSuccess: () => {
+    onProcessingSuccess: () => {
       setAmount('')
       setShowSuccess(true)
+    },
+    onProcessingTimeout: () => {
+      setAmount('')
+      setShowTimeout(true)
     },
   })
 
@@ -53,10 +63,17 @@ export function WithdrawForm({ selectedToken, onTokenSelect, onPendingChange }: 
   const withdrawSteps: Step[] = [
     {
       label: 'Switching to signing chain',
-      status: getStepStatus('switching-chain', ['signing', 'submitting']),
+      status: getStepStatus('switching-chain', ['signing', 'submitting', 'processing']),
     },
-    { label: 'Sign in wallet', status: getStepStatus('signing', ['submitting']) },
-    { label: 'Submitting withdrawal', status: getStepStatus('submitting', []) },
+    { label: 'Sign in wallet', status: getStepStatus('signing', ['submitting', 'processing']) },
+    {
+      label: 'Submitting withdrawal',
+      status: getStepStatus('submitting', ['processing']),
+    },
+    {
+      label: 'Processing — may take a minute or two',
+      status: getStepStatus('processing', []),
+    },
   ]
 
   useEffect(() => {
@@ -76,6 +93,7 @@ export function WithdrawForm({ selectedToken, onTokenSelect, onPendingChange }: 
 
   const handleDone = () => {
     setShowSuccess(false)
+    setShowTimeout(false)
     setCancelled(false)
     reset()
   }
@@ -112,8 +130,8 @@ export function WithdrawForm({ selectedToken, onTokenSelect, onPendingChange }: 
   if (showSuccess) {
     return (
       <TransactionSuccessView
-        title="Withdrawal Submitted"
-        message={`Your ${selectedToken.symbol} withdrawal has been submitted. It may take up to a minute to appear on the destination chain.`}
+        title="Withdrawal Complete"
+        message={`Your ${selectedToken.symbol} withdrawal has been processed. Funds should appear in your wallet shortly.`}
         explorerUrl={explorerUrl}
         explorerLabel="View on BaseScan"
         onDone={handleDone}
@@ -121,8 +139,18 @@ export function WithdrawForm({ selectedToken, onTokenSelect, onPendingChange }: 
     )
   }
 
+  if (showTimeout) {
+    return (
+      <TransactionWarningView
+        title="Withdrawal Processing"
+        message={`Your withdrawal is still being processed. Please check your balance — it should update shortly.`}
+        onDone={handleDone}
+      />
+    )
+  }
+
   if (isPending && !cancelled) {
-    // Only allow cancel before transaction is submitted (during switching chain / signing)
+    // Only allow cancel before transaction is submitted (steps 1-2)
     const canCancel =
       currentStep === 'idle' || currentStep === 'switching-chain' || currentStep === 'signing'
     return (
