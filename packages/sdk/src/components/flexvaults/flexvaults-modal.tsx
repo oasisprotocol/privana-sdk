@@ -645,6 +645,7 @@ interface ModalBodyProps {
   onViewChange?: (view: ModalView) => void
   onTransactionPendingChange?: (isPending: boolean) => void
   showLockedFunds?: boolean
+  defaultTab?: 'deposit' | 'withdraw'
 }
 
 function ModalBody({
@@ -652,9 +653,10 @@ function ModalBody({
   onViewChange,
   onTransactionPendingChange,
   showLockedFunds = true,
+  defaultTab = 'deposit',
 }: ModalBodyProps) {
   const [selectedToken, setSelectedToken] = useState<TokenConfig>(SUPPORTED_TOKENS.USDC)
-  const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>('deposit')
+  const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>(defaultTab)
   const [currentView, setCurrentView] = useState<ModalView>('main')
   const [isTransactionPending, setIsTransactionPending] = useState(false)
 
@@ -732,9 +734,15 @@ interface FlexvaultsModalProps {
   open: boolean
   onClose: () => void
   showLockedFunds?: boolean
+  defaultTab?: 'deposit' | 'withdraw'
 }
 
-export function FlexvaultsModal({ open, onClose, showLockedFunds }: FlexvaultsModalProps) {
+export function FlexvaultsModal({
+  open,
+  onClose,
+  showLockedFunds,
+  defaultTab,
+}: FlexvaultsModalProps) {
   const [isTransactionPending, setIsTransactionPending] = useState(false)
 
   const handleOpenChange = (isOpen: boolean) => {
@@ -777,6 +785,7 @@ export function FlexvaultsModal({ open, onClose, showLockedFunds }: FlexvaultsMo
           onClose={isTransactionPending ? undefined : onClose}
           onTransactionPendingChange={setIsTransactionPending}
           showLockedFunds={showLockedFunds}
+          defaultTab={defaultTab}
         />
       </DialogContent>
     </Dialog>
@@ -786,9 +795,11 @@ export function FlexvaultsModal({ open, onClose, showLockedFunds }: FlexvaultsMo
 export function FlexvaultsInlineModal({
   className,
   showLockedFunds,
+  defaultTab,
 }: {
   className?: string
   showLockedFunds?: boolean
+  defaultTab?: 'deposit' | 'withdraw'
 }) {
   return (
     <div
@@ -798,7 +809,7 @@ export function FlexvaultsInlineModal({
         className
       )}
     >
-      <ModalBody showLockedFunds={showLockedFunds} />
+      <ModalBody showLockedFunds={showLockedFunds} defaultTab={defaultTab} />
     </div>
   )
 }
