@@ -50,12 +50,14 @@ class TestCreateLockExpiry:
     def test_default_60_minutes(self):
         expiry = create_lock_expiry()
         import time
+
         expected = int(time.time()) + 3600
         assert abs(expiry - expected) < 2
 
     def test_custom_minutes(self):
         expiry = create_lock_expiry(120)
         import time
+
         expected = int(time.time()) + 7200
         assert abs(expiry - expected) < 2
 

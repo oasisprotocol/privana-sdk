@@ -29,7 +29,7 @@ def parse_token_amount(amount: str, decimals: int = 18) -> int:
 def shorten_address(address: str, chars: int = 4) -> str:
     if not address or len(address) < chars * 2 + 2:
         return address
-    return f"{address[:chars + 2]}...{address[-chars:]}"
+    return f"{address[: chars + 2]}...{address[-chars:]}"
 
 
 def format_timestamp(timestamp: int) -> str:

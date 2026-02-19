@@ -150,9 +150,7 @@ class FlexvaultsClient:
             chain_id=data["chain_id"],
         )
 
-    async def get_batch_balances(
-        self, request: BatchBalancesRequest
-    ) -> BatchBalancesResponse:
+    async def get_batch_balances(self, request: BatchBalancesRequest) -> BatchBalancesResponse:
         data = await self._http.post(
             "/v1/accounting/balances/batch",
             {
@@ -176,9 +174,7 @@ class FlexvaultsClient:
             contract_address=data.get("contract_address"),
         )
 
-    async def lock_funds(
-        self, request: LockFundsRequest
-    ) -> TransactionSubmissionResponse:
+    async def lock_funds(self, request: LockFundsRequest) -> TransactionSubmissionResponse:
         data = await self._http.post(
             "/v1/accounting/funds/lock",
             {
@@ -196,9 +192,7 @@ class FlexvaultsClient:
             detail=data.get("detail"),
         )
 
-    async def modify_lock(
-        self, request: ModifyLockRequest
-    ) -> TransactionSubmissionResponse:
+    async def modify_lock(self, request: ModifyLockRequest) -> TransactionSubmissionResponse:
         data = await self._http.post(
             "/v1/accounting/funds/modify-lock",
             {
@@ -215,9 +209,7 @@ class FlexvaultsClient:
             detail=data.get("detail"),
         )
 
-    async def unlock_funds(
-        self, request: UnlockFundsRequest
-    ) -> TransactionSubmissionResponse:
+    async def unlock_funds(self, request: UnlockFundsRequest) -> TransactionSubmissionResponse:
         data = await self._http.post(
             "/v1/accounting/funds/unlock",
             {
@@ -270,9 +262,7 @@ class FlexvaultsClient:
     ) -> TotalLockedBalanceResponse:
         user = normalize_address(user_address)
         token = normalize_hex(token_id)
-        data = await self._http.get(
-            f"/v1/accounting/funds/locked/total/{user}/{token}"
-        )
+        data = await self._http.get(f"/v1/accounting/funds/locked/total/{user}/{token}")
         return TotalLockedBalanceResponse(
             user_address=data["user_address"],
             token_id=data["token_id"],
@@ -287,9 +277,7 @@ class FlexvaultsClient:
             expired_locks=[_parse_lock_info(lock) for lock in data.get("expired_locks", [])],
         )
 
-    async def transfer_funds(
-        self, request: TransferFundsRequest
-    ) -> TransactionSubmissionResponse:
+    async def transfer_funds(self, request: TransferFundsRequest) -> TransactionSubmissionResponse:
         data = await self._http.post(
             "/v1/accounting/funds/transfer",
             {
@@ -334,9 +322,7 @@ class FlexvaultsClient:
             detail=data.get("detail"),
         )
 
-    async def request_withdrawal(
-        self, request: WithdrawalRequest
-    ) -> TransactionSubmissionResponse:
+    async def request_withdrawal(self, request: WithdrawalRequest) -> TransactionSubmissionResponse:
         data = await self._http.post(
             "/v1/accounting/withdraw",
             {
@@ -353,16 +339,12 @@ class FlexvaultsClient:
             detail=data.get("detail"),
         )
 
-    async def get_pending_withdrawals(
-        self, user_address: str
-    ) -> PendingWithdrawalsResponse:
+    async def get_pending_withdrawals(self, user_address: str) -> PendingWithdrawalsResponse:
         user = normalize_address(user_address)
         data = await self._http.get(f"/v1/accounting/withdraw/pending/{user}")
         return PendingWithdrawalsResponse(
             user_address=data["user_address"],
-            withdrawals=[
-                _parse_pending_withdrawal(w) for w in data.get("withdrawals", [])
-            ],
+            withdrawals=[_parse_pending_withdrawal(w) for w in data.get("withdrawals", [])],
         )
 
     async def get_withdrawal_info(self, index: int) -> WithdrawalInfoResponse:

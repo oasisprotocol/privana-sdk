@@ -3,7 +3,7 @@ import flexvaults
 
 class TestPackageExports:
     def test_version(self):
-        assert flexvaults.__version__ == "0.1.5"
+        assert flexvaults.__version__ == "0.1.6"
 
     def test_client_exports(self):
         assert hasattr(flexvaults, "FlexvaultsClient")

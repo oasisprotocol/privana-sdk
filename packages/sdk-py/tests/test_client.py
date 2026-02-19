@@ -187,9 +187,7 @@ class TestUnlockFunds:
             )
         )
 
-        result = await client.unlock_funds(
-            UnlockFundsRequest(user_address="0xuser", lock_id=0)
-        )
+        result = await client.unlock_funds(UnlockFundsRequest(user_address="0xuser", lock_id=0))
         assert result.submission_id == "sub-unlock"
 
     @respx.mock
@@ -204,9 +202,7 @@ class TestUnlockFunds:
             )
         )
 
-        result = await client.unlock_all_expired(
-            UnlockAllExpiredRequest(user_address="0xuser")
-        )
+        result = await client.unlock_all_expired(UnlockAllExpiredRequest(user_address="0xuser"))
         assert result.submission_id == "sub-all"
 
 
@@ -241,9 +237,7 @@ class TestLockedFunds:
 
     @respx.mock
     async def test_get_locked_funds_with_service(self, client):
-        respx.get(
-            f"{BASE_URL}/v1/accounting/funds/locked/0xuser?service_address=0xservice"
-        ).mock(
+        respx.get(f"{BASE_URL}/v1/accounting/funds/locked/0xuser?service_address=0xservice").mock(
             return_value=httpx.Response(
                 200,
                 json={
@@ -450,9 +444,7 @@ class TestExpiredLocks:
 class TestTotalLockedBalance:
     @respx.mock
     async def test_get_total_locked_balance(self, client):
-        respx.get(
-            f"{BASE_URL}/v1/accounting/funds/locked/total/0xuser/0xtoken"
-        ).mock(
+        respx.get(f"{BASE_URL}/v1/accounting/funds/locked/total/0xuser/0xtoken").mock(
             return_value=httpx.Response(
                 200,
                 json={
