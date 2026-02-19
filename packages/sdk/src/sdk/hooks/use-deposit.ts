@@ -9,6 +9,7 @@ import {
   useWaitForTransactionReceipt,
 } from 'wagmi'
 import { useFlexvaultsContext } from '../context/flexvaults-provider'
+import { useEnsureCorrectChain } from './use-ensure-correct-chain'
 import type { Bytes32, DepositQuoteResponse, BalanceResponse } from '../types'
 
 export interface UseDepositOptions {
@@ -33,6 +34,7 @@ export interface UseDepositResult {
   quote: DepositQuoteResponse | null
   txHash: `0x${string}` | undefined
   isGettingQuote: boolean
+  isSwitchingChain: boolean
   isSendingTransaction: boolean
   isWaitingForConfirmation: boolean
   isWaitingForProcessing: boolean
@@ -56,6 +58,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   const pollTimeout = options.pollTimeout ?? 120000 // 2 minutes
 
   const [quote, setQuote] = useState<DepositQuoteResponse | null>(null)
+  const [isSwitchingChain, setIsSwitchingChain] = useState(false)
   const [isWaitingForProcessing, setIsWaitingForProcessing] = useState(false)
   const [didTimeout, setDidTimeout] = useState(false)
   const [processingError, setProcessingError] = useState<Error | null>(null)
@@ -125,6 +128,8 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     error: sendError,
     reset: resetSendTransaction,
   } = useSendTransaction()
+
+  const { ensureCorrectChain } = useEnsureCorrectChain()
 
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
     hash: txHash,
@@ -245,12 +250,21 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
       throw new Error('No quote available or wallet not connected')
     }
 
+    // Switch to the correct chain before sending the deposit transaction
+    setIsSwitchingChain(true)
+    try {
+      await ensureCorrectChain(quote.transaction.chain_id)
+    } finally {
+      setIsSwitchingChain(false)
+    }
+
     sendTransaction({
       to: quote.transaction.to,
       value: BigInt(quote.transaction.value),
       data: quote.transaction.data as `0x${string}`,
+      chainId: quote.transaction.chain_id,
     })
-  }, [quote, walletClient, sendTransaction])
+  }, [quote, walletClient, sendTransaction, ensureCorrectChain])
 
   const deposit = useCallback(
     async (params: DepositParams) => {
@@ -258,17 +272,28 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
       if (!quoteResult || !walletClient) {
         throw new Error('Failed to get quote or wallet not connected')
       }
+
+      // Switch to the correct chain before sending the deposit transaction
+      setIsSwitchingChain(true)
+      try {
+        await ensureCorrectChain(quoteResult.transaction.chain_id)
+      } finally {
+        setIsSwitchingChain(false)
+      }
+
       sendTransaction({
         to: quoteResult.transaction.to,
         value: BigInt(quoteResult.transaction.value),
         data: quoteResult.transaction.data as `0x${string}`,
+        chainId: quoteResult.transaction.chain_id,
       })
     },
-    [quoteMutation, walletClient, sendTransaction]
+    [quoteMutation, walletClient, sendTransaction, ensureCorrectChain]
   )
 
   const reset = useCallback(() => {
     setQuote(null)
+    setIsSwitchingChain(false)
     setIsWaitingForProcessing(false)
     setDidTimeout(false)
     setProcessingError(null)
@@ -285,7 +310,12 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     resetSendTransaction()
   }, [quoteMutation, resetSendTransaction])
 
-  const isPending = quoteMutation.isPending || isSendingTx || isConfirming || isWaitingForProcessing
+  const isPending =
+    quoteMutation.isPending ||
+    isSwitchingChain ||
+    isSendingTx ||
+    isConfirming ||
+    isWaitingForProcessing
 
   const error = quoteMutation.error || sendError || processingError
 
@@ -293,6 +323,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     quote,
     txHash,
     isGettingQuote: quoteMutation.isPending,
+    isSwitchingChain,
     isSendingTransaction: isSendingTx,
     isWaitingForConfirmation: isConfirming,
     isWaitingForProcessing,

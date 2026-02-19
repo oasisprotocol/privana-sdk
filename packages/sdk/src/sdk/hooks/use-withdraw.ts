@@ -2,8 +2,9 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useAccount, useWalletClient, useSwitchChain, useReadContract } from 'wagmi'
+import { useAccount, useWalletClient, useReadContract } from 'wagmi'
 import { useFlexvaultsContext } from '../context/flexvaults-provider'
+import { useEnsureCorrectChain } from './use-ensure-correct-chain'
 import { signWithdrawMessage } from '../signatures'
 import type { Bytes32, TransactionSubmissionResponse } from '../types'
 
@@ -62,7 +63,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
   const { data: walletClient } = useWalletClient()
   const { client, networkConfig } = useFlexvaultsContext()
   const queryClient = useQueryClient()
-  const { switchChainAsync } = useSwitchChain()
+  const { chainId, ensureCorrectChain } = useEnsureCorrectChain()
 
   const pollInterval = options.pollInterval ?? 3000
   const pollTimeout = options.pollTimeout ?? 180000 // 3 minutes
@@ -221,8 +222,10 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
       withdrawParamsRef.current = { tokenId: params.tokenId, amount: params.amount }
       setDidTimeout(false)
 
-      setCurrentStep('switching-chain')
-      await switchChainAsync({ chainId: signingChainId })
+      if (chainId !== signingChainId) {
+        setCurrentStep('switching-chain')
+      }
+      await ensureCorrectChain(signingChainId)
 
       // Get withdrawal count BEFORE submitting - our withdrawal will be at this index
       const { data: withdrawalCount } = await refetchWithdrawalCount()
@@ -292,8 +295,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
     mutation.reset()
   }, [mutation])
 
-  const isPending =
-    mutation.isPending || currentStep === 'processing' || currentStep === 'submitting'
+  const isPending = mutation.isPending || currentStep !== 'idle'
 
   return {
     withdraw,
