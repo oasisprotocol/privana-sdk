@@ -18,6 +18,16 @@ coverage/
 # env
 .env*
 
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
 # misc
 .DS_Store
 *.pem

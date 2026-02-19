@@ -1,0 +1,33 @@
+{
+  "tokens": {
+    "USDC": {
+      "id": "0xc719650e9f4b0f27d956638c54518932ef9d15e720a1a2b2850250bcd0816514",
+      "symbol": "USDC",
+      "decimals": 6,
+      "contract": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "name": "USD Coin"
+    }
+  },
+  "chains": [
+    {
+      "id": 84532,
+      "name": "Base Sepolia",
+      "explorerUrl": "https://sepolia.basescan.org",
+      "tokens": ["USDC"]
+    }
+  ],
+  "networks": {
+    "testnet": {
+      "chainId": 23295,
+      "name": "Sapphire Testnet",
+      "accountingContract": "0xaF8e5de153A584528B57DD4B9B0195956BBDF571",
+      "apiUrl": "https://p8000.m1356.opf-testnet-rofl-25.rofl.app"
+    },
+    "mainnet": {
+      "chainId": 23294,
+      "name": "Sapphire Mainnet",
+      "accountingContract": "0x0000000000000000000000000000000000000000",
+      "apiUrl": ""
+    }
+  }
+}

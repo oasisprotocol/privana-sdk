@@ -43,3 +43,34 @@ jobs:
         if: always()
       - name: Build
         run: bun run build
+
+  python:
+    name: python
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/sdk-py
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --all-extras
+      - name: Ruff format check
+        run: uv run ruff format --check .
+        if: always()
+      - name: Ruff lint
+        run: uv run ruff check .
+        if: always()
+      - name: Mypy type check
+        run: uv run mypy src/
+        if: always()
+      - name: Test
+        run: uv run pytest

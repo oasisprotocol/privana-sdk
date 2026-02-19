@@ -1,5 +1,6 @@
-import type { Bytes32, Address } from './common'
+import config from '@shared/config.json'
 import type { TokenConfig } from './tokens'
+import { SUPPORTED_TOKENS, type SupportedToken } from './tokens'
 
 export interface ChainConfig {
   id: number
@@ -8,22 +9,12 @@ export interface ChainConfig {
   tokens: TokenConfig[]
 }
 
-export const SUPPORTED_CHAINS: ChainConfig[] = [
-  {
-    id: 84532,
-    name: 'Base Sepolia',
-    explorerUrl: 'https://sepolia.basescan.org',
-    tokens: [
-      {
-        id: '0xc719650e9f4b0f27d956638c54518932ef9d15e720a1a2b2850250bcd0816514' as Bytes32,
-        symbol: 'USDC',
-        decimals: 6,
-        contract: '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as Address,
-        name: 'USD Coin',
-      },
-    ],
-  },
-]
+export const SUPPORTED_CHAINS: ChainConfig[] = config.chains.map((chain) => ({
+  id: chain.id,
+  name: chain.name,
+  explorerUrl: chain.explorerUrl,
+  tokens: chain.tokens.map((key) => SUPPORTED_TOKENS[key as SupportedToken]),
+}))
 
 export function getChainById(chainId: number): ChainConfig | undefined {
   return SUPPORTED_CHAINS.find((c) => c.id === chainId)
