@@ -3,14 +3,14 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { useAccount } from 'wagmi'
 import { useFlexvaultsContext } from '../context/flexvaults-provider'
-import type { PendingWithdrawal, PendingWithdrawalsResponse } from '../types'
+import type { WithdrawalInfo, PendingWithdrawalsResponse } from '../types'
 
 export interface UsePendingWithdrawalsOptions {
   enabled?: boolean
 }
 
 export interface UsePendingWithdrawalsResult {
-  withdrawals: PendingWithdrawal[]
+  withdrawals: WithdrawalInfo[]
   hasPendingWithdrawals: boolean
   isLoading: boolean
   isError: boolean
@@ -37,7 +37,7 @@ export function usePendingWithdrawals(
           'statusCode' in error &&
           error.statusCode === 404
         ) {
-          return { user_address: address, withdrawals: [] }
+          return { user_address: address, pending_withdrawals: [] }
         }
         throw error
       }
@@ -54,7 +54,7 @@ export function usePendingWithdrawals(
     },
   })
 
-  const withdrawals = query.data?.withdrawals ?? []
+  const withdrawals = query.data?.pending_withdrawals ?? []
 
   return {
     withdrawals,

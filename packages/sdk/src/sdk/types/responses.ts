@@ -83,30 +83,22 @@ export interface TotalLockedBalanceResponse {
   total_locked: string
 }
 
-export interface PendingWithdrawal {
+export interface WithdrawalInfo {
   index: number
   user_address: Address
-  token_id: Bytes32
   amount: string
-  status: string
-  created_at: string
+  block_number: number
+  token_id: Bytes32
+  resolved: boolean
+  tx_identifier: string
 }
 
 export interface PendingWithdrawalsResponse {
   user_address: Address
-  withdrawals: PendingWithdrawal[]
+  pending_withdrawals: WithdrawalInfo[]
 }
 
-export interface WithdrawalInfoResponse {
-  index: number
-  user_address: Address
-  token_id: Bytes32
-  amount: string
-  status: string
-  created_at: string
-  completed_at?: string
-  transaction_hash?: string
-}
+export type WithdrawalInfoResponse = WithdrawalInfo
 
 export interface TransferNonceResponse {
   user_address: Address

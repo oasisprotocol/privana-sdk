@@ -3,7 +3,13 @@
 import { useState, useMemo } from 'react'
 import { useAccount, useReadContract } from 'wagmi'
 import { erc20Abi } from 'viem'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { DepositForm } from './deposit-form'
 import { WithdrawForm } from './withdraw-form'
 import { SUPPORTED_TOKENS, type TokenConfig } from '@/sdk/types/tokens'
@@ -87,11 +93,13 @@ function BalanceCards({
   onLockedFundsClick,
   onBalanceClick,
   showLockedFunds = true,
+  disabled,
 }: {
   selectedToken: TokenConfig
   onLockedFundsClick: () => void
   onBalanceClick: () => void
   showLockedFunds?: boolean
+  disabled?: boolean
 }) {
   const { balanceWei, isLoading: balanceLoading } = useBalance({
     tokenId: selectedToken.id,
@@ -104,10 +112,14 @@ function BalanceCards({
     : '0'
 
   return (
-    <div className="flex gap-2">
+    <div className={cn('flex gap-2', disabled && 'opacity-50')}>
       <button
         onClick={onBalanceClick}
-        className="bg-muted hover:bg-muted/80 flex flex-1 cursor-pointer flex-col gap-2 rounded-[10px] p-5 text-left transition-colors"
+        disabled={disabled}
+        className={cn(
+          'bg-muted flex flex-1 flex-col gap-2 rounded-[10px] p-5 text-left transition-colors',
+          disabled ? 'cursor-not-allowed' : 'hover:bg-muted/80 cursor-pointer'
+        )}
       >
         <div className="flex w-full items-center justify-between">
           <div className="flex items-center gap-1">
@@ -132,7 +144,11 @@ function BalanceCards({
       {showLockedFunds && (
         <button
           onClick={onLockedFundsClick}
-          className="bg-muted hover:bg-muted/80 flex flex-1 cursor-pointer flex-col gap-2 rounded-[10px] p-5 text-left transition-colors"
+          disabled={disabled}
+          className={cn(
+            'bg-muted flex flex-1 flex-col gap-2 rounded-[10px] p-5 text-left transition-colors',
+            disabled ? 'cursor-not-allowed' : 'hover:bg-muted/80 cursor-pointer'
+          )}
         >
           <div className="flex w-full items-center justify-between">
             <div className="flex items-center gap-1">
@@ -161,12 +177,19 @@ function BalanceCards({
 function Tabs({
   activeTab,
   onTabChange,
+  disabled,
 }: {
   activeTab: 'deposit' | 'withdraw'
   onTabChange: (tab: 'deposit' | 'withdraw') => void
+  disabled?: boolean
 }) {
   return (
-    <div className="bg-muted relative flex gap-2 overflow-hidden rounded-[10px] p-1">
+    <div
+      className={cn(
+        'bg-muted relative flex gap-2 overflow-hidden rounded-[10px] p-1',
+        disabled && 'opacity-50'
+      )}
+    >
       <div
         className={cn(
           'bg-input absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-md transition-transform duration-200',
@@ -174,19 +197,23 @@ function Tabs({
         )}
       />
       <button
-        onClick={() => onTabChange('deposit')}
+        onClick={() => !disabled && onTabChange('deposit')}
+        disabled={disabled}
         className={cn(
-          'relative z-10 flex-1 cursor-pointer rounded-md px-3 py-[9px] text-sm transition-colors',
-          activeTab === 'deposit' ? 'text-foreground' : 'text-muted-foreground'
+          'relative z-10 flex-1 rounded-md px-3 py-[9px] text-sm transition-colors',
+          activeTab === 'deposit' ? 'text-foreground' : 'text-muted-foreground',
+          disabled ? 'cursor-not-allowed' : 'cursor-pointer'
         )}
       >
         Deposit
       </button>
       <button
-        onClick={() => onTabChange('withdraw')}
+        onClick={() => !disabled && onTabChange('withdraw')}
+        disabled={disabled}
         className={cn(
-          'relative z-10 flex-1 cursor-pointer rounded-md px-3 py-[9px] text-sm transition-colors',
-          activeTab === 'withdraw' ? 'text-foreground' : 'text-muted-foreground'
+          'relative z-10 flex-1 rounded-md px-3 py-[9px] text-sm transition-colors',
+          activeTab === 'withdraw' ? 'text-foreground' : 'text-muted-foreground',
+          disabled ? 'cursor-not-allowed' : 'cursor-pointer'
         )}
       >
         Withdraw
@@ -616,13 +643,27 @@ function TokenSelectorView({
 interface ModalBodyProps {
   onClose?: () => void
   onViewChange?: (view: ModalView) => void
+  onTransactionPendingChange?: (isPending: boolean) => void
   showLockedFunds?: boolean
+  defaultTab?: 'deposit' | 'withdraw'
 }
 
-function ModalBody({ onClose, onViewChange, showLockedFunds = true }: ModalBodyProps) {
+function ModalBody({
+  onClose,
+  onViewChange,
+  onTransactionPendingChange,
+  showLockedFunds = true,
+  defaultTab = 'deposit',
+}: ModalBodyProps) {
   const [selectedToken, setSelectedToken] = useState<TokenConfig>(SUPPORTED_TOKENS.USDC)
-  const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>('deposit')
+  const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>(defaultTab)
   const [currentView, setCurrentView] = useState<ModalView>('main')
+  const [isTransactionPending, setIsTransactionPending] = useState(false)
+
+  const handleTransactionPendingChange = (isPending: boolean) => {
+    setIsTransactionPending(isPending)
+    onTransactionPendingChange?.(isPending)
+  }
 
   const handleViewChange = (view: ModalView) => {
     setCurrentView(view)
@@ -654,38 +695,33 @@ function ModalBody({ onClose, onViewChange, showLockedFunds = true }: ModalBodyP
 
   return (
     <>
-      <div className="flex items-center justify-between px-5 py-4">
-        <span className="text-foreground text-xl leading-6 font-medium">Flexvaults</span>
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
-          >
-            <CloseIcon />
-          </button>
-        )}
-      </div>
-
       <div className="flex flex-col gap-2 pb-4">
-        <BalanceCards
-          selectedToken={selectedToken}
-          onLockedFundsClick={() => handleViewChange('locked-funds')}
-          onBalanceClick={() => handleViewChange('balance-details')}
-          showLockedFunds={showLockedFunds}
-        />
+        <div className={cn(isTransactionPending && 'pointer-events-none')}>
+          <BalanceCards
+            selectedToken={selectedToken}
+            onLockedFundsClick={() => handleViewChange('locked-funds')}
+            onBalanceClick={() => handleViewChange('balance-details')}
+            showLockedFunds={showLockedFunds}
+            disabled={isTransactionPending}
+          />
+        </div>
 
-        <Tabs activeTab={activeTab} onTabChange={setActiveTab} />
+        <div className={cn(isTransactionPending && 'pointer-events-none')}>
+          <Tabs activeTab={activeTab} onTabChange={setActiveTab} disabled={isTransactionPending} />
+        </div>
 
         <div className="bg-muted rounded-[10px] p-5">
           {activeTab === 'deposit' ? (
             <DepositForm
               selectedToken={selectedToken}
               onTokenSelect={() => handleViewChange('select-token')}
+              onPendingChange={handleTransactionPendingChange}
             />
           ) : (
             <WithdrawForm
               selectedToken={selectedToken}
               onTokenSelect={() => handleViewChange('select-token')}
+              onPendingChange={handleTransactionPendingChange}
             />
           )}
         </div>
@@ -698,17 +734,59 @@ interface FlexvaultsModalProps {
   open: boolean
   onClose: () => void
   showLockedFunds?: boolean
+  defaultTab?: 'deposit' | 'withdraw'
 }
 
-export function FlexvaultsModal({ open, onClose, showLockedFunds }: FlexvaultsModalProps) {
+export function FlexvaultsModal({
+  open,
+  onClose,
+  showLockedFunds,
+  defaultTab,
+}: FlexvaultsModalProps) {
+  const [isTransactionPending, setIsTransactionPending] = useState(false)
+
+  const handleOpenChange = (isOpen: boolean) => {
+    // Block closing if a transaction is pending
+    if (!isOpen && isTransactionPending) {
+      return
+    }
+    if (!isOpen) {
+      onClose()
+    }
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         data-flexvaults
         showCloseButton={false}
         className="bg-card flex w-[560px] max-w-[95vw] flex-col gap-2 overflow-hidden rounded-2xl border-0 p-2"
+        overlayClassName={isTransactionPending ? 'cursor-not-allowed' : undefined}
       >
-        <ModalBody onClose={onClose} showLockedFunds={showLockedFunds} />
+        <DialogHeader>
+          <DialogTitle>
+            <div className="flex items-center justify-between px-5 py-4">
+              <span className="text-foreground text-xl leading-6 font-medium">Flexvaults</span>
+              {onClose && (
+                <button
+                  onClick={onClose}
+                  className="text-muted-foreground hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
+                >
+                  <CloseIcon />
+                </button>
+              )}
+            </div>
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Deposit or withdraw tokens from your Flexvault
+          </DialogDescription>
+        </DialogHeader>
+        <ModalBody
+          onClose={isTransactionPending ? undefined : onClose}
+          onTransactionPendingChange={setIsTransactionPending}
+          showLockedFunds={showLockedFunds}
+          defaultTab={defaultTab}
+        />
       </DialogContent>
     </Dialog>
   )
@@ -717,9 +795,11 @@ export function FlexvaultsModal({ open, onClose, showLockedFunds }: FlexvaultsMo
 export function FlexvaultsInlineModal({
   className,
   showLockedFunds,
+  defaultTab,
 }: {
   className?: string
   showLockedFunds?: boolean
+  defaultTab?: 'deposit' | 'withdraw'
 }) {
   return (
     <div
@@ -729,7 +809,7 @@ export function FlexvaultsInlineModal({
         className
       )}
     >
-      <ModalBody showLockedFunds={showLockedFunds} />
+      <ModalBody showLockedFunds={showLockedFunds} defaultTab={defaultTab} />
     </div>
   )
 }

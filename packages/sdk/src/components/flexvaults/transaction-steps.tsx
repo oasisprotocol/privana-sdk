@@ -45,7 +45,7 @@ function Spinner({ size = 20 }: { size?: number }) {
 interface TransactionProgressViewProps {
   title: string
   steps: Step[]
-  onCancel: () => void
+  onCancel?: () => void
 }
 
 export function TransactionProgressView({ title, steps, onCancel }: TransactionProgressViewProps) {
@@ -71,16 +71,18 @@ export function TransactionProgressView({ title, steps, onCancel }: TransactionP
           />
         </div>
         <span className="text-muted-foreground text-xs">
-          Step {completed + (active ? 1 : 0)} of {total}
+          Step {Math.max(1, completed + (active ? 1 : 0))} of {total}
         </span>
       </div>
 
-      <button
-        onClick={onCancel}
-        className="border-border text-foreground hover:bg-secondary flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] border px-3 py-2 text-sm font-medium transition-colors"
-      >
-        Cancel
-      </button>
+      {onCancel && (
+        <button
+          onClick={onCancel}
+          className="border-border text-foreground hover:bg-secondary flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] border px-3 py-2 text-sm font-medium transition-colors"
+        >
+          Cancel
+        </button>
+      )}
     </div>
   )
 }
