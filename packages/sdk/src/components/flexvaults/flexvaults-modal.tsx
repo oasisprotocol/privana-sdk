@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useId } from 'react'
 import { useAccount, useReadContract } from 'wagmi'
 import { erc20Abi } from 'viem'
 import {
@@ -744,6 +744,8 @@ export function FlexvaultsModal({
   defaultTab,
 }: FlexvaultsModalProps) {
   const [isTransactionPending, setIsTransactionPending] = useState(false)
+  const titleId = useId()
+  const descId = useId()
 
   const handleOpenChange = (isOpen: boolean) => {
     // Block closing if a transaction is pending
@@ -762,24 +764,27 @@ export function FlexvaultsModal({
         showCloseButton={false}
         className="bg-card flex w-[560px] max-w-[95vw] flex-col gap-2 overflow-hidden rounded-2xl border-0 p-2"
         overlayClassName={isTransactionPending ? 'cursor-not-allowed' : undefined}
+        aria-labelledby={titleId}
+        aria-describedby={descId}
       >
         <DialogHeader>
-          <DialogTitle>
-            <div className="flex items-center justify-between px-5 py-4">
-              <span className="text-foreground text-xl leading-6 font-medium">Flexvaults</span>
-              {onClose && (
-                <button
-                  onClick={onClose}
-                  className="text-muted-foreground hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
-                >
-                  <CloseIcon />
-                </button>
-              )}
-            </div>
+          <DialogTitle id={titleId} className="sr-only">
+            Flexvaults
           </DialogTitle>
-          <DialogDescription className="sr-only">
+          <DialogDescription id={descId} className="sr-only">
             Deposit or withdraw tokens from your Flexvault
           </DialogDescription>
+          <div className="flex items-center justify-between px-5 py-4">
+            <span className="text-foreground text-xl leading-6 font-medium">Flexvaults</span>
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="text-muted-foreground hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
+              >
+                <CloseIcon />
+              </button>
+            )}
+          </div>
         </DialogHeader>
         <ModalBody
           onClose={isTransactionPending ? undefined : onClose}
