@@ -1,7 +1,13 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useState, useMemo, useId } from 'react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog'
 import { SUPPORTED_TOKENS, type TokenConfig } from '@/sdk/types/tokens'
 import { cn } from '@/lib/utils'
 import { getTokenIcon } from './token-icons'
@@ -22,6 +28,8 @@ export function TokenSelectorModal({
   selectedTokenId,
 }: TokenSelectorModalProps) {
   const [tokenSearch, setTokenSearch] = useState('')
+  const titleId = useId()
+  const descId = useId()
 
   const allTokens = useMemo(() => {
     return Object.entries(SUPPORTED_TOKENS).map(([key, token]) => ({
@@ -62,9 +70,18 @@ export function TokenSelectorModal({
         if (!isOpen) handleClose()
       }}
     >
-      <DialogContent className="border-border bg-card gap-0 overflow-hidden rounded-xl border p-0 sm:max-w-85">
+      <DialogContent
+        className="border-border bg-card gap-0 overflow-hidden rounded-xl border p-0 sm:max-w-85"
+        aria-labelledby={titleId}
+        aria-describedby={descId}
+      >
         <DialogHeader className="border-border border-b px-4 py-3">
-          <DialogTitle className="text-foreground text-sm font-medium">Select Token</DialogTitle>
+          <DialogTitle id={titleId} className="text-foreground text-sm font-medium">
+            Select Token
+          </DialogTitle>
+          <DialogDescription id={descId} className="sr-only">
+            Select a token to filter or choose from the available options.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="p-3">
