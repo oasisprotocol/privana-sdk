@@ -75,6 +75,7 @@ export function DepositForm({
     onIncludeSuccess: () => {
       setAmount('')
       if (onSuccess) {
+        reset()
         onSuccess()
       } else {
         setShowSuccess(true)
