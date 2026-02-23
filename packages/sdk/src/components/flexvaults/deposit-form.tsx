@@ -20,9 +20,15 @@ interface DepositFormProps {
   selectedToken: TokenConfig
   onTokenSelect: () => void
   onPendingChange?: (isPending: boolean) => void
+  onSuccess?: () => void
 }
 
-export function DepositForm({ selectedToken, onTokenSelect, onPendingChange }: DepositFormProps) {
+export function DepositForm({
+  selectedToken,
+  onTokenSelect,
+  onPendingChange,
+  onSuccess,
+}: DepositFormProps) {
   const { isConnected, address } = useAccount()
   const chainId = useChainId()
   const { switchChain, isPending: isSwitchingChain } = useSwitchChain()
@@ -68,7 +74,12 @@ export function DepositForm({ selectedToken, onTokenSelect, onPendingChange }: D
   } = useDeposit({
     onIncludeSuccess: () => {
       setAmount('')
-      setShowSuccess(true)
+      if (onSuccess) {
+        reset()
+        onSuccess()
+      } else {
+        setShowSuccess(true)
+      }
     },
     onIncludeTimeout: () => {
       setAmount('')

@@ -646,6 +646,7 @@ interface ModalBodyProps {
   onTransactionPendingChange?: (isPending: boolean) => void
   showLockedFunds?: boolean
   defaultTab?: 'deposit' | 'withdraw'
+  onDepositSuccess?: () => void
 }
 
 function ModalBody({
@@ -654,6 +655,7 @@ function ModalBody({
   onTransactionPendingChange,
   showLockedFunds = true,
   defaultTab = 'deposit',
+  onDepositSuccess,
 }: ModalBodyProps) {
   const [selectedToken, setSelectedToken] = useState<TokenConfig>(SUPPORTED_TOKENS.USDC)
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>(defaultTab)
@@ -716,6 +718,7 @@ function ModalBody({
               selectedToken={selectedToken}
               onTokenSelect={() => handleViewChange('select-token')}
               onPendingChange={handleTransactionPendingChange}
+              onSuccess={onDepositSuccess}
             />
           ) : (
             <WithdrawForm
@@ -735,6 +738,7 @@ interface FlexvaultsModalProps {
   onClose: () => void
   showLockedFunds?: boolean
   defaultTab?: 'deposit' | 'withdraw'
+  onDepositSuccess?: () => void
 }
 
 export function FlexvaultsModal({
@@ -742,6 +746,7 @@ export function FlexvaultsModal({
   onClose,
   showLockedFunds,
   defaultTab,
+  onDepositSuccess,
 }: FlexvaultsModalProps) {
   const [isTransactionPending, setIsTransactionPending] = useState(false)
   const titleId = useId()
@@ -791,6 +796,7 @@ export function FlexvaultsModal({
           onTransactionPendingChange={setIsTransactionPending}
           showLockedFunds={showLockedFunds}
           defaultTab={defaultTab}
+          onDepositSuccess={onDepositSuccess}
         />
       </DialogContent>
     </Dialog>
@@ -801,10 +807,12 @@ export function FlexvaultsInlineModal({
   className,
   showLockedFunds,
   defaultTab,
+  onDepositSuccess,
 }: {
   className?: string
   showLockedFunds?: boolean
   defaultTab?: 'deposit' | 'withdraw'
+  onDepositSuccess?: () => void
 }) {
   return (
     <div
@@ -814,7 +822,11 @@ export function FlexvaultsInlineModal({
         className
       )}
     >
-      <ModalBody showLockedFunds={showLockedFunds} defaultTab={defaultTab} />
+      <ModalBody
+        showLockedFunds={showLockedFunds}
+        defaultTab={defaultTab}
+        onDepositSuccess={onDepositSuccess}
+      />
     </div>
   )
 }
