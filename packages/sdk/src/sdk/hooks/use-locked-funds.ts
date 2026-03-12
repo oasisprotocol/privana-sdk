@@ -11,7 +11,7 @@ export interface UseLockedFundsOptions {
 
 export interface UseLockedFundsResult {
   locks: LockInfo[]
-  totalLocked: number
+  totalLocked: string
   isLoading: boolean
   isError: boolean
   error: Error | null
@@ -36,7 +36,7 @@ export function useLockedFunds(options: UseLockedFundsOptions = {}): UseLockedFu
 
   return {
     locks: query.data?.locks ?? [],
-    totalLocked: query.data?.total_locked ?? 0,
+    totalLocked: query.data?.total_locked ?? '0',
     isLoading: query.isLoading,
     isError: query.isError,
     error: query.error,

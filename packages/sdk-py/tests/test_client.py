@@ -73,7 +73,7 @@ class TestGetDepositQuote:
                 json={
                     "user_address": "0xuser",
                     "token_id": "0xtoken",
-                    "amount": 100,
+                    "amount": "100",
                     "deposit_address": "0xdeposit",
                     "transaction": {
                         "to": "0xto",
@@ -90,10 +90,10 @@ class TestGetDepositQuote:
             DepositQuoteRequest(
                 user_address="0xuser",
                 token_id="0xtoken",
-                amount=100,
+                amount="100",
             )
         )
-        assert result.amount == 100
+        assert result.amount == "100"
         assert result.deposit_address == "0xdeposit"
         assert result.transaction.chain_id == 84532
 
@@ -140,7 +140,7 @@ class TestLockFunds:
                 user_address="0xuser",
                 service_address="0xservice",
                 token_id="0xtoken",
-                amount=1000,
+                amount="1000",
                 expiry=9999999999,
                 signature="0xsig",
             )
@@ -165,7 +165,7 @@ class TestModifyLock:
             ModifyLockRequest(
                 user_address="0xuser",
                 lock_id=1,
-                amount=500,
+                amount="500",
                 new_expiry=9999999999,
                 signature="0xsig",
             )
@@ -220,20 +220,20 @@ class TestLockedFunds:
                             "user_address": "0xuser",
                             "service_address": "0xservice",
                             "token_id": "0xtoken",
-                            "amount": 500,
+                            "amount": "500",
                             "expiry": 9999999999,
                             "is_expired": False,
                         }
                     ],
-                    "total_locked": 500,
+                    "total_locked": "500",
                 },
             )
         )
 
         result = await client.get_locked_funds("0xuser")
         assert len(result.locks) == 1
-        assert result.locks[0].amount == 500
-        assert result.total_locked == 500
+        assert result.locks[0].amount == "500"
+        assert result.total_locked == "500"
 
     @respx.mock
     async def test_get_locked_funds_with_service(self, client):
@@ -244,7 +244,7 @@ class TestLockedFunds:
                     "user_address": "0xuser",
                     "service_address": "0xservice",
                     "locks": [],
-                    "total_locked": 0,
+                    "total_locked": "0",
                 },
             )
         )
@@ -271,7 +271,7 @@ class TestTransfer:
                 user_address="0xfrom",
                 to_address="0xto",
                 token_id="0xtoken",
-                amount=100,
+                amount="100",
                 nonce=1,
                 signature="0xsig",
             )
@@ -295,7 +295,7 @@ class TestTransfer:
                 user_address="0xfrom",
                 lock_id=0,
                 to_address="0xto",
-                amount=50,
+                amount="50",
                 signature="0xsig",
             )
         )
@@ -319,7 +319,7 @@ class TestWithdrawal:
             WithdrawalRequest(
                 user_address="0xuser",
                 token_id="0xtoken",
-                amount=100,
+                amount="100",
                 nonce=0,
                 signature="0xsig",
             )

@@ -252,7 +252,7 @@ class FlexvaultsClient:
             user_address=data["user_address"],
             service_address=data.get("service_address"),
             locks=[_parse_lock_info(lock) for lock in data.get("locks", [])],
-            total_locked=data.get("total_locked", 0),
+            total_locked=data.get("total_locked", "0"),
         )
 
     async def get_total_locked_balance(

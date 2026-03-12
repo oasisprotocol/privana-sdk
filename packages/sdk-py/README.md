@@ -21,7 +21,7 @@ async def main():
             DepositQuoteRequest(
                 user_address="0xYourAddress",
                 token_id="0xTokenId",
-                amount=1000000,
+                amount="1000000",
             )
         )
         print(f"Deposit to: {quote.deposit_address}")
@@ -56,7 +56,7 @@ signature = sign_lock_message(
             user_address=account.address,
             service_address="0xServiceAddress",
             token_id="0xTokenId",
-            amount=1000000,
+            amount="1000000",
             expiry=create_lock_expiry(60),
         ),
     )

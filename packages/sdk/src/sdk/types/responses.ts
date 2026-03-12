@@ -10,7 +10,7 @@ export interface TransactionData {
 export interface DepositQuoteResponse {
   user_address: Address
   token_id: Bytes32
-  amount: number
+  amount: string
   deposit_address: Address
   transaction: TransactionData
   instructions: string
@@ -60,7 +60,7 @@ export interface LockInfo {
   user_address: Address
   service_address: Address
   token_id: Bytes32
-  amount: number
+  amount: string
   expiry: number
   is_expired: boolean
 }
@@ -69,7 +69,7 @@ export interface LockedFundsResponse {
   user_address: Address
   service_address?: Address
   locks: LockInfo[]
-  total_locked: number
+  total_locked: string
 }
 
 export interface ExpiredLocksResponse {
