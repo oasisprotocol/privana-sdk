@@ -56,11 +56,15 @@ export function DepositForm({
 
   const handleMaxClick = () => {
     if (formattedWalletBalance && parseFloat(formattedWalletBalance) > 0) {
-      setAmount(formattedWalletBalance)
+      setAmount(formattedWalletBalance.replace(/[\s\u2009]/g, ''))
     }
   }
 
   const hasValidAmount = amount && parseFloat(amount) > 0
+  const exceedsBalance =
+    hasValidAmount &&
+    walletBalance != null &&
+    parseTokenAmount(amount, selectedToken.decimals) > walletBalance
 
   const {
     isGettingQuote,
@@ -145,7 +149,7 @@ export function DepositForm({
       switchChain({ chainId: targetChain.id })
       return
     }
-    if (!amount || !selectedToken) return
+    if (!amount || !selectedToken || exceedsBalance) return
     setCancelled(false)
     const amountInWei = parseTokenAmount(amount, selectedToken.decimals)
     await deposit({
@@ -230,7 +234,7 @@ export function DepositForm({
             placeholder="Enter Amount"
             value={amount}
             onChange={(e) => {
-              const value = e.target.value.replace(/[^0-9.]/g, '')
+              const value = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.')
               if (value.split('.').length <= 2) {
                 setAmount(value)
               }
@@ -247,11 +251,14 @@ export function DepositForm({
             MAX
           </button>
         </div>
+        {exceedsBalance && <p className="text-destructive text-sm">Insufficient balance</p>}
       </div>
 
       <button
         onClick={handleSubmit}
-        disabled={!isConnected || (!isWrongChain && !hasValidAmount) || isSwitchingChain}
+        disabled={
+          !isConnected || (!isWrongChain && !hasValidAmount) || !!exceedsBalance || isSwitchingChain
+        }
         className={cn(
           'flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors',
           'bg-primary text-primary-foreground hover:bg-primary/90',

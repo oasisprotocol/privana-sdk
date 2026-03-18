@@ -14,12 +14,15 @@ export function formatTokenAmount(amount: string | bigint, decimals: number = 18
   const fractionalStr = fractionalPart.toString().padStart(decimals, '0')
   const twoDecimals = fractionalStr.slice(0, 2).padEnd(2, '0')
 
-  const integerWithCommas = integerPart.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-  return `${integerWithCommas}.${twoDecimals}`
+  const integerWithSpaces = integerPart.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '\u2009')
+  return `${integerWithSpaces}.${twoDecimals}`
 }
 
 export function parseTokenAmount(amount: string, decimals: number = 18): bigint {
-  const [integerPart, fractionalPart = ''] = amount.split('.')
+  const sanitized = amount.replace(/[\s\u2009]/g, '').replace(/,/g, '.')
+  const lastDot = sanitized.lastIndexOf('.')
+  const integerPart = lastDot === -1 ? sanitized : sanitized.slice(0, lastDot).replace(/\./g, '')
+  const fractionalPart = lastDot === -1 ? '' : sanitized.slice(lastDot + 1)
   const paddedFractional = fractionalPart.padEnd(decimals, '0').slice(0, decimals)
   return BigInt(integerPart + paddedFractional)
 }
