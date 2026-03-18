@@ -118,7 +118,7 @@ export function WithdrawForm({ selectedToken, onTokenSelect, onPendingChange }: 
 
   const handleMaxClick = () => {
     if (formattedBalance && parseFloat(formattedBalance) > 0) {
-      setAmount(formattedBalance)
+      setAmount(formattedBalance.replace(/[\s\u2009]/g, ''))
     }
   }
 
@@ -208,7 +208,7 @@ export function WithdrawForm({ selectedToken, onTokenSelect, onPendingChange }: 
             placeholder="Enter Amount"
             value={amount}
             onChange={(e) => {
-              const value = e.target.value.replace(/[^0-9.]/g, '')
+              const value = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.')
               if (value.split('.').length <= 2) {
                 setAmount(value)
               }

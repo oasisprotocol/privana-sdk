@@ -56,7 +56,7 @@ export function DepositForm({
 
   const handleMaxClick = () => {
     if (formattedWalletBalance && parseFloat(formattedWalletBalance) > 0) {
-      setAmount(formattedWalletBalance)
+      setAmount(formattedWalletBalance.replace(/[\s\u2009]/g, ''))
     }
   }
 
@@ -234,7 +234,7 @@ export function DepositForm({
             placeholder="Enter Amount"
             value={amount}
             onChange={(e) => {
-              const value = e.target.value.replace(/[^0-9.]/g, '')
+              const value = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.')
               if (value.split('.').length <= 2) {
                 setAmount(value)
               }
