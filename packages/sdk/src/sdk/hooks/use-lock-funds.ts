@@ -58,7 +58,7 @@ export function useLockFunds(options: UseLockFundsOptions = {}): UseLockFundsRes
         user_address: address,
         service_address: serviceAddress,
         token_id: params.tokenId,
-        amount: Number(params.amount),
+        amount: params.amount.toString(),
         expiry: Number(params.expiry),
         signature,
       })

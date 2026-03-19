@@ -256,7 +256,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
       return client.requestWithdrawal({
         user_address: address,
         token_id: params.tokenId,
-        amount: Number(params.amount),
+        amount: params.amount.toString(),
         nonce: Number(nonce),
         signature,
       })

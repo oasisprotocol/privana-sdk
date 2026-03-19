@@ -66,7 +66,7 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
         user_address: address,
         to_address: params.toAddress,
         token_id: params.tokenId,
-        amount: Number(params.amount),
+        amount: params.amount.toString(),
         nonce,
         signature,
       })
@@ -102,7 +102,7 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
         user_address: address,
         lock_id: params.lockId,
         to_address: params.toAddress,
-        amount: Number(params.amount),
+        amount: params.amount.toString(),
         signature,
       })
     },

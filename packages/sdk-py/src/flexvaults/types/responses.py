@@ -17,7 +17,7 @@ class TransactionData:
 class DepositQuoteResponse:
     user_address: Address
     token_id: Bytes32
-    amount: int
+    amount: str
     deposit_address: Address
     transaction: TransactionData
     instructions: str
@@ -74,7 +74,7 @@ class LockInfo:
     user_address: Address
     service_address: Address
     token_id: Bytes32
-    amount: int
+    amount: str
     expiry: int
     is_expired: bool
 
@@ -83,7 +83,7 @@ class LockInfo:
 class LockedFundsResponse:
     user_address: Address
     locks: list[LockInfo] = field(default_factory=list)
-    total_locked: int = 0
+    total_locked: str = "0"
     service_address: Address | None = None
 
 
