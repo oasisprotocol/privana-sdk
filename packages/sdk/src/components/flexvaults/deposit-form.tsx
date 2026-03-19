@@ -61,8 +61,11 @@ export function DepositForm({
   }
 
   const hasValidAmount = amount && parseFloat(amount) > 0
+  const tooManyDecimals =
+    hasValidAmount && amount.includes('.') && amount.split('.')[1].length > selectedToken.decimals
   const exceedsBalance =
     hasValidAmount &&
+    !tooManyDecimals &&
     walletBalance != null &&
     parseTokenAmount(amount, selectedToken.decimals) > walletBalance
 
@@ -251,13 +254,22 @@ export function DepositForm({
             MAX
           </button>
         </div>
+        {tooManyDecimals && (
+          <p className="text-destructive text-sm">
+            Too many decimal places (max: {selectedToken.decimals})
+          </p>
+        )}
         {exceedsBalance && <p className="text-destructive text-sm">Insufficient balance</p>}
       </div>
 
       <button
         onClick={handleSubmit}
         disabled={
-          !isConnected || (!isWrongChain && !hasValidAmount) || !!exceedsBalance || isSwitchingChain
+          !isConnected ||
+          (!isWrongChain && !hasValidAmount) ||
+          tooManyDecimals ||
+          !!exceedsBalance ||
+          isSwitchingChain
         }
         className={cn(
           'flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors',

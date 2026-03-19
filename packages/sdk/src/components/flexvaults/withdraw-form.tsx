@@ -123,8 +123,11 @@ export function WithdrawForm({ selectedToken, onTokenSelect, onPendingChange }: 
   }
 
   const hasValidAmount = amount && parseFloat(amount) > 0
+  const tooManyDecimals =
+    hasValidAmount && amount.includes('.') && amount.split('.')[1].length > selectedToken.decimals
   const exceedsBalance =
     hasValidAmount &&
+    !tooManyDecimals &&
     !isBalanceLoading &&
     !isBalanceError &&
     parseTokenAmount(amount, selectedToken.decimals) > BigInt(balanceWei)
@@ -225,13 +228,22 @@ export function WithdrawForm({ selectedToken, onTokenSelect, onPendingChange }: 
             MAX
           </button>
         </div>
+        {tooManyDecimals && (
+          <p className="text-destructive text-sm">
+            Too many decimal places (max: {selectedToken.decimals})
+          </p>
+        )}
         {exceedsBalance && <p className="text-destructive text-sm">Insufficient balance</p>}
       </div>
 
       <button
         onClick={handleWithdraw}
         disabled={
-          !isConnected || (!isWrongChain && !hasValidAmount) || !!exceedsBalance || isSwitchingChain
+          !isConnected ||
+          (!isWrongChain && !hasValidAmount) ||
+          tooManyDecimals ||
+          !!exceedsBalance ||
+          isSwitchingChain
         }
         className={cn(
           'flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors',
