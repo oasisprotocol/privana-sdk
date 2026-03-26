@@ -9,6 +9,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { SUPPORTED_TOKENS, type TokenConfig } from '@/sdk/types/tokens'
+import { useFlexvaultsContext } from '@/sdk/context/flexvaults-provider'
 import { cn } from '@/lib/utils'
 import { getTokenIcon } from './token-icons'
 
@@ -19,8 +20,6 @@ interface TokenSelectorModalProps {
   selectedTokenId?: string
 }
 
-const ENABLED_TOKENS = ['USDC']
-
 export function TokenSelectorModal({
   open,
   onClose,
@@ -30,14 +29,17 @@ export function TokenSelectorModal({
   const [tokenSearch, setTokenSearch] = useState('')
   const titleId = useId()
   const descId = useId()
+  const { enabledTokens } = useFlexvaultsContext()
+
+  const enabledTokenIds = useMemo(() => new Set(enabledTokens.map((t) => t.id)), [enabledTokens])
 
   const allTokens = useMemo(() => {
     return Object.entries(SUPPORTED_TOKENS).map(([key, token]) => ({
       ...token,
       key,
-      enabled: ENABLED_TOKENS.includes(key),
+      enabled: enabledTokenIds.has(token.id),
     }))
-  }, [])
+  }, [enabledTokenIds])
 
   const filteredTokens = useMemo(() => {
     let tokens = allTokens
