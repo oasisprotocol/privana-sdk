@@ -16,7 +16,7 @@ class TokenConfig:
     name: str
 
 
-SupportedToken = Literal["USDC"]
+SupportedToken = Literal["USDC", "USDC_SWAP", "WETH"]
 
 SUPPORTED_TOKENS: dict[str, TokenConfig] = {
     key: TokenConfig(**token) for key, token in CONFIG["tokens"].items()

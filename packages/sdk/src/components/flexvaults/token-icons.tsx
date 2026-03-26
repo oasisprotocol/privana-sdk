@@ -64,11 +64,34 @@ export function BaseIcon({ className, size = 24 }: IconProps) {
   )
 }
 
+export function WETHIcon({ className, size = 24 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 250 250"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      <path d="M0 125C0 55.9644 55.9644 0 125 0C194.036 0 250 55.9644 250 125C250 194.036 194.036 250 125 250C55.9644 250 0 194.036 0 125Z" fill="#627EEA" />
+      <path d="M125.047 30.5V100.351L184.086 126.732L125.047 30.5Z" fill="white" fillOpacity="0.602" />
+      <path d="M125.047 30.5L66 126.732L125.047 100.351V30.5Z" fill="white" />
+      <path d="M125.047 172V219.462L184.125 137.728L125.047 172Z" fill="white" fillOpacity="0.602" />
+      <path d="M125.047 219.462V171.992L66 137.728L125.047 219.462Z" fill="white" />
+      <path d="M125.047 161.013L184.086 126.733L125.047 100.368V161.013Z" fill="white" fillOpacity="0.2" />
+      <path d="M66 126.733L125.047 161.013V100.368L66 126.733Z" fill="white" fillOpacity="0.602" />
+    </svg>
+  )
+}
+
 export function getTokenIcon(symbol: string, size?: number) {
   const iconSize = size ?? 24
   switch (symbol.toUpperCase()) {
     case 'USDC':
       return <USDCIcon size={iconSize} />
+    case 'WETH':
+      return <WETHIcon size={iconSize} />
     default:
       return (
         <div
