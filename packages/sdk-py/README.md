@@ -26,9 +26,31 @@ async def main():
         )
         print(f"Deposit to: {quote.deposit_address}")
 
-        # Check balance
+asyncio.run(main())
+```
+
+## Direct SIWE Private Reads
+
+Private read endpoints such as balances and locked funds use the backend's direct SIWE flow.
+The Python SDK exposes the raw helpers and token setters rather than a hosted auth-code wrapper.
+
+```python
+import asyncio
+from flexvaults import FlexvaultsClient
+
+async def main():
+    async with FlexvaultsClient(base_url="https://api.example.com") as client:
+        domain = await client.get_siwe_domain()
+        nonce = await client.get_siwe_nonce("0xYourAddress")
+
+        # Build and sign the SIWE message in your app, then submit it here.
+        login = await client.authenticate_private_reads(
+            siwe_message="your signed-in message",
+            signature="0xYourSignature",
+        )
+
         balance = await client.get_balance("0xYourAddress", "0xTokenId")
-        print(f"Balance: {balance.balance}")
+        print(domain.domain, nonce.nonce, login.address, balance.balance)
 
 asyncio.run(main())
 ```
@@ -39,6 +61,7 @@ asyncio.run(main())
 from eth_account import Account
 from flexvaults import (
     sign_lock_message,
+    LockNonceResponse,
     SignLockParams,
     LockMessage,
     get_accounting_contract,
@@ -58,6 +81,7 @@ signature = sign_lock_message(
             token_id="0xTokenId",
             amount=1000000,
             expiry=create_lock_expiry(60),
+            nonce=0,
         ),
     )
 )
@@ -74,6 +98,8 @@ signature = sign_lock_message(
   - `get_batch_balances(request)` - Get multiple token balances
   - `get_token_info(token_id)` - Get token information
   - `lock_funds(request)` - Lock funds for a service
+  - `get_lock_nonce(user_address)` - Get next create-lock nonce
+  - `get_modify_lock_nonce(user_address)` - Get next modify-lock nonce
   - `modify_lock(request)` - Modify an existing lock (add funds and/or extend expiry)
   - `unlock_funds(request)` - Unlock specific lock
   - `unlock_all_expired(request)` - Unlock all expired locks
@@ -83,9 +109,17 @@ signature = sign_lock_message(
   - `transfer_funds(request)` - Transfer tokens (requires nonce)
   - `get_transfer_nonce(user_address)` - Get next transfer nonce
   - `transfer_locked_funds(request)` - Transfer locked tokens
+  - `get_transfer_locked_nonce(service_address)` - Get next transfer-from-lock nonce
   - `request_withdrawal(request)` - Request withdrawal
+  - `get_withdrawal_nonce(user_address)` - Get next withdrawal nonce
   - `get_pending_withdrawals(user_address)` - Get pending withdrawals
   - `get_withdrawal_info(index)` - Get withdrawal info
+  - `get_siwe_domain()` - Get the direct SIWE auth domain
+  - `get_siwe_nonce(user_address)` - Get a SIWE login nonce
+  - `login_with_siwe(siwe_message, signature)` - Exchange a signed SIWE message for tokens
+  - `authenticate_private_reads(siwe_message, signature)` - Login and store `X-SIWE-Token`
+  - `set_private_read_token(token)` / `clear_private_read_token()` - Manage `X-SIWE-Token`
+  - `set_bearer_token(token)` / `clear_bearer_token()` - Manage bearer auth headers
 
 ### Signing
 

@@ -25,6 +25,8 @@ def sign_transfer_locked_message(params: SignTransferLockedParams) -> HexString:
         "toAddress": params.message.to_address,
         "lockId": params.message.lock_id,
         "amount": params.message.amount,
+        "nonce": params.message.nonce,
+        "serviceAddress": params.message.service_address,
     }
 
     return sign_typed_data(

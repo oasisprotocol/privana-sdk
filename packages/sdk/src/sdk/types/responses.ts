@@ -1,4 +1,4 @@
-import type { Address, Bytes32 } from './common'
+import type { Address, Bytes32, HexString } from './common'
 
 export interface TransactionData {
   to: Address
@@ -10,19 +10,17 @@ export interface TransactionData {
 export interface DepositQuoteResponse {
   user_address: Address
   token_id: Bytes32
-  amount: number
+  amount: string
   deposit_address: Address
   transaction: TransactionData
   instructions: string
 }
 
 export interface IncludeDepositResponse {
-  submission_id: string
   status: string
 }
 
 export interface TransactionSubmissionResponse {
-  submission_id: string
   status: string
   detail?: string
 }
@@ -49,10 +47,12 @@ export interface BatchBalancesResponse {
 
 export interface TokenInfoResponse {
   token_id: Bytes32
-  symbol: string
-  decimals: number
-  chain_id: number
-  contract_address?: Address
+  token_type: number
+  token_type_name: string
+  data: string
+  chain_id?: number | null
+  chain_name?: string | null
+  token_address?: Address | null
 }
 
 export interface LockInfo {
@@ -60,7 +60,7 @@ export interface LockInfo {
   user_address: Address
   service_address: Address
   token_id: Bytes32
-  amount: number
+  amount: string
   expiry: number
   is_expired: boolean
 }
@@ -69,7 +69,7 @@ export interface LockedFundsResponse {
   user_address: Address
   service_address?: Address
   locks: LockInfo[]
-  total_locked: number
+  total_locked: string
 }
 
 export interface ExpiredLocksResponse {
@@ -102,5 +102,39 @@ export type WithdrawalInfoResponse = WithdrawalInfo
 
 export interface TransferNonceResponse {
   user_address: Address
-  nonce: number
+  nonce: string
+}
+
+export interface WithdrawalNonceResponse {
+  user_address: Address
+  nonce: string
+}
+
+export interface LockNonceResponse {
+  user_address: Address
+  nonce: string
+}
+
+export interface TransferLockedNonceResponse {
+  service_address: Address
+  nonce: string
+}
+
+export interface SiweDomainResponse {
+  domain: string
+}
+
+export interface SiweNonceResponse {
+  address: Address
+  nonce: string
+  expires_in: number
+}
+
+export interface SiweLoginResponse {
+  siwe_token: HexString
+  jwt_access_token: string
+  jwt_refresh_token: string
+  address: Address
+  jwt_expires_in: number
+  jwt_refresh_expires_in: number
 }

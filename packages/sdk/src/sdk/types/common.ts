@@ -3,6 +3,7 @@ import config from '@shared/config.json'
 export type Address = `0x${string}`
 export type Bytes32 = `0x${string}`
 export type HexString = `0x${string}`
+export type IntegerLike = string | number
 
 export type Network = keyof typeof config.networks
 

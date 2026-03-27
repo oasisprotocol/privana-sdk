@@ -28,6 +28,18 @@ export class HttpClient {
     return this.request<T>('POST', path, body)
   }
 
+  setHeader(name: string, value: string): void {
+    this.headers[name] = value
+  }
+
+  removeHeader(name: string): void {
+    delete this.headers[name]
+  }
+
+  getHeader(name: string): string | undefined {
+    return this.headers[name]
+  }
+
   private async request<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
     const url = `${this.baseUrl}${path}`
     const controller = new AbortController()

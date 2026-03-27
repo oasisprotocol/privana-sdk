@@ -23,6 +23,7 @@ export const LOCK_TYPES = {
     { name: 'tokenId', type: 'bytes32' },
     { name: 'amount', type: 'uint256' },
     { name: 'expiry', type: 'uint256' },
+    { name: 'nonce', type: 'uint256' },
   ],
 } as const
 
@@ -42,6 +43,8 @@ export const TRANSFER_LOCKED_TYPES = {
     { name: 'toAddress', type: 'address' },
     { name: 'lockId', type: 'uint256' },
     { name: 'amount', type: 'uint256' },
+    { name: 'nonce', type: 'uint256' },
+    { name: 'serviceAddress', type: 'address' },
   ],
 } as const
 
@@ -60,6 +63,7 @@ export const MODIFY_LOCK_TYPES = {
     { name: 'lockId', type: 'uint256' },
     { name: 'amount', type: 'uint256' },
     { name: 'newExpiry', type: 'uint256' },
+    { name: 'nonce', type: 'uint256' },
   ],
 } as const
 
@@ -69,6 +73,7 @@ export interface LockMessage {
   tokenId: Bytes32
   amount: bigint
   expiry: bigint
+  nonce: bigint
 }
 
 export interface TransferMessage {
@@ -84,6 +89,8 @@ export interface TransferLockedMessage {
   toAddress: Address
   lockId: bigint
   amount: bigint
+  nonce: bigint
+  serviceAddress: Address
 }
 
 export interface WithdrawMessage {
@@ -98,4 +105,5 @@ export interface ModifyLockMessage {
   lockId: bigint
   amount: bigint
   newExpiry: bigint
+  nonce: bigint
 }

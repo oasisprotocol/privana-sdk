@@ -73,6 +73,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
 
   // Refs for polling
   const expectedIndexRef = useRef<number | null>(null)
+  const nextScanIndexRef = useRef<number | null>(null)
   const withdrawalIndexRef = useRef<number | null>(null)
   const withdrawParamsRef = useRef<{ tokenId: Bytes32; amount: bigint } | null>(null)
   const pollStartTimeRef = useRef<number | null>(null)
@@ -176,9 +177,17 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
           return
         }
 
-        // Find our withdrawal starting from expected index
-        // Check a few indexes in case of race condition with other withdrawals
-        for (let i = expectedIndex; i < expectedIndex + 5; i++) {
+        const { data: latestWithdrawalCount } = await refetchWithdrawalCount()
+        const scanStart = nextScanIndexRef.current ?? expectedIndex
+        const scanEnd =
+          latestWithdrawalCount === undefined ? scanStart : Number(latestWithdrawalCount)
+
+        if (scanEnd <= scanStart) {
+          return
+        }
+
+        // Find our withdrawal in the live range [expectedIndex, withdrawalCount).
+        for (let i = scanStart; i < scanEnd; i++) {
           try {
             const info = await client.getWithdrawalInfo(i)
             if (
@@ -187,16 +196,20 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
               info.amount === String(params.amount)
             ) {
               withdrawalIndexRef.current = i
+              nextScanIndexRef.current = i + 1
               if (info.resolved) {
                 handleSuccess()
               }
               return
             }
           } catch {
-            // Index doesn't exist yet, will retry next poll
-            break
+            // Retry from the first unresolved index on the next poll.
+            nextScanIndexRef.current = i
+            return
           }
         }
+
+        nextScanIndexRef.current = scanEnd
       } catch (err) {
         // Don't fail on polling errors, just keep trying
         console.warn('Error polling withdrawal status:', err)
@@ -207,7 +220,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
     pollIntervalRef.current = setInterval(checkWithdrawalStatus, pollInterval)
     // Also check immediately
     checkWithdrawalStatus()
-  }, [address, client, queryClient, pollInterval, pollTimeout])
+  }, [address, client, queryClient, pollInterval, pollTimeout, refetchWithdrawalCount])
 
   const mutation = useMutation({
     mutationFn: async (params: WithdrawParams) => {
@@ -218,6 +231,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
       // Reset polling state for new withdrawal
       pollingCompletedRef.current = false
       expectedIndexRef.current = null
+      nextScanIndexRef.current = null
       withdrawalIndexRef.current = null
       withdrawParamsRef.current = { tokenId: params.tokenId, amount: params.amount }
       setDidTimeout(false)
@@ -233,6 +247,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
         throw new Error('Failed to fetch withdrawal count')
       }
       expectedIndexRef.current = Number(withdrawalCount)
+      nextScanIndexRef.current = Number(withdrawalCount)
 
       const { data: nonce } = await refetchNonce()
       if (nonce === undefined) {
@@ -256,8 +271,8 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
       return client.requestWithdrawal({
         user_address: address,
         token_id: params.tokenId,
-        amount: Number(params.amount),
-        nonce: Number(nonce),
+        amount: params.amount.toString(),
+        nonce: String(nonce),
         signature,
       })
     },
@@ -284,6 +299,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
     setCurrentStep('idle')
     setDidTimeout(false)
     expectedIndexRef.current = null
+    nextScanIndexRef.current = null
     withdrawalIndexRef.current = null
     withdrawParamsRef.current = null
     pollStartTimeRef.current = null

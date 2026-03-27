@@ -29,6 +29,7 @@ LOCK_TYPES = {
         {"name": "tokenId", "type": "bytes32"},
         {"name": "amount", "type": "uint256"},
         {"name": "expiry", "type": "uint256"},
+        {"name": "nonce", "type": "uint256"},
     ],
 }
 
@@ -48,6 +49,8 @@ TRANSFER_LOCKED_TYPES = {
         {"name": "toAddress", "type": "address"},
         {"name": "lockId", "type": "uint256"},
         {"name": "amount", "type": "uint256"},
+        {"name": "nonce", "type": "uint256"},
+        {"name": "serviceAddress", "type": "address"},
     ],
 }
 
@@ -57,6 +60,7 @@ MODIFY_LOCK_TYPES = {
         {"name": "lockId", "type": "uint256"},
         {"name": "amount", "type": "uint256"},
         {"name": "newExpiry", "type": "uint256"},
+        {"name": "nonce", "type": "uint256"},
     ],
 }
 
@@ -77,6 +81,7 @@ class LockMessage:
     token_id: Bytes32
     amount: int
     expiry: int
+    nonce: int
 
 
 @dataclass
@@ -94,6 +99,7 @@ class ModifyLockMessage:
     lock_id: int
     amount: int
     new_expiry: int
+    nonce: int
 
 
 @dataclass
@@ -102,6 +108,8 @@ class TransferLockedMessage:
     to_address: Address
     lock_id: int
     amount: int
+    nonce: int
+    service_address: Address
 
 
 @dataclass

@@ -1,9 +1,10 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { useAccount } from 'wagmi'
 import { useFlexvaultsContext } from '../context/flexvaults-provider'
 import type { Bytes32, BatchBalancesResponse, TokenBalance } from '../types'
+import { usePrivateReadRequest } from './use-private-read-request'
+import { useSafeAccount } from './use-safe-account'
 
 export interface UseBatchBalancesOptions {
   tokenIds: Bytes32[]
@@ -19,17 +20,20 @@ export interface UseBatchBalancesResult {
 }
 
 export function useBatchBalances(options: UseBatchBalancesOptions): UseBatchBalancesResult {
-  const { address, isConnected } = useAccount()
+  const { address, isConnected } = useSafeAccount()
   const { client, pollingInterval } = useFlexvaultsContext()
+  const { executePrivateRead, privateReadQueryScope } = usePrivateReadRequest()
 
   const query = useQuery<BatchBalancesResponse, Error>({
-    queryKey: ['accounting-batch-balances', address, options.tokenIds],
+    queryKey: ['accounting-batch-balances', ...privateReadQueryScope, options.tokenIds],
     queryFn: async () => {
       if (!address) throw new Error('No wallet connected')
-      return client.getBatchBalances({
-        user_address: address,
-        token_ids: options.tokenIds,
-      })
+      return executePrivateRead(() =>
+        client.getBatchBalances({
+          user_address: address,
+          token_ids: options.tokenIds,
+        })
+      )
     },
     enabled: (options.enabled ?? true) && isConnected && !!address && options.tokenIds.length > 0,
     refetchInterval: pollingInterval,
