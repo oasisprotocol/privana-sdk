@@ -100,7 +100,9 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
       initialBalanceRef.current = null
       initialBalanceFetchedRef.current = false
       try {
-        const balanceResponse = await executePrivateRead(() => client.getBalance(address, params.tokenId))
+        const balanceResponse = await executePrivateRead(() =>
+          client.getBalance(address, params.tokenId)
+        )
         initialBalanceRef.current = BigInt(balanceResponse.balance)
       } catch (error) {
         // Without a trusted pre-deposit baseline we cannot safely infer completion from

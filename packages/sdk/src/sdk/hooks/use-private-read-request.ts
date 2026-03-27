@@ -86,7 +86,7 @@ export function usePrivateReadRequest(): {
   const { address } = useSafeAccount()
 
   const executePrivateRead = useCallback(
-    async <T,>(request: () => Promise<T>): Promise<T> => {
+    async <T>(request: () => Promise<T>): Promise<T> => {
       if (!address) {
         throw new Error('No wallet connected')
       }

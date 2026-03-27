@@ -377,9 +377,7 @@ class FlexvaultsClient:
             nonce=data["nonce"],
         )
 
-    async def get_transfer_locked_nonce(
-        self, service_address: str
-    ) -> TransferLockedNonceResponse:
+    async def get_transfer_locked_nonce(self, service_address: str) -> TransferLockedNonceResponse:
         service = normalize_address(service_address)
         data = await self._http.get(f"/v1/accounting/funds/transfer-locked/nonce/{service}")
         return TransferLockedNonceResponse(
