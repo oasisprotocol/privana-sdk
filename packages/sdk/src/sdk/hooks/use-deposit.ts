@@ -11,6 +11,7 @@ import {
 import { useFlexvaultsContext } from '../context/flexvaults-provider'
 import { useEnsureCorrectChain } from './use-ensure-correct-chain'
 import type { Bytes32, DepositQuoteResponse, BalanceResponse } from '../types'
+import { usePrivateReadRequest } from './use-private-read-request'
 
 export interface UseDepositOptions {
   onQuoteSuccess?: (quote: DepositQuoteResponse) => void
@@ -53,6 +54,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   const { client } = useFlexvaultsContext()
   const { data: walletClient } = useWalletClient()
   const queryClient = useQueryClient()
+  const { executePrivateRead, privateReadQueryScope } = usePrivateReadRequest()
 
   const pollInterval = options.pollInterval ?? 3000
   const pollTimeout = options.pollTimeout ?? 120000 // 2 minutes
@@ -61,7 +63,6 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   const [isSwitchingChain, setIsSwitchingChain] = useState(false)
   const [isWaitingForProcessing, setIsWaitingForProcessing] = useState(false)
   const [didTimeout, setDidTimeout] = useState(false)
-  const [processingError, setProcessingError] = useState<Error | null>(null)
 
   // Store initial balance before deposit to detect when it changes
   const initialBalanceRef = useRef<bigint | null>(null)
@@ -96,13 +97,18 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
       // TODO: This polling approach is a workaround. Ideally we should have a dedicated
       // endpoint to check deposit status by source chain tx hash, or the Deposit event
       // on Sapphire should include the source tx hash so we can query it directly.
+      initialBalanceRef.current = null
+      initialBalanceFetchedRef.current = false
       try {
-        const balanceResponse = await client.getBalance(address, params.tokenId)
+        const balanceResponse = await executePrivateRead(() =>
+          client.getBalance(address, params.tokenId)
+        )
         initialBalanceRef.current = BigInt(balanceResponse.balance)
-        initialBalanceFetchedRef.current = true
-      } catch {
-        // If we can't get initial balance (e.g., user has no balance yet), start from 0
-        initialBalanceRef.current = BigInt(0)
+      } catch (error) {
+        // Without a trusted pre-deposit baseline we cannot safely infer completion from
+        // a later balance read, so polling falls back to timeout-only behavior.
+        console.warn('Failed to fetch initial balance before deposit confirmation polling:', error)
+      } finally {
         initialBalanceFetchedRef.current = true
       }
 
@@ -175,12 +181,14 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
 
       const checkBalance = async () => {
         try {
-          const balanceResponse = await client.getBalance(address, quote.token_id)
+          const balanceResponse = await executePrivateRead(() =>
+            client.getBalance(address, quote.token_id)
+          )
           const currentBalance = BigInt(balanceResponse.balance)
-          const initialBalance = initialBalanceRef.current ?? BigInt(0)
+          const initialBalance = initialBalanceRef.current
 
           // Deposit is processed when balance has changed (increased)
-          if (currentBalance > initialBalance) {
+          if (initialBalance !== null && currentBalance > initialBalance) {
             if (pollIntervalRef.current) {
               clearInterval(pollIntervalRef.current)
               pollIntervalRef.current = null
@@ -192,7 +200,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
             // the query key matches what useBalance uses (avoiding casing mismatches)
             if (depositTokenIdRef.current) {
               queryClient.setQueryData<BalanceResponse>(
-                ['accounting-balance', address, depositTokenIdRef.current],
+                ['accounting-balance', ...privateReadQueryScope, depositTokenIdRef.current],
                 balanceResponse
               )
             }
@@ -233,9 +241,11 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     isWaitingForProcessing,
     didTimeout,
     client,
+    executePrivateRead,
     queryClient,
     pollInterval,
     pollTimeout,
+    privateReadQueryScope,
   ])
 
   const getQuote = useCallback(
@@ -296,7 +306,6 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     setIsSwitchingChain(false)
     setIsWaitingForProcessing(false)
     setDidTimeout(false)
-    setProcessingError(null)
     initialBalanceRef.current = null
     initialBalanceFetchedRef.current = false
     pollStartTimeRef.current = null
@@ -317,7 +326,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     isConfirming ||
     isWaitingForProcessing
 
-  const error = quoteMutation.error || sendError || processingError
+  const error = quoteMutation.error || sendError
 
   return {
     quote,

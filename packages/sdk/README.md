@@ -31,7 +31,14 @@ function App() {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <FlexvaultsProvider network="testnet">
+        <FlexvaultsProvider
+          networkConfig={{
+            name: 'Sapphire Testnet',
+            chainId: 23295,
+            apiUrl: 'https://flexvaults-staging.rofl.build',
+            accountingContract: '0xYourContractAddress',
+          }}
+        >
           <YourApp />
         </FlexvaultsProvider>
       </QueryClientProvider>
@@ -39,6 +46,9 @@ function App() {
   )
 }
 ```
+
+`accountingContract` must be the deployed Flexvaults accounting contract address for the same
+environment as `apiUrl`.
 
 ### 2. Use the FlexvaultsButton
 
@@ -53,21 +63,45 @@ function MyComponent() {
 ### 3. Or build custom UI with hooks
 
 ```tsx
-import { useBalance, useDeposit, useWithdraw } from '@oasisprotocol/flexvaults-sdk'
+import {
+  useBalance,
+  useDeposit,
+  useTotalLockedBalance,
+  useWithdraw,
+} from '@oasisprotocol/flexvaults-sdk'
 
 function CustomWallet() {
-  const { data: balance } = useBalance({ token: 'USDC' })
-  const { mutate: deposit } = useDeposit()
-  const { mutate: withdraw } = useWithdraw()
+  const { balanceFormatted } = useBalance()
+  const { totalLocked } = useTotalLockedBalance()
+  const { deposit } = useDeposit()
+  const { withdraw } = useWithdraw()
 
   return (
     <div>
-      <p>Balance: {balance?.available}</p>
-      <button onClick={() => deposit({ amount: '100', token: 'USDC' })}>Deposit</button>
+      <p>Available: {balanceFormatted}</p>
+      <p>Total locked: {totalLocked}</p>
+      <button onClick={() => deposit({ amount: 1000000n, tokenId: '0xYourTokenId' })}>
+        Deposit
+      </button>
     </div>
   )
 }
 ```
+
+## Private Reads
+
+`useBalance`, `useBatchBalances`, `useLockedFunds`, `useExpiredLocks`, and `useTotalLockedBalance`
+use the backend's direct SIWE private-read flow:
+
+- `GET /v1/accounting/auth/domain`
+- `GET /v1/accounting/auth/nonce?address=0x...`
+- `POST /v1/accounting/auth/login`
+
+The hooks cache the returned `X-SIWE-Token`, dedupe concurrent auth so a group of mounted
+private-read hooks only triggers one sign prompt, and retry once on `401` by re-authenticating
+through the same shared in-flight auth request.
+
+This package does **not** wrap the hosted `/auth/authorize` + `/auth/token` flow in this release.
 
 ## Components
 
@@ -108,6 +142,7 @@ A customizable button that opens the wallet modal.
 | `useUnlockFunds`        | Unlock expired locks                   |
 | `useTransfer`           | Transfer tokens                        |
 | `useLockedFunds`        | Get list of locked funds               |
+| `useTotalLockedBalance` | Get total locked balance for one token |
 | `usePendingWithdrawals` | Get pending withdrawal requests        |
 | `useExpiredLocks`       | Get expired locks that can be claimed  |
 

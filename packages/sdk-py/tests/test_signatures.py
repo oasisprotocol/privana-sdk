@@ -75,6 +75,7 @@ class TestSignLockMessage:
                     token_id=TOKEN_ID,
                     amount=1000000,
                     expiry=9999999999,
+                    nonce=0,
                 ),
             )
         )
@@ -92,6 +93,7 @@ class TestSignLockMessage:
                 token_id=TOKEN_ID,
                 amount=1000000,
                 expiry=9999999999,
+                nonce=0,
             ),
         )
         sig1 = sign_lock_message(params)
@@ -111,6 +113,7 @@ class TestSignModifyLockMessage:
                     lock_id=1,
                     amount=500000,
                     new_expiry=9999999999,
+                    nonce=0,
                 ),
             )
         )
@@ -150,6 +153,8 @@ class TestSignTransferLockedMessage:
                     to_address=SERVICE_ADDRESS,
                     lock_id=0,
                     amount=250000,
+                    nonce=0,
+                    service_address=SERVICE_ADDRESS,
                 ),
             )
         )
@@ -209,11 +214,11 @@ class TestSignWithdrawMessage:
 class TestEIP712Types:
     def test_lock_types_structure(self):
         assert "Lock" in LOCK_TYPES
-        assert len(LOCK_TYPES["Lock"]) == 5
+        assert len(LOCK_TYPES["Lock"]) == 6
 
     def test_modify_lock_types_structure(self):
         assert "ModifyLock" in MODIFY_LOCK_TYPES
-        assert len(MODIFY_LOCK_TYPES["ModifyLock"]) == 4
+        assert len(MODIFY_LOCK_TYPES["ModifyLock"]) == 5
 
     def test_transfer_types_structure(self):
         assert "Transfer" in TRANSFER_TYPES
@@ -221,7 +226,7 @@ class TestEIP712Types:
 
     def test_transfer_locked_types_structure(self):
         assert "TransferLocked" in TRANSFER_LOCKED_TYPES
-        assert len(TRANSFER_LOCKED_TYPES["TransferLocked"]) == 4
+        assert len(TRANSFER_LOCKED_TYPES["TransferLocked"]) == 6
 
     def test_withdraw_types_structure(self):
         assert "Withdraw" in WITHDRAW_TYPES

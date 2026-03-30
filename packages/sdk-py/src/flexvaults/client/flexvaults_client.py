@@ -26,17 +26,27 @@ from ..types.responses import (
     IncludeDepositResponse,
     LockedFundsResponse,
     LockInfo,
+    LockNonceResponse,
+    ModifyLockNonceResponse,
     PendingWithdrawal,
     PendingWithdrawalsResponse,
+    SiweDomainResponse,
+    SiweLoginResponse,
+    SiweNonceResponse,
     TokenBalance,
     TokenInfoResponse,
     TotalLockedBalanceResponse,
     TransactionData,
     TransactionSubmissionResponse,
+    TransferLockedNonceResponse,
     TransferNonceResponse,
     WithdrawalInfoResponse,
+    WithdrawalNonceResponse,
 )
 from .http_client import HttpClient
+
+PRIVATE_READ_TOKEN_HEADER = "X-SIWE-Token"
+MAX_BATCH_BALANCE_TOKEN_IDS = 100
 
 
 def _parse_transaction_data(data: dict[str, Any]) -> TransactionData:
@@ -86,8 +96,9 @@ def _parse_pending_withdrawal(data: dict[str, Any]) -> PendingWithdrawal:
         user_address=data["user_address"],
         token_id=data["token_id"],
         amount=data["amount"],
-        status=data["status"],
-        created_at=data["created_at"],
+        block_number=data.get("block_number", 0),
+        resolved=data.get("resolved", False),
+        tx_identifier=data.get("tx_identifier", ""),
     )
 
 
@@ -130,7 +141,6 @@ class FlexvaultsClient:
 
         data = await self._http.post("/v1/accounting/deposits", body)
         return IncludeDepositResponse(
-            submission_id=data["submission_id"],
             status=data["status"],
         )
 
@@ -151,6 +161,11 @@ class FlexvaultsClient:
         )
 
     async def get_batch_balances(self, request: BatchBalancesRequest) -> BatchBalancesResponse:
+        if len(request.token_ids) > MAX_BATCH_BALANCE_TOKEN_IDS:
+            raise ValueError(
+                f"Batch balance requests support at most {MAX_BATCH_BALANCE_TOKEN_IDS} token IDs"
+            )
+
         data = await self._http.post(
             "/v1/accounting/balances/batch",
             {
@@ -168,10 +183,12 @@ class FlexvaultsClient:
         data = await self._http.get(f"/v1/accounting/tokens/{token}")
         return TokenInfoResponse(
             token_id=data["token_id"],
-            symbol=data["symbol"],
-            decimals=data["decimals"],
-            chain_id=data["chain_id"],
-            contract_address=data.get("contract_address"),
+            token_type=data["token_type"],
+            token_type_name=data["token_type_name"],
+            data=data["data"],
+            chain_id=data.get("chain_id"),
+            chain_name=data.get("chain_name"),
+            token_address=data.get("token_address"),
         )
 
     async def lock_funds(self, request: LockFundsRequest) -> TransactionSubmissionResponse:
@@ -181,13 +198,13 @@ class FlexvaultsClient:
                 "user_address": normalize_address(request.user_address),
                 "service_address": normalize_address(request.service_address),
                 "token_id": normalize_hex(request.token_id),
-                "amount": request.amount,
-                "expiry": request.expiry,
+                "amount": str(request.amount),
+                "expiry": str(request.expiry),
+                "nonce": str(request.nonce),
                 "signature": normalize_hex(request.signature),
             },
         )
         return TransactionSubmissionResponse(
-            submission_id=data["submission_id"],
             status=data["status"],
             detail=data.get("detail"),
         )
@@ -198,13 +215,13 @@ class FlexvaultsClient:
             {
                 "user_address": normalize_address(request.user_address),
                 "lock_id": request.lock_id,
-                "amount": request.amount,
-                "new_expiry": request.new_expiry,
+                "amount": str(request.amount),
+                "new_expiry": str(request.new_expiry),
+                "nonce": str(request.nonce),
                 "signature": normalize_hex(request.signature),
             },
         )
         return TransactionSubmissionResponse(
-            submission_id=data["submission_id"],
             status=data["status"],
             detail=data.get("detail"),
         )
@@ -218,7 +235,6 @@ class FlexvaultsClient:
             },
         )
         return TransactionSubmissionResponse(
-            submission_id=data["submission_id"],
             status=data["status"],
             detail=data.get("detail"),
         )
@@ -233,7 +249,6 @@ class FlexvaultsClient:
             },
         )
         return TransactionSubmissionResponse(
-            submission_id=data["submission_id"],
             status=data["status"],
             detail=data.get("detail"),
         )
@@ -252,7 +267,7 @@ class FlexvaultsClient:
             user_address=data["user_address"],
             service_address=data.get("service_address"),
             locks=[_parse_lock_info(lock) for lock in data.get("locks", [])],
-            total_locked=data.get("total_locked", 0),
+            total_locked=data.get("total_locked", "0"),
         )
 
     async def get_total_locked_balance(
@@ -284,13 +299,12 @@ class FlexvaultsClient:
                 "user_address": normalize_address(request.user_address),
                 "to_address": normalize_address(request.to_address),
                 "token_id": normalize_hex(request.token_id),
-                "amount": request.amount,
-                "nonce": request.nonce,
+                "amount": str(request.amount),
+                "nonce": str(request.nonce),
                 "signature": normalize_hex(request.signature),
             },
         )
         return TransactionSubmissionResponse(
-            submission_id=data["submission_id"],
             status=data["status"],
             detail=data.get("detail"),
         )
@@ -299,6 +313,22 @@ class FlexvaultsClient:
         user = normalize_address(user_address)
         data = await self._http.get(f"/v1/accounting/funds/transfer/nonce/{user}")
         return TransferNonceResponse(
+            user_address=data["user_address"],
+            nonce=data["nonce"],
+        )
+
+    async def get_lock_nonce(self, user_address: str) -> LockNonceResponse:
+        user = normalize_address(user_address)
+        data = await self._http.get(f"/v1/accounting/funds/lock/nonce/{user}")
+        return LockNonceResponse(
+            user_address=data["user_address"],
+            nonce=data["nonce"],
+        )
+
+    async def get_modify_lock_nonce(self, user_address: str) -> ModifyLockNonceResponse:
+        user = normalize_address(user_address)
+        data = await self._http.get(f"/v1/accounting/funds/modify-lock/nonce/{user}")
+        return ModifyLockNonceResponse(
             user_address=data["user_address"],
             nonce=data["nonce"],
         )
@@ -312,12 +342,13 @@ class FlexvaultsClient:
                 "user_address": normalize_address(request.user_address),
                 "lock_id": request.lock_id,
                 "to_address": normalize_address(request.to_address),
-                "amount": request.amount,
+                "amount": str(request.amount),
+                "service_address": normalize_address(request.service_address),
+                "nonce": str(request.nonce),
                 "signature": normalize_hex(request.signature),
             },
         )
         return TransactionSubmissionResponse(
-            submission_id=data["submission_id"],
             status=data["status"],
             detail=data.get("detail"),
         )
@@ -328,23 +359,39 @@ class FlexvaultsClient:
             {
                 "user_address": normalize_address(request.user_address),
                 "token_id": normalize_hex(request.token_id),
-                "amount": request.amount,
-                "nonce": request.nonce,
+                "amount": str(request.amount),
+                "nonce": str(request.nonce),
                 "signature": normalize_hex(request.signature),
             },
         )
         return TransactionSubmissionResponse(
-            submission_id=data["submission_id"],
             status=data["status"],
             detail=data.get("detail"),
+        )
+
+    async def get_withdrawal_nonce(self, user_address: str) -> WithdrawalNonceResponse:
+        user = normalize_address(user_address)
+        data = await self._http.get(f"/v1/accounting/withdraw/nonce/{user}")
+        return WithdrawalNonceResponse(
+            user_address=data["user_address"],
+            nonce=data["nonce"],
+        )
+
+    async def get_transfer_locked_nonce(self, service_address: str) -> TransferLockedNonceResponse:
+        service = normalize_address(service_address)
+        data = await self._http.get(f"/v1/accounting/funds/transfer-locked/nonce/{service}")
+        return TransferLockedNonceResponse(
+            service_address=data["service_address"],
+            nonce=data["nonce"],
         )
 
     async def get_pending_withdrawals(self, user_address: str) -> PendingWithdrawalsResponse:
         user = normalize_address(user_address)
         data = await self._http.get(f"/v1/accounting/withdraw/pending/{user}")
+        withdrawals = data.get("pending_withdrawals", data.get("withdrawals", []))
         return PendingWithdrawalsResponse(
             user_address=data["user_address"],
-            withdrawals=[_parse_pending_withdrawal(w) for w in data.get("withdrawals", [])],
+            pending_withdrawals=[_parse_pending_withdrawal(w) for w in withdrawals],
         )
 
     async def get_withdrawal_info(self, index: int) -> WithdrawalInfoResponse:
@@ -354,11 +401,62 @@ class FlexvaultsClient:
             user_address=data["user_address"],
             token_id=data["token_id"],
             amount=data["amount"],
-            status=data["status"],
-            created_at=data["created_at"],
-            completed_at=data.get("completed_at"),
-            transaction_hash=data.get("transaction_hash"),
+            block_number=data.get("block_number", 0),
+            resolved=data.get("resolved", False),
+            tx_identifier=data.get("tx_identifier", ""),
         )
+
+    async def get_siwe_domain(self) -> SiweDomainResponse:
+        data = await self._http.get("/v1/accounting/auth/domain")
+        return SiweDomainResponse(domain=data["domain"])
+
+    async def get_siwe_nonce(self, user_address: str) -> SiweNonceResponse:
+        user = normalize_address(user_address)
+        data = await self._http.get(f"/v1/accounting/auth/nonce?address={user}")
+        return SiweNonceResponse(
+            address=data["address"],
+            nonce=data["nonce"],
+            expires_in=data["expires_in"],
+        )
+
+    async def login_with_siwe(self, siwe_message: str, signature: str) -> SiweLoginResponse:
+        data = await self._http.post(
+            "/v1/accounting/auth/login",
+            {
+                "siwe_message": siwe_message,
+                "signature": normalize_hex(signature),
+            },
+        )
+        return SiweLoginResponse(
+            siwe_token=data["siwe_token"],
+            jwt_access_token=data["jwt_access_token"],
+            jwt_refresh_token=data["jwt_refresh_token"],
+            address=data["address"],
+            jwt_expires_in=data["jwt_expires_in"],
+            jwt_refresh_expires_in=data["jwt_refresh_expires_in"],
+        )
+
+    async def authenticate_private_reads(
+        self, siwe_message: str, signature: str
+    ) -> SiweLoginResponse:
+        login = await self.login_with_siwe(siwe_message, signature)
+        self.set_private_read_token(login.siwe_token)
+        return login
+
+    def set_private_read_token(self, token: str) -> None:
+        self._http.set_header(PRIVATE_READ_TOKEN_HEADER, token)
+
+    def get_private_read_token(self) -> str | None:
+        return self._http.get_header(PRIVATE_READ_TOKEN_HEADER)
+
+    def clear_private_read_token(self) -> None:
+        self._http.remove_header(PRIVATE_READ_TOKEN_HEADER)
+
+    def set_bearer_token(self, token: str) -> None:
+        self._http.set_header("Authorization", f"Bearer {token}")
+
+    def clear_bearer_token(self) -> None:
+        self._http.remove_header("Authorization")
 
     async def close(self) -> None:
         await self._http.close()

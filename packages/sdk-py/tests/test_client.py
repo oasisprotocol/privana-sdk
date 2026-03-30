@@ -73,7 +73,7 @@ class TestGetDepositQuote:
                 json={
                     "user_address": "0xuser",
                     "token_id": "0xtoken",
-                    "amount": 100,
+                    "amount": "100",
                     "deposit_address": "0xdeposit",
                     "transaction": {
                         "to": "0xto",
@@ -93,7 +93,7 @@ class TestGetDepositQuote:
                 amount=100,
             )
         )
-        assert result.amount == 100
+        assert result.amount == "100"
         assert result.deposit_address == "0xdeposit"
         assert result.transaction.chain_id == 84532
 
@@ -105,7 +105,6 @@ class TestIncludeDeposit:
             return_value=httpx.Response(
                 200,
                 json={
-                    "submission_id": "sub-123",
                     "status": "pending",
                 },
             )
@@ -118,7 +117,6 @@ class TestIncludeDeposit:
                 evm_transaction_data="0xdata",
             )
         )
-        assert result.submission_id == "sub-123"
         assert result.status == "pending"
 
 
@@ -129,7 +127,6 @@ class TestLockFunds:
             return_value=httpx.Response(
                 200,
                 json={
-                    "submission_id": "sub-lock",
                     "status": "submitted",
                 },
             )
@@ -142,10 +139,11 @@ class TestLockFunds:
                 token_id="0xtoken",
                 amount=1000,
                 expiry=9999999999,
+                nonce=0,
                 signature="0xsig",
             )
         )
-        assert result.submission_id == "sub-lock"
+        assert result.status == "submitted"
 
 
 class TestModifyLock:
@@ -155,7 +153,6 @@ class TestModifyLock:
             return_value=httpx.Response(
                 200,
                 json={
-                    "submission_id": "sub-modify",
                     "status": "submitted",
                 },
             )
@@ -167,10 +164,10 @@ class TestModifyLock:
                 lock_id=1,
                 amount=500,
                 new_expiry=9999999999,
+                nonce=1,
                 signature="0xsig",
             )
         )
-        assert result.submission_id == "sub-modify"
         assert result.status == "submitted"
 
 
@@ -181,14 +178,13 @@ class TestUnlockFunds:
             return_value=httpx.Response(
                 200,
                 json={
-                    "submission_id": "sub-unlock",
                     "status": "submitted",
                 },
             )
         )
 
         result = await client.unlock_funds(UnlockFundsRequest(user_address="0xuser", lock_id=0))
-        assert result.submission_id == "sub-unlock"
+        assert result.status == "submitted"
 
     @respx.mock
     async def test_unlock_all_expired(self, client):
@@ -196,14 +192,13 @@ class TestUnlockFunds:
             return_value=httpx.Response(
                 200,
                 json={
-                    "submission_id": "sub-all",
                     "status": "submitted",
                 },
             )
         )
 
         result = await client.unlock_all_expired(UnlockAllExpiredRequest(user_address="0xuser"))
-        assert result.submission_id == "sub-all"
+        assert result.status == "submitted"
 
 
 class TestLockedFunds:
@@ -220,20 +215,20 @@ class TestLockedFunds:
                             "user_address": "0xuser",
                             "service_address": "0xservice",
                             "token_id": "0xtoken",
-                            "amount": 500,
+                            "amount": "500",
                             "expiry": 9999999999,
                             "is_expired": False,
                         }
                     ],
-                    "total_locked": 500,
+                    "total_locked": "500",
                 },
             )
         )
 
         result = await client.get_locked_funds("0xuser")
         assert len(result.locks) == 1
-        assert result.locks[0].amount == 500
-        assert result.total_locked == 500
+        assert result.locks[0].amount == "500"
+        assert result.total_locked == "500"
 
     @respx.mock
     async def test_get_locked_funds_with_service(self, client):
@@ -260,7 +255,6 @@ class TestTransfer:
             return_value=httpx.Response(
                 200,
                 json={
-                    "submission_id": "sub-transfer",
                     "status": "submitted",
                 },
             )
@@ -276,7 +270,7 @@ class TestTransfer:
                 signature="0xsig",
             )
         )
-        assert result.submission_id == "sub-transfer"
+        assert result.status == "submitted"
 
     @respx.mock
     async def test_transfer_locked_funds(self, client):
@@ -284,7 +278,6 @@ class TestTransfer:
             return_value=httpx.Response(
                 200,
                 json={
-                    "submission_id": "sub-tl",
                     "status": "submitted",
                 },
             )
@@ -296,10 +289,12 @@ class TestTransfer:
                 lock_id=0,
                 to_address="0xto",
                 amount=50,
+                service_address="0xservice",
+                nonce=2,
                 signature="0xsig",
             )
         )
-        assert result.submission_id == "sub-tl"
+        assert result.status == "submitted"
 
 
 class TestWithdrawal:
@@ -309,7 +304,6 @@ class TestWithdrawal:
             return_value=httpx.Response(
                 200,
                 json={
-                    "submission_id": "sub-withdraw",
                     "status": "submitted",
                 },
             )
@@ -324,7 +318,7 @@ class TestWithdrawal:
                 signature="0xsig",
             )
         )
-        assert result.submission_id == "sub-withdraw"
+        assert result.status == "submitted"
 
     @respx.mock
     async def test_get_pending_withdrawals(self, client):
@@ -333,14 +327,15 @@ class TestWithdrawal:
                 200,
                 json={
                     "user_address": "0xuser",
-                    "withdrawals": [
+                    "pending_withdrawals": [
                         {
                             "index": 0,
                             "user_address": "0xuser",
                             "token_id": "0xtoken",
                             "amount": "100",
-                            "status": "pending",
-                            "created_at": "2024-01-01T00:00:00Z",
+                            "block_number": 123,
+                            "resolved": False,
+                            "tx_identifier": "0x01",
                         }
                     ],
                 },
@@ -348,8 +343,9 @@ class TestWithdrawal:
         )
 
         result = await client.get_pending_withdrawals("0xuser")
-        assert len(result.withdrawals) == 1
-        assert result.withdrawals[0].amount == "100"
+        assert len(result.pending_withdrawals) == 1
+        assert result.pending_withdrawals[0].amount == "100"
+        assert result.pending_withdrawals[0].resolved is False
 
     @respx.mock
     async def test_get_withdrawal_info(self, client):
@@ -361,17 +357,16 @@ class TestWithdrawal:
                     "user_address": "0xuser",
                     "token_id": "0xtoken",
                     "amount": "100",
-                    "status": "completed",
-                    "created_at": "2024-01-01T00:00:00Z",
-                    "completed_at": "2024-01-01T01:00:00Z",
-                    "transaction_hash": "0xhash",
+                    "block_number": 123,
+                    "resolved": True,
+                    "tx_identifier": "0xhash",
                 },
             )
         )
 
         result = await client.get_withdrawal_info(0)
-        assert result.status == "completed"
-        assert result.transaction_hash == "0xhash"
+        assert result.resolved is True
+        assert result.tx_identifier == "0xhash"
 
 
 class TestBatchBalances:
@@ -403,6 +398,15 @@ class TestBatchBalances:
         assert len(result.balances) == 1
         assert result.balances[0].token_symbol == "USDC"
 
+    async def test_get_batch_balances_enforces_max(self, client):
+        with pytest.raises(ValueError, match="at most 100 token IDs"):
+            await client.get_batch_balances(
+                BatchBalancesRequest(
+                    user_address="0xuser",
+                    token_ids=["0xtoken"] * 101,
+                )
+            )
+
 
 class TestTokenInfo:
     @respx.mock
@@ -412,16 +416,22 @@ class TestTokenInfo:
                 200,
                 json={
                     "token_id": "0xtoken",
-                    "symbol": "USDC",
-                    "decimals": 6,
+                    "token_type": 0,
+                    "token_type_name": "erc20",
+                    "data": "USDC",
                     "chain_id": 84532,
+                    "chain_name": "base-sepolia",
+                    "token_address": "0xtokenaddress",
                 },
             )
         )
 
         result = await client.get_token_info("0xtoken")
-        assert result.symbol == "USDC"
-        assert result.decimals == 6
+        assert result.token_type == 0
+        assert result.token_type_name == "erc20"
+        assert result.data == "USDC"
+        assert result.chain_name == "base-sepolia"
+        assert result.token_address == "0xtokenaddress"
 
 
 class TestExpiredLocks:
@@ -459,6 +469,24 @@ class TestTotalLockedBalance:
         assert result.total_locked == "500"
 
 
+class TestNonces:
+    @respx.mock
+    async def test_get_modify_lock_nonce(self, client):
+        respx.get(f"{BASE_URL}/v1/accounting/funds/modify-lock/nonce/0xuser").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "user_address": "0xuser",
+                    "nonce": 7,
+                },
+            )
+        )
+
+        result = await client.get_modify_lock_nonce("0xuser")
+        assert result.user_address == "0xuser"
+        assert result.nonce == 7
+
+
 class TestErrorHandling:
     @respx.mock
     async def test_api_error(self, client):
@@ -482,3 +510,51 @@ class TestErrorHandling:
 
         with pytest.raises(NetworkError):
             await client.get_balance("0xuser", "0xtoken")
+
+
+class TestAuthHelpers:
+    @respx.mock
+    async def test_get_siwe_domain(self, client):
+        respx.get(f"{BASE_URL}/v1/accounting/auth/domain").mock(
+            return_value=httpx.Response(200, json={"domain": "flexvaults.example.com"})
+        )
+
+        result = await client.get_siwe_domain()
+        assert result.domain == "flexvaults.example.com"
+
+    @respx.mock
+    async def test_get_siwe_nonce(self, client):
+        respx.get(f"{BASE_URL}/v1/accounting/auth/nonce?address=0xuser").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "address": "0xuser",
+                    "nonce": "nonce-123",
+                    "expires_in": 300,
+                },
+            )
+        )
+
+        result = await client.get_siwe_nonce("0xuser")
+        assert result.nonce == "nonce-123"
+        assert result.expires_in == 300
+
+    @respx.mock
+    async def test_authenticate_private_reads_sets_header(self, client):
+        respx.post(f"{BASE_URL}/v1/accounting/auth/login").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "siwe_token": "0xabc123",
+                    "jwt_access_token": "jwt-access",
+                    "jwt_refresh_token": "jwt-refresh",
+                    "address": "0xuser",
+                    "jwt_expires_in": 900,
+                    "jwt_refresh_expires_in": 86400,
+                },
+            )
+        )
+
+        result = await client.authenticate_private_reads("message", "0xsig")
+        assert result.siwe_token == "0xabc123"
+        assert client.get_private_read_token() == "0xabc123"

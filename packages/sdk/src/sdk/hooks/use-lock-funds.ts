@@ -41,6 +41,8 @@ export function useLockFunds(options: UseLockFundsOptions = {}): UseLockFundsRes
         throw new Error('Service address not configured')
       }
 
+      const { nonce } = await client.getLockNonce(address)
+
       const signature = await signLockMessage({
         walletClient,
         chainId: networkConfig.chainId,
@@ -51,6 +53,7 @@ export function useLockFunds(options: UseLockFundsOptions = {}): UseLockFundsRes
           tokenId: params.tokenId,
           amount: params.amount,
           expiry: params.expiry,
+          nonce: BigInt(nonce),
         },
       })
 
@@ -58,8 +61,9 @@ export function useLockFunds(options: UseLockFundsOptions = {}): UseLockFundsRes
         user_address: address,
         service_address: serviceAddress,
         token_id: params.tokenId,
-        amount: Number(params.amount),
-        expiry: Number(params.expiry),
+        amount: params.amount.toString(),
+        expiry: params.expiry.toString(),
+        nonce: String(nonce),
         signature,
       })
     },
@@ -67,6 +71,7 @@ export function useLockFunds(options: UseLockFundsOptions = {}): UseLockFundsRes
       options.onSuccess?.(data)
       queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
       queryClient.invalidateQueries({ queryKey: ['accounting-locked-funds'] })
+      queryClient.invalidateQueries({ queryKey: ['accounting-total-locked-balance'] })
     },
     onError: (error) => {
       options.onError?.(error as Error)

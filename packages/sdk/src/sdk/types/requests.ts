@@ -1,9 +1,9 @@
-import type { Address, Bytes32, HexString } from './common'
+import type { Address, Bytes32, HexString, IntegerLike } from './common'
 
 export interface DepositQuoteRequest {
   user_address: Address
   token_id: Bytes32
-  amount: string
+  amount: IntegerLike
 }
 
 export interface IncludeDepositRequest {
@@ -19,8 +19,9 @@ export interface LockFundsRequest {
   user_address: Address
   service_address: Address
   token_id: Bytes32
-  amount: number
-  expiry: number
+  amount: IntegerLike
+  expiry: IntegerLike
+  nonce: IntegerLike
   signature: HexString
 }
 
@@ -37,8 +38,8 @@ export interface TransferFundsRequest {
   user_address: Address
   to_address: Address
   token_id: Bytes32
-  amount: number
-  nonce: number
+  amount: IntegerLike
+  nonce: IntegerLike
   signature: HexString
 }
 
@@ -46,19 +47,26 @@ export interface TransferLockedFundsRequest {
   user_address: Address
   lock_id: number
   to_address: Address
-  amount: number
+  amount: IntegerLike
+  service_address: Address
+  nonce: IntegerLike
   signature: HexString
 }
 
 export interface WithdrawalRequest {
   user_address: Address
   token_id: Bytes32
-  amount: number
-  nonce: number
+  amount: IntegerLike
+  nonce: IntegerLike
   signature: HexString
 }
 
 export interface BatchBalancesRequest {
   user_address: Address
   token_ids: Bytes32[]
+}
+
+export interface SiweLoginRequest {
+  siwe_message: string
+  signature: HexString
 }

@@ -6,6 +6,7 @@ import { useSafeFlexvaultsContext } from '../context/flexvaults-provider'
 import type { Bytes32, BalanceResponse } from '../types'
 import { formatTokenAmount } from '@/lib/utils'
 import { useSafeAccount } from './use-safe-account'
+import { usePrivateReadRequest } from './use-private-read-request'
 
 export interface UseBalanceOptions {
   tokenId?: Bytes32
@@ -33,16 +34,17 @@ export function useBalance(options: UseBalanceOptions = {}): UseBalanceResult {
   const client = accountingContext?.client
   const defaultToken = accountingContext?.defaultToken
   const pollingInterval = accountingContext?.pollingInterval ?? 10000
+  const { executePrivateRead, privateReadQueryScope } = usePrivateReadRequest()
 
   const tokenId = options.tokenId ?? defaultToken?.id
 
   const query = useQuery<BalanceResponse, Error>({
-    queryKey: ['accounting-balance', address, tokenId],
+    queryKey: ['accounting-balance', ...privateReadQueryScope, tokenId],
     queryFn: async () => {
       if (!address) throw new Error('No wallet connected')
       if (!tokenId) throw new Error('No token ID provided')
       if (!client) throw new Error('No accounting client')
-      return client.getBalance(address, tokenId)
+      return executePrivateRead(() => client.getBalance(address, tokenId))
     },
     enabled:
       hasProviders &&

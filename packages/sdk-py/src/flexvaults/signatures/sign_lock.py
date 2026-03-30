@@ -28,6 +28,7 @@ def sign_lock_message(params: SignLockParams) -> HexString:
         "tokenId": hex_to_bytes(params.message.token_id),
         "amount": params.message.amount,
         "expiry": params.message.expiry,
+        "nonce": params.message.nonce,
     }
 
     return sign_typed_data(

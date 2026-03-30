@@ -38,7 +38,7 @@ export interface UseTransferResult {
 export function useTransfer(options: UseTransferOptions = {}): UseTransferResult {
   const { address } = useAccount()
   const { data: walletClient } = useWalletClient()
-  const { client, networkConfig } = useFlexvaultsContext()
+  const { client, networkConfig, serviceAddress } = useFlexvaultsContext()
   const queryClient = useQueryClient()
 
   const transferMutation = useMutation({
@@ -66,8 +66,8 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
         user_address: address,
         to_address: params.toAddress,
         token_id: params.tokenId,
-        amount: Number(params.amount),
-        nonce,
+        amount: params.amount.toString(),
+        nonce: String(nonce),
         signature,
       })
     },
@@ -85,6 +85,11 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
       if (!address || !walletClient) {
         throw new Error('Wallet not connected')
       }
+      if (!serviceAddress) {
+        throw new Error('Service address not configured')
+      }
+
+      const { nonce } = await client.getTransferLockedNonce(serviceAddress)
 
       const signature = await signTransferLockedMessage({
         walletClient,
@@ -95,6 +100,8 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
           toAddress: params.toAddress,
           lockId: BigInt(params.lockId),
           amount: params.amount,
+          nonce: BigInt(nonce),
+          serviceAddress,
         },
       })
 
@@ -102,7 +109,9 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
         user_address: address,
         lock_id: params.lockId,
         to_address: params.toAddress,
-        amount: Number(params.amount),
+        amount: params.amount.toString(),
+        service_address: serviceAddress,
+        nonce: String(nonce),
         signature,
       })
     },
@@ -110,6 +119,7 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
       options.onSuccess?.(data)
       queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
       queryClient.invalidateQueries({ queryKey: ['accounting-locked-funds'] })
+      queryClient.invalidateQueries({ queryKey: ['accounting-total-locked-balance'] })
     },
     onError: (error) => {
       options.onError?.(error as Error)

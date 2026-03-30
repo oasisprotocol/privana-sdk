@@ -9,7 +9,7 @@ from .common import Address, Bytes32, HexString
 class DepositQuoteRequest:
     user_address: Address
     token_id: Bytes32
-    amount: int
+    amount: int | str
 
 
 @dataclass
@@ -27,8 +27,9 @@ class LockFundsRequest:
     user_address: Address
     service_address: Address
     token_id: Bytes32
-    amount: int
-    expiry: int
+    amount: int | str
+    expiry: int | str
+    nonce: int | str
     signature: HexString
 
 
@@ -36,8 +37,9 @@ class LockFundsRequest:
 class ModifyLockRequest:
     user_address: Address
     lock_id: int
-    amount: int
-    new_expiry: int
+    amount: int | str
+    new_expiry: int | str
+    nonce: int | str
     signature: HexString
 
 
@@ -57,8 +59,8 @@ class TransferFundsRequest:
     user_address: Address
     to_address: Address
     token_id: Bytes32
-    amount: int
-    nonce: int
+    amount: int | str
+    nonce: int | str
     signature: HexString
 
 
@@ -67,7 +69,9 @@ class TransferLockedFundsRequest:
     user_address: Address
     lock_id: int
     to_address: Address
-    amount: int
+    amount: int | str
+    service_address: Address
+    nonce: int | str
     signature: HexString
 
 
@@ -75,8 +79,8 @@ class TransferLockedFundsRequest:
 class WithdrawalRequest:
     user_address: Address
     token_id: Bytes32
-    amount: int
-    nonce: int
+    amount: int | str
+    nonce: int | str
     signature: HexString
 
 
