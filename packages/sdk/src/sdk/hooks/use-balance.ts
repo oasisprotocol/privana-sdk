@@ -5,7 +5,6 @@ import { useQuery, QueryClientContext } from '@tanstack/react-query'
 import { useSafeFlexvaultsContext } from '../context/flexvaults-provider'
 import type { Bytes32, BalanceResponse } from '../types'
 import { formatTokenAmount } from '@/lib/utils'
-import { useSafeAccount } from './use-safe-account'
 import { usePrivateReadRequest } from './use-private-read-request'
 
 export interface UseBalanceOptions {
@@ -27,30 +26,30 @@ export interface UseBalanceResult {
 
 export function useBalance(options: UseBalanceOptions = {}): UseBalanceResult {
   const queryClient = useContext(QueryClientContext)
-  const { address, isConnected } = useSafeAccount()
   const accountingContext = useSafeFlexvaultsContext()
 
   const hasProviders = !!queryClient && !!accountingContext
   const client = accountingContext?.client
   const defaultToken = accountingContext?.defaultToken
   const pollingInterval = accountingContext?.pollingInterval ?? 10000
-  const { executePrivateRead, privateReadQueryScope } = usePrivateReadRequest()
+  const { executePrivateRead, privateReadAddress, privateReadQueryScope, privateReadReady } =
+    usePrivateReadRequest()
 
   const tokenId = options.tokenId ?? defaultToken?.id
 
   const query = useQuery<BalanceResponse, Error>({
     queryKey: ['accounting-balance', ...privateReadQueryScope, tokenId],
     queryFn: async () => {
-      if (!address) throw new Error('No wallet connected')
+      if (!privateReadAddress) throw new Error('No authenticated account available')
       if (!tokenId) throw new Error('No token ID provided')
       if (!client) throw new Error('No accounting client')
-      return executePrivateRead(() => client.getBalance(address, tokenId))
+      return executePrivateRead(() => client.getBalance(privateReadAddress, tokenId))
     },
     enabled:
       hasProviders &&
       (options.enabled ?? true) &&
-      isConnected &&
-      !!address &&
+      privateReadReady &&
+      !!privateReadAddress &&
       !!tokenId &&
       !!client,
     refetchInterval: pollingInterval,

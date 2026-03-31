@@ -38,6 +38,10 @@ function App() {
             apiUrl: 'https://flexvaults-staging.rofl.build',
             accountingContract: '0xYourContractAddress',
           }}
+          hostedAuth={{
+            clientId: 'honoroll-web',
+            redirectUri: 'https://honoroll.example.com/auth/callback',
+          }}
         >
           <YourApp />
         </FlexvaultsProvider>
@@ -91,7 +95,11 @@ function CustomWallet() {
 ## Private Reads
 
 `useBalance`, `useBatchBalances`, `useLockedFunds`, `useExpiredLocks`, and `useTotalLockedBalance`
-use the backend's direct SIWE private-read flow:
+support two auth modes:
+
+### Direct SIWE private reads
+
+Default mode for same-origin Flexvaults browser integrations:
 
 - `GET /v1/accounting/auth/domain`
 - `GET /v1/accounting/auth/nonce?address=0x...`
@@ -101,7 +109,53 @@ The hooks cache the returned `X-SIWE-Token`, dedupe concurrent auth so a group o
 private-read hooks only triggers one sign prompt, and retry once on `401` by re-authenticating
 through the same shared in-flight auth request.
 
-This package does **not** wrap the hosted `/auth/authorize` + `/auth/token` flow in this release.
+### Hosted redirect auth for cross-domain apps
+
+For widget or cross-domain frontends, configure `hostedAuth` on `FlexvaultsProvider` and use
+`useHostedRedirectAuth()` to establish a hosted Flexvaults session:
+
+```tsx
+import {
+  FlexvaultsProvider,
+  useBalance,
+  useHostedRedirectAuth,
+} from '@oasisprotocol/flexvaults-sdk'
+
+function HostedAuthButton() {
+  const { login, logout, refresh, isAuthenticated, isLoading, error, session } =
+    useHostedRedirectAuth()
+  const { balanceFormatted } = useBalance()
+
+  return (
+    <div>
+      <button onClick={() => void login()} disabled={isLoading || isAuthenticated}>
+        Sign in with Flexvaults
+      </button>
+      {isAuthenticated ? <button onClick={() => void refresh()}>Refresh Session</button> : null}
+      {isAuthenticated ? <button onClick={() => void logout()}>Logout</button> : null}
+      {session ? <p>Signed in as {session.address}</p> : null}
+      {error ? <p>{error.message}</p> : null}
+      <p>Balance: {balanceFormatted}</p>
+    </div>
+  )
+}
+```
+
+In hosted-auth mode:
+
+- the SDK opens the hosted `/auth/authorize` popup on the Flexvaults auth origin
+- the popup signs on the current wallet chain if it is supported, otherwise it switches to the provider `networkConfig.chainId`
+- the popup completes SIWE there and returns an auth code via `web_message`
+- the SDK exchanges the code at `/auth/token`
+- private-read hooks use `Authorization: Bearer <access_token>` and refresh once through
+  `/auth/jwt/refresh` on `401`
+
+Notes:
+
+- `useHostedRedirectAuth()` currently supports `responseMode="web_message"` for widget/popup
+  integrations.
+- `client_id` and exact `redirect_uri` values must be registered in backend `AUTH_CLIENTS`.
+- staging end-to-end verification requires that registration on the staging deployment.
 
 ## Components
 
@@ -134,6 +188,7 @@ A customizable button that opens the wallet modal.
 
 | Hook                    | Description                            |
 | ----------------------- | -------------------------------------- |
+| `useHostedRedirectAuth` | Hosted redirect auth for widget apps   |
 | `useBalance`            | Get token balance (available + locked) |
 | `useBatchBalances`      | Get multiple token balances            |
 | `useDeposit`            | Deposit tokens                         |

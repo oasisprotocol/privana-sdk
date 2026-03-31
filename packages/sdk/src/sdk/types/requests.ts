@@ -1,4 +1,4 @@
-import type { Address, Bytes32, HexString, IntegerLike } from './common'
+import type { Address, Bytes32, HexString, HostedAuthResponseMode, IntegerLike } from './common'
 
 export interface DepositQuoteRequest {
   user_address: Address
@@ -69,4 +69,31 @@ export interface BatchBalancesRequest {
 export interface SiweLoginRequest {
   siwe_message: string
   signature: HexString
+}
+
+export interface HostedAuthAuthorizeUrlRequest {
+  client_id: string
+  redirect_uri: string
+  code_challenge: string
+  state: string
+  chain_id: number
+  response_mode?: HostedAuthResponseMode
+  code_challenge_method?: 'S256'
+}
+
+export interface HostedAuthTokenExchangeRequest {
+  grant_type?: 'authorization_code'
+  code: string
+  code_verifier: string
+  client_id: string
+  redirect_uri: string
+}
+
+export interface JwtRefreshRequest {
+  refresh_token: string
+}
+
+export interface JwtLogoutRequest {
+  refresh_token?: string
+  revoke_all?: boolean
 }

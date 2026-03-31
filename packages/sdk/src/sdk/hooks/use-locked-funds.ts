@@ -4,7 +4,6 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { useFlexvaultsContext } from '../context/flexvaults-provider'
 import type { LockInfo, LockedFundsResponse } from '../types'
 import { usePrivateReadRequest } from './use-private-read-request'
-import { useSafeAccount } from './use-safe-account'
 
 export interface UseLockedFundsOptions {
   enabled?: boolean
@@ -20,17 +19,17 @@ export interface UseLockedFundsResult {
 }
 
 export function useLockedFunds(options: UseLockedFundsOptions = {}): UseLockedFundsResult {
-  const { address, isConnected } = useSafeAccount()
   const { client, pollingInterval, serviceAddress } = useFlexvaultsContext()
-  const { executePrivateRead, privateReadQueryScope } = usePrivateReadRequest()
+  const { executePrivateRead, privateReadAddress, privateReadQueryScope, privateReadReady } =
+    usePrivateReadRequest()
 
   const query = useQuery<LockedFundsResponse, Error>({
     queryKey: ['accounting-locked-funds', ...privateReadQueryScope, serviceAddress ?? null],
     queryFn: async () => {
-      if (!address) throw new Error('No wallet connected')
-      return executePrivateRead(() => client.getLockedFunds(address, serviceAddress))
+      if (!privateReadAddress) throw new Error('No authenticated account available')
+      return executePrivateRead(() => client.getLockedFunds(privateReadAddress, serviceAddress))
     },
-    enabled: (options.enabled ?? true) && isConnected && !!address,
+    enabled: (options.enabled ?? true) && privateReadReady && !!privateReadAddress && !!client,
     refetchInterval: pollingInterval,
     placeholderData: keepPreviousData,
     staleTime: 5000,

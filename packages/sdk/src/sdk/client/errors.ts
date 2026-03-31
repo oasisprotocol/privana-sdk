@@ -31,3 +31,45 @@ export class ValidationError extends Error {
     Object.setPrototypeOf(this, ValidationError.prototype)
   }
 }
+
+export class HostedAuthError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'HostedAuthError'
+    Object.setPrototypeOf(this, HostedAuthError.prototype)
+  }
+}
+
+export class HostedAuthRequiredError extends HostedAuthError {
+  constructor(
+    message = 'Hosted redirect authentication is required. Start login with useHostedRedirectAuth().'
+  ) {
+    super(message)
+    this.name = 'HostedAuthRequiredError'
+    Object.setPrototypeOf(this, HostedAuthRequiredError.prototype)
+  }
+}
+
+export class HostedAuthPopupBlockedError extends HostedAuthError {
+  constructor(message = 'The hosted authentication popup was blocked by the browser.') {
+    super(message)
+    this.name = 'HostedAuthPopupBlockedError'
+    Object.setPrototypeOf(this, HostedAuthPopupBlockedError.prototype)
+  }
+}
+
+export class HostedAuthPopupClosedError extends HostedAuthError {
+  constructor(message = 'The hosted authentication popup was closed before sign-in completed.') {
+    super(message)
+    this.name = 'HostedAuthPopupClosedError'
+    Object.setPrototypeOf(this, HostedAuthPopupClosedError.prototype)
+  }
+}
+
+export class HostedAuthStateMismatchError extends HostedAuthError {
+  constructor(message = 'Hosted authentication returned an invalid state value.') {
+    super(message)
+    this.name = 'HostedAuthStateMismatchError'
+    Object.setPrototypeOf(this, HostedAuthStateMismatchError.prototype)
+  }
+}

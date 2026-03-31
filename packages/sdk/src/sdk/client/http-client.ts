@@ -28,6 +28,10 @@ export class HttpClient {
     return this.request<T>('POST', path, body)
   }
 
+  getBaseUrl(): string {
+    return this.baseUrl
+  }
+
   setHeader(name: string, value: string): void {
     this.headers[name] = value
   }
@@ -59,7 +63,7 @@ export class HttpClient {
         let detail: string | undefined
         try {
           const errorBody = await response.json()
-          detail = errorBody.detail || errorBody.message
+          detail = errorBody.detail || errorBody.error_description || errorBody.message
         } catch {
           detail = await response.text().catch(() => undefined)
         }
