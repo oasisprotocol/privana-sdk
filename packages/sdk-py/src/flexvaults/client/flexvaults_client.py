@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from ..types import (
     normalize_address,
     normalize_hex,
-)
-from ..types.tokens import (
-    SUPPORTED_TOKENS,
-    TokenConfig,
-    get_token_by_id,
 )
 from ..types.requests import (
     BatchBalancesRequest,
@@ -47,6 +43,11 @@ from ..types.responses import (
     TransferNonceResponse,
     WithdrawalInfoResponse,
     WithdrawalNonceResponse,
+)
+from ..types.tokens import (
+    SUPPORTED_TOKENS,
+    TokenConfig,
+    get_token_by_id,
 )
 from .http_client import HttpClient
 
@@ -122,12 +123,9 @@ class FlexvaultsClient:
         )
         if tokens:
             self._enabled_tokens = [
-                t for token_id in tokens
-                if (t := get_token_by_id(token_id)) is not None
+                t for token_id in tokens if (t := get_token_by_id(token_id)) is not None
             ]
-            self._enabled_token_ids: set[str] | None = {
-                t.id.lower() for t in self._enabled_tokens
-            }
+            self._enabled_token_ids: set[str] | None = {t.id.lower() for t in self._enabled_tokens}
         else:
             self._enabled_tokens = list(SUPPORTED_TOKENS.values())
             self._enabled_token_ids = None

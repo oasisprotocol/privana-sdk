@@ -3,12 +3,7 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react'
 import { FlexvaultsClient } from '../client'
 import type { Address, NetworkConfig } from '../types'
-import {
-  NETWORK_CONFIG,
-  type TokenConfig,
-  getTokenById,
-  SUPPORTED_TOKENS,
-} from '../types'
+import { NETWORK_CONFIG, type TokenConfig, getTokenById, SUPPORTED_TOKENS } from '../types'
 
 export interface FlexvaultsContextValue {
   client: FlexvaultsClient

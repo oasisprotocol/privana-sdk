@@ -28,7 +28,9 @@ export const SUPPORTED_TOKENS: Record<string, TokenConfig> = Object.fromEntries(
 
 export function getTokenConfig(tokenId: string): TokenConfig {
   const normalized = tokenId.toLowerCase()
-  const token = Object.entries(SUPPORTED_TOKENS).find(([id]) => id.toLowerCase() === normalized)?.[1]
+  const token = Object.entries(SUPPORTED_TOKENS).find(
+    ([id]) => id.toLowerCase() === normalized
+  )?.[1]
   if (!token) throw new Error(`Unknown token ID: ${tokenId}`)
   return token
 }
@@ -39,7 +41,8 @@ export function getTokenById(tokenId: string): TokenConfig | undefined {
 }
 
 export function isValidToken(tokenId: string): boolean {
-  return tokenId.toLowerCase() in Object.fromEntries(
-    Object.keys(SUPPORTED_TOKENS).map((id) => [id.toLowerCase(), true])
+  return (
+    tokenId.toLowerCase() in
+    Object.fromEntries(Object.keys(SUPPORTED_TOKENS).map((id) => [id.toLowerCase(), true]))
   )
 }
