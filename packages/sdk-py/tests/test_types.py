@@ -62,27 +62,28 @@ class TestNormalization:
         assert addr == "0xaf8e5de153a584528b57dd4b9b0195956bbdf571"
 
 
+USDC_TOKEN_ID = "0xc719650e9f4b0f27d956638c54518932ef9d15e720a1a2b2850250bcd0816514"
+
+
 class TestTokens:
     def test_supported_tokens(self):
-        assert "USDC" in SUPPORTED_TOKENS
-        usdc = SUPPORTED_TOKENS["USDC"]
+        assert USDC_TOKEN_ID in SUPPORTED_TOKENS
+        usdc = SUPPORTED_TOKENS[USDC_TOKEN_ID]
         assert usdc.symbol == "USDC"
         assert usdc.decimals == 6
         assert usdc.name == "USD Coin"
 
     def test_get_token_config(self):
-        config = get_token_config("USDC")
+        config = get_token_config(USDC_TOKEN_ID)
         assert config.symbol == "USDC"
 
     def test_get_token_by_id(self):
-        usdc_id = SUPPORTED_TOKENS["USDC"].id
-        token = get_token_by_id(usdc_id)
+        token = get_token_by_id(USDC_TOKEN_ID)
         assert token is not None
         assert token.symbol == "USDC"
 
     def test_get_token_by_id_case_insensitive(self):
-        usdc_id = SUPPORTED_TOKENS["USDC"].id.upper()
-        token = get_token_by_id(usdc_id)
+        token = get_token_by_id(USDC_TOKEN_ID.upper())
         assert token is not None
 
     def test_get_token_by_id_not_found(self):
@@ -91,7 +92,7 @@ class TestTokens:
         assert token is None
 
     def test_is_valid_token(self):
-        assert is_valid_token("USDC") is True
+        assert is_valid_token(USDC_TOKEN_ID) is True
         assert is_valid_token("INVALID") is False
 
 

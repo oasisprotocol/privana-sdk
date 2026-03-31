@@ -8,9 +8,8 @@ from ..types import (
 )
 from ..types.tokens import (
     SUPPORTED_TOKENS,
-    SupportedToken,
     TokenConfig,
-    get_token_config,
+    get_token_by_id,
 )
 from ..types.requests import (
     BatchBalancesRequest,
@@ -114,7 +113,7 @@ class FlexvaultsClient:
         base_url: str,
         timeout: float = 30.0,
         headers: dict[str, str] | None = None,
-        tokens: Sequence[SupportedToken] | None = None,
+        tokens: Sequence[str] | None = None,
     ) -> None:
         self._http = HttpClient(
             base_url=base_url,
@@ -122,7 +121,10 @@ class FlexvaultsClient:
             headers=headers,
         )
         if tokens:
-            self._enabled_tokens = [get_token_config(t) for t in tokens]
+            self._enabled_tokens = [
+                t for token_id in tokens
+                if (t := get_token_by_id(token_id)) is not None
+            ]
             self._enabled_token_ids: set[str] | None = {
                 t.id.lower() for t in self._enabled_tokens
             }
