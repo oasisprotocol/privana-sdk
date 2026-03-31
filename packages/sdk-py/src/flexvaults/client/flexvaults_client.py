@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 from ..types import (
@@ -42,6 +43,11 @@ from ..types.responses import (
     TransferNonceResponse,
     WithdrawalInfoResponse,
     WithdrawalNonceResponse,
+)
+from ..types.tokens import (
+    SUPPORTED_TOKENS,
+    TokenConfig,
+    get_token_by_id,
 )
 from .http_client import HttpClient
 
@@ -108,14 +114,36 @@ class FlexvaultsClient:
         base_url: str,
         timeout: float = 30.0,
         headers: dict[str, str] | None = None,
+        tokens: Sequence[str] | None = None,
     ) -> None:
         self._http = HttpClient(
             base_url=base_url,
             timeout=timeout,
             headers=headers,
         )
+        if tokens:
+            self._enabled_tokens = [
+                t for token_id in tokens if (t := get_token_by_id(token_id)) is not None
+            ]
+            self._enabled_token_ids: set[str] | None = {t.id.lower() for t in self._enabled_tokens}
+        else:
+            self._enabled_tokens = list(SUPPORTED_TOKENS.values())
+            self._enabled_token_ids = None
+
+    @property
+    def enabled_tokens(self) -> list[TokenConfig]:
+        return list(self._enabled_tokens)
+
+    def _check_token(self, token_id: str) -> None:
+        if self._enabled_token_ids is None:
+            return
+        from .errors import ValidationError
+
+        if normalize_hex(token_id).lower() not in self._enabled_token_ids:
+            raise ValidationError(f"Token {token_id} is not enabled on this client")
 
     async def get_deposit_quote(self, request: DepositQuoteRequest) -> DepositQuoteResponse:
+        self._check_token(request.token_id)
         data = await self._http.post(
             "/v1/accounting/quote/deposit",
             {
@@ -127,6 +155,7 @@ class FlexvaultsClient:
         return _parse_deposit_quote(data)
 
     async def include_deposit(self, request: IncludeDepositRequest) -> IncludeDepositResponse:
+        self._check_token(request.token_id)
         body: dict[str, Any] = {
             "user_address": normalize_address(request.user_address),
             "token_id": normalize_hex(request.token_id),
@@ -149,6 +178,7 @@ class FlexvaultsClient:
         user_address: str,
         token_id: str,
     ) -> BalanceResponse:
+        self._check_token(token_id)
         user = normalize_address(user_address)
         token = normalize_hex(token_id)
         data = await self._http.get(f"/v1/accounting/balances/{user}/{token}")
@@ -166,6 +196,8 @@ class FlexvaultsClient:
                 f"Batch balance requests support at most {MAX_BATCH_BALANCE_TOKEN_IDS} token IDs"
             )
 
+        for tid in request.token_ids:
+            self._check_token(tid)
         data = await self._http.post(
             "/v1/accounting/balances/batch",
             {
@@ -179,6 +211,7 @@ class FlexvaultsClient:
         )
 
     async def get_token_info(self, token_id: str) -> TokenInfoResponse:
+        self._check_token(token_id)
         token = normalize_hex(token_id)
         data = await self._http.get(f"/v1/accounting/tokens/{token}")
         return TokenInfoResponse(
@@ -192,6 +225,7 @@ class FlexvaultsClient:
         )
 
     async def lock_funds(self, request: LockFundsRequest) -> TransactionSubmissionResponse:
+        self._check_token(request.token_id)
         data = await self._http.post(
             "/v1/accounting/funds/lock",
             {
@@ -275,6 +309,7 @@ class FlexvaultsClient:
         user_address: str,
         token_id: str,
     ) -> TotalLockedBalanceResponse:
+        self._check_token(token_id)
         user = normalize_address(user_address)
         token = normalize_hex(token_id)
         data = await self._http.get(f"/v1/accounting/funds/locked/total/{user}/{token}")
@@ -293,6 +328,7 @@ class FlexvaultsClient:
         )
 
     async def transfer_funds(self, request: TransferFundsRequest) -> TransactionSubmissionResponse:
+        self._check_token(request.token_id)
         data = await self._http.post(
             "/v1/accounting/funds/transfer",
             {
@@ -354,6 +390,7 @@ class FlexvaultsClient:
         )
 
     async def request_withdrawal(self, request: WithdrawalRequest) -> TransactionSubmissionResponse:
+        self._check_token(request.token_id)
         data = await self._http.post(
             "/v1/accounting/withdraw",
             {

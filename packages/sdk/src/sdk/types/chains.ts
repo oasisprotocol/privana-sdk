@@ -1,6 +1,6 @@
 import config from '@shared/config.json'
 import type { TokenConfig } from './tokens'
-import { SUPPORTED_TOKENS, type SupportedToken } from './tokens'
+import { SUPPORTED_TOKENS } from './tokens'
 
 export interface ChainConfig {
   id: number
@@ -13,7 +13,7 @@ export const SUPPORTED_CHAINS: ChainConfig[] = config.chains.map((chain) => ({
   id: chain.id,
   name: chain.name,
   explorerUrl: chain.explorerUrl,
-  tokens: chain.tokens.map((key) => SUPPORTED_TOKENS[key as SupportedToken]),
+  tokens: chain.tokens.map((id) => SUPPORTED_TOKENS[id]).filter(Boolean),
 }))
 
 export function getChainById(chainId: number): ChainConfig | undefined {

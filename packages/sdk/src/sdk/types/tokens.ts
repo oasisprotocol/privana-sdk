@@ -9,11 +9,13 @@ export interface TokenConfig {
   name: string
 }
 
-export type SupportedToken = keyof typeof config.tokens
+type TokenId = (typeof config.tokens)[keyof typeof config.tokens]['id']
 
-export const SUPPORTED_TOKENS = Object.fromEntries(
-  Object.entries(config.tokens).map(([key, t]) => [
-    key,
+export type SupportedToken = TokenId
+
+export const SUPPORTED_TOKENS: Record<string, TokenConfig> = Object.fromEntries(
+  Object.values(config.tokens).map((t) => [
+    t.id,
     {
       id: t.id as Bytes32,
       symbol: t.symbol,
@@ -22,16 +24,25 @@ export const SUPPORTED_TOKENS = Object.fromEntries(
       name: t.name,
     },
   ])
-) as { [K in SupportedToken]: TokenConfig }
+)
 
-export function getTokenConfig(token: SupportedToken): TokenConfig {
-  return SUPPORTED_TOKENS[token]
+export function getTokenConfig(tokenId: string): TokenConfig {
+  const normalized = tokenId.toLowerCase()
+  const token = Object.entries(SUPPORTED_TOKENS).find(
+    ([id]) => id.toLowerCase() === normalized
+  )?.[1]
+  if (!token) throw new Error(`Unknown token ID: ${tokenId}`)
+  return token
 }
 
-export function getTokenById(tokenId: Bytes32): TokenConfig | undefined {
-  return Object.values(SUPPORTED_TOKENS).find((t) => t.id.toLowerCase() === tokenId.toLowerCase())
+export function getTokenById(tokenId: string): TokenConfig | undefined {
+  const normalized = tokenId.toLowerCase()
+  return Object.entries(SUPPORTED_TOKENS).find(([id]) => id.toLowerCase() === normalized)?.[1]
 }
 
-export function isValidToken(token: string): token is SupportedToken {
-  return token in SUPPORTED_TOKENS
+export function isValidToken(tokenId: string): boolean {
+  return (
+    tokenId.toLowerCase() in
+    Object.fromEntries(Object.keys(SUPPORTED_TOKENS).map((id) => [id.toLowerCase(), true]))
+  )
 }

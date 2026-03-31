@@ -12,7 +12,8 @@ import {
 } from '@/components/ui/dialog'
 import { DepositForm } from './deposit-form'
 import { WithdrawForm } from './withdraw-form'
-import { SUPPORTED_TOKENS, type TokenConfig } from '@/sdk/types/tokens'
+import { type TokenConfig, getTokenById } from '@/sdk/types/tokens'
+import { useFlexvaultsContext } from '@/sdk/context/flexvaults-provider'
 import { SUPPORTED_CHAINS } from '@/sdk/types/chains'
 import { useBalance, useLockedFunds, useUnlockFunds } from '@/sdk/hooks'
 import { formatTokenAmount, formatTimeRemaining, cn, shortenAddress } from '@/lib/utils'
@@ -251,7 +252,7 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
       }
       sectionMap[lock.service_address].items.push({
         lockId: lock.lock_id,
-        amount: formatTokenAmount(String(lock.amount), SUPPORTED_TOKENS.USDC.decimals),
+        amount: formatTokenAmount(String(lock.amount), getTokenById(lock.token_id)?.decimals ?? 18),
         serviceAddress: lock.service_address,
         time: lock.is_expired ? 'Click to unlock' : formatTimeRemaining(lock.expiry),
         isExpired: lock.is_expired,
@@ -531,14 +532,17 @@ function TokenSelectorView({
 }) {
   const [tokenSearch, setTokenSearch] = useState('')
   const [selectedChainId, setSelectedChainId] = useState<number>(SUPPORTED_CHAINS[0]?.id ?? 84532)
+  const { enabledTokens } = useFlexvaultsContext()
+
+  const enabledTokenIds = useMemo(() => new Set(enabledTokens.map((t) => t.id)), [enabledTokens])
 
   const selectedChain = useMemo(() => {
     return SUPPORTED_CHAINS.find((c) => c.id === selectedChainId)
   }, [selectedChainId])
 
   const chainTokens = useMemo(() => {
-    return selectedChain?.tokens ?? []
-  }, [selectedChain])
+    return (selectedChain?.tokens ?? []).filter((t) => enabledTokenIds.has(t.id))
+  }, [selectedChain, enabledTokenIds])
 
   const filteredTokens = useMemo(() => {
     if (!tokenSearch) return chainTokens
@@ -657,7 +661,8 @@ function ModalBody({
   defaultTab = 'deposit',
   onDepositSuccess,
 }: ModalBodyProps) {
-  const [selectedToken, setSelectedToken] = useState<TokenConfig>(SUPPORTED_TOKENS.USDC)
+  const { defaultToken } = useFlexvaultsContext()
+  const [selectedToken, setSelectedToken] = useState<TokenConfig>(defaultToken)
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>(defaultTab)
   const [currentView, setCurrentView] = useState<ModalView>('main')
   const [isTransactionPending, setIsTransactionPending] = useState(false)

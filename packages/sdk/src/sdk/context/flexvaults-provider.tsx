@@ -3,13 +3,7 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react'
 import { FlexvaultsClient } from '../client'
 import type { Address, NetworkConfig } from '../types'
-import {
-  NETWORK_CONFIG,
-  type SupportedToken,
-  type TokenConfig,
-  getTokenConfig,
-  SUPPORTED_TOKENS,
-} from '../types'
+import { NETWORK_CONFIG, type TokenConfig, getTokenById, SUPPORTED_TOKENS } from '../types'
 
 export interface FlexvaultsContextValue {
   client: FlexvaultsClient
@@ -34,7 +28,7 @@ export interface FlexvaultsProviderProps {
    * Defaults to testnet config. Partial overrides are merged with defaults.
    */
   networkConfig?: Partial<NetworkConfig>
-  tokens?: SupportedToken[]
+  tokens?: string[]
   pollingInterval?: number
   /**
    * The service address for lock operations.
@@ -79,7 +73,9 @@ export function FlexvaultsProvider({
 
   const enabledTokens = useMemo(() => {
     if (tokens && tokens.length > 0) {
-      return tokens.map((t) => getTokenConfig(t))
+      return tokens
+        .map((id) => getTokenById(id as `0x${string}`))
+        .filter((t): t is TokenConfig => t !== undefined)
     }
     return Object.values(SUPPORTED_TOKENS) as TokenConfig[]
   }, [tokens])
