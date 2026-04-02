@@ -42,6 +42,10 @@ function RainbowKitWrapper({ children }: { children: ReactNode }) {
 }
 
 export function Providers({ children, network = 'testnet' }: ProvidersProps) {
+  const apiUrl =
+    process.env.NEXT_PUBLIC_FLEXVAULTS_API_URL?.trim() || NETWORK_CONFIG[network].apiUrl
+  const hostedAuthClientId = process.env.NEXT_PUBLIC_FLEXVAULTS_HOSTED_AUTH_CLIENT_ID?.trim()
+  const hostedAuthRedirectUri = process.env.NEXT_PUBLIC_FLEXVAULTS_HOSTED_AUTH_REDIRECT_URI?.trim()
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -59,7 +63,17 @@ export function Providers({ children, network = 'testnet' }: ProvidersProps) {
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
           <RainbowKitWrapper>
-            <FlexvaultsProvider networkConfig={NETWORK_CONFIG[network]}>
+            <FlexvaultsProvider
+              networkConfig={{ ...NETWORK_CONFIG[network], apiUrl }}
+              hostedAuth={
+                hostedAuthClientId && hostedAuthRedirectUri
+                  ? {
+                      clientId: hostedAuthClientId,
+                      redirectUri: hostedAuthRedirectUri,
+                    }
+                  : undefined
+              }
+            >
               {children}
             </FlexvaultsProvider>
           </RainbowKitWrapper>
