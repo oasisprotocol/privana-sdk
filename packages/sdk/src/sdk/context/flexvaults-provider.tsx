@@ -37,6 +37,48 @@ export interface FlexvaultsContextValue {
 
 const FlexvaultsContext = createContext<FlexvaultsContextValue | null>(null)
 
+export function readStoredHostedAuthSession(
+  storage: Pick<Storage, 'getItem' | 'removeItem'>,
+  hostedAuthStorageKey: string,
+  now = Date.now()
+): HostedAuthSession | null {
+  const raw = storage.getItem(hostedAuthStorageKey)
+  if (!raw) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as HostedAuthSession
+    if (!isHostedAuthRefreshActive(parsed, now, 0)) {
+      storage.removeItem(hostedAuthStorageKey)
+      return null
+    }
+    return parsed
+  } catch {
+    storage.removeItem(hostedAuthStorageKey)
+    return null
+  }
+}
+
+export function syncHostedAuthSessionToClient(
+  client: Pick<FlexvaultsClient, 'clearBearerToken' | 'clearPrivateReadToken' | 'setBearerToken'>,
+  hostedAuthConfig: HostedAuthConfig | null,
+  hostedAuthSession: HostedAuthSession | null
+): void {
+  if (!hostedAuthConfig) {
+    client.clearBearerToken()
+    return
+  }
+
+  if (hostedAuthSession && isHostedAuthSessionActive(hostedAuthSession)) {
+    client.setBearerToken(hostedAuthSession.accessToken)
+    client.clearPrivateReadToken()
+    return
+  }
+
+  client.clearBearerToken()
+}
+
 /**
  * Default network configuration (testnet).
  */
@@ -118,7 +160,7 @@ export function FlexvaultsProvider({
 
     const clientId = hostedAuth.clientId.trim()
     const redirectUri = hostedAuth.redirectUri.trim()
-    const responseMode = hostedAuth.responseMode ?? 'web_message'
+    const responseMode = hostedAuth.responseMode ?? 'redirect'
     if (!clientId) {
       throw new Error(
         'FlexvaultsProvider: hostedAuth.clientId must be provided when hostedAuth is enabled'
@@ -129,9 +171,9 @@ export function FlexvaultsProvider({
         'FlexvaultsProvider: hostedAuth.redirectUri must be provided when hostedAuth is enabled'
       )
     }
-    if (responseMode !== 'web_message') {
+    if (responseMode !== 'redirect') {
       throw new Error(
-        'FlexvaultsProvider: hostedAuth.responseMode currently supports "web_message" only'
+        'FlexvaultsProvider: hostedAuth.responseMode currently supports "redirect" only'
       )
     }
 
@@ -226,40 +268,13 @@ export function FlexvaultsProvider({
       setHostedAuthSessionState(null)
       return
     }
-
-    const raw = window.sessionStorage.getItem(hostedAuthStorageKey)
-    if (!raw) {
-      setHostedAuthSessionState(null)
-      return
-    }
-
-    try {
-      const parsed = JSON.parse(raw) as HostedAuthSession
-      if (!isHostedAuthRefreshActive(parsed, Date.now(), 0)) {
-        window.sessionStorage.removeItem(hostedAuthStorageKey)
-        setHostedAuthSessionState(null)
-        return
-      }
-      setHostedAuthSessionState(parsed)
-    } catch {
-      window.sessionStorage.removeItem(hostedAuthStorageKey)
-      setHostedAuthSessionState(null)
-    }
+    setHostedAuthSessionState(
+      readStoredHostedAuthSession(window.sessionStorage, hostedAuthStorageKey)
+    )
   }, [hostedAuthStorageKey])
 
   useEffect(() => {
-    if (!hostedAuthConfig) {
-      client.clearBearerToken()
-      return
-    }
-
-    if (hostedAuthSession && isHostedAuthSessionActive(hostedAuthSession)) {
-      client.setBearerToken(hostedAuthSession.accessToken)
-      client.clearPrivateReadToken()
-      return
-    }
-
-    client.clearBearerToken()
+    syncHostedAuthSessionToClient(client, hostedAuthConfig, hostedAuthSession)
   }, [client, hostedAuthConfig, hostedAuthSession])
 
   const value = useMemo<FlexvaultsContextValue>(

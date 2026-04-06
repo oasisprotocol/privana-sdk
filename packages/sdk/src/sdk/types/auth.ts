@@ -1,9 +1,9 @@
-import type { Address, HostedAuthResponseMode } from './common'
+import type { Address } from './common'
 
 export interface HostedAuthConfig {
   clientId: string
   redirectUri: string
-  responseMode?: HostedAuthResponseMode
+  responseMode?: 'redirect'
 }
 
 export interface HostedAuthSession {
@@ -18,17 +18,20 @@ export interface HostedAuthSession {
   refreshExpiresAt: number
 }
 
-export interface HostedAuthMessageSuccess {
-  type: 'flexvaults-auth-response'
+export interface HostedAuthPendingTransaction {
+  codeVerifier: string
+  state: string
+}
+
+export interface HostedAuthCallbackSuccess {
   code: string
-  state: string
+  state: string | null
 }
 
-export interface HostedAuthMessageError {
-  type: 'flexvaults-auth-response'
+export interface HostedAuthCallbackError {
   error: string
-  error_description?: string
-  state: string
+  errorDescription?: string
+  state: string | null
 }
 
-export type HostedAuthMessage = HostedAuthMessageSuccess | HostedAuthMessageError
+export type HostedAuthCallback = HostedAuthCallbackSuccess | HostedAuthCallbackError

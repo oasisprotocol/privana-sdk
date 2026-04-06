@@ -50,22 +50,6 @@ export class HostedAuthRequiredError extends HostedAuthError {
   }
 }
 
-export class HostedAuthPopupBlockedError extends HostedAuthError {
-  constructor(message = 'The hosted authentication popup was blocked by the browser.') {
-    super(message)
-    this.name = 'HostedAuthPopupBlockedError'
-    Object.setPrototypeOf(this, HostedAuthPopupBlockedError.prototype)
-  }
-}
-
-export class HostedAuthPopupClosedError extends HostedAuthError {
-  constructor(message = 'The hosted authentication popup was closed before sign-in completed.') {
-    super(message)
-    this.name = 'HostedAuthPopupClosedError'
-    Object.setPrototypeOf(this, HostedAuthPopupClosedError.prototype)
-  }
-}
-
 export class HostedAuthStateMismatchError extends HostedAuthError {
   constructor(message = 'Hosted authentication returned an invalid state value.') {
     super(message)

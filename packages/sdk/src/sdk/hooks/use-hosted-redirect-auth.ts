@@ -1,49 +1,37 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import {
   buildHostedAuthSession,
+  clearHostedAuthPendingTransaction,
+  createHostedAuthPendingStorageKey,
   createHostedAuthState,
   createPkceChallenge,
   createPkceVerifier,
-  isHostedAuthMessage,
+  parseHostedAuthCallback,
+  persistHostedAuthPendingTransaction,
+  readHostedAuthPendingTransaction,
+  stripHostedAuthCallbackParams,
 } from '../auth'
 import {
   AccountingApiError,
   HostedAuthError,
-  HostedAuthPopupBlockedError,
-  HostedAuthPopupClosedError,
   HostedAuthRequiredError,
   HostedAuthStateMismatchError,
 } from '../client'
 import { useFlexvaultsContext } from '../context'
 import type { HostedAuthSession } from '../types'
 
-const DEFAULT_POPUP_HEIGHT = 720
-const DEFAULT_POPUP_WIDTH = 520
-const POPUP_CLOSE_POLL_MS = 250
-const POPUP_TIMEOUT_MS = 5 * 60 * 1000
+const hostedAuthExchangeInflight = new Map<string, Promise<HostedAuthSession>>()
 
-function createPopupFeatures(width: number, height: number): string {
-  if (typeof window === 'undefined') {
-    return `popup=yes,width=${width},height=${height}`
+function normalizeHostedAuthError(error: unknown): HostedAuthError | Error {
+  if (error instanceof AccountingApiError && error.detail) {
+    return new HostedAuthError(error.detail)
   }
-
-  const left = Math.max(window.screenX + (window.outerWidth - width) / 2, 0)
-  const top = Math.max(window.screenY + (window.outerHeight - height) / 2, 0)
-
-  return [
-    'popup=yes',
-    'toolbar=no',
-    'menubar=no',
-    'location=yes',
-    'resizable=yes',
-    'scrollbars=yes',
-    `width=${Math.round(width)}`,
-    `height=${Math.round(height)}`,
-    `left=${Math.round(left)}`,
-    `top=${Math.round(top)}`,
-  ].join(',')
+  if (error instanceof Error) {
+    return error
+  }
+  return new HostedAuthError('Hosted authentication failed.')
 }
 
 export interface UseHostedRedirectAuthResult {
@@ -51,7 +39,8 @@ export interface UseHostedRedirectAuthResult {
   isAuthenticated: boolean
   isLoading: boolean
   error: Error | null
-  login: () => Promise<HostedAuthSession>
+  login: () => Promise<void>
+  completeLogin: () => Promise<HostedAuthSession | null>
   logout: () => Promise<void>
   refresh: () => Promise<HostedAuthSession>
 }
@@ -68,21 +57,37 @@ export function useHostedRedirectAuth(): UseHostedRedirectAuthResult {
   } = useFlexvaultsContext()
   const [error, setError] = useState<Error | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const loginInflight = useRef<Promise<HostedAuthSession> | null>(null)
+  const loginInflight = useRef<Promise<void> | null>(null)
+  const completionInflight = useRef<Promise<HostedAuthSession | null> | null>(null)
+  const pendingStorageKey = useMemo(
+    () =>
+      hostedAuthConfig
+        ? createHostedAuthPendingStorageKey(client.getBaseUrl(), hostedAuthConfig)
+        : null,
+    [client, hostedAuthConfig]
+  )
 
-  const login = useCallback(async (): Promise<HostedAuthSession> => {
+  const clearPendingLogin = useCallback(() => {
+    if (!pendingStorageKey || typeof window === 'undefined') return
+    clearHostedAuthPendingTransaction(window.sessionStorage, pendingStorageKey)
+  }, [pendingStorageKey])
+
+  const login = useCallback(async (): Promise<void> => {
     if (!hostedAuthConfig) {
       throw new HostedAuthRequiredError(
         'Hosted redirect authentication is not configured for this provider.'
       )
     }
-    if (hostedAuthConfig.responseMode !== 'web_message') {
+    if (hostedAuthConfig.responseMode !== 'redirect') {
       throw new HostedAuthError(
-        'useHostedRedirectAuth() currently supports responseMode="web_message" only.'
+        'useHostedRedirectAuth() currently supports responseMode="redirect" only.'
       )
     }
     if (typeof window === 'undefined') {
       throw new HostedAuthError('Hosted redirect authentication requires a browser environment.')
+    }
+    if (!pendingStorageKey) {
+      throw new HostedAuthError('Hosted redirect authentication storage is not configured.')
     }
     if (loginInflight.current) {
       return loginInflight.current
@@ -92,121 +97,28 @@ export function useHostedRedirectAuth(): UseHostedRedirectAuthResult {
       setIsLoading(true)
       setError(null)
 
-      const popup = window.open(
-        'about:blank',
-        'flexvaults-hosted-auth',
-        createPopupFeatures(DEFAULT_POPUP_WIDTH, DEFAULT_POPUP_HEIGHT)
-      )
-      if (!popup) {
-        throw new HostedAuthPopupBlockedError()
-      }
-
       try {
         const verifier = createPkceVerifier()
         const codeChallenge = await createPkceChallenge(verifier)
         const state = createHostedAuthState()
+        persistHostedAuthPendingTransaction(window.sessionStorage, pendingStorageKey, {
+          codeVerifier: verifier,
+          state,
+        })
         const authorizeUrl = client.getHostedAuthAuthorizeUrl({
           client_id: hostedAuthConfig.clientId,
           redirect_uri: hostedAuthConfig.redirectUri,
           code_challenge: codeChallenge,
           chain_id: networkConfig.chainId,
           code_challenge_method: 'S256',
-          response_mode: hostedAuthConfig.responseMode,
+          response_mode: 'redirect',
           state,
         })
 
-        popup.location.replace(authorizeUrl)
-
-        const expectedOrigin = new URL(client.getBaseUrl()).origin
-
-        const code = await new Promise<string>((resolve, reject) => {
-          let finished = false
-
-          const cleanup = () => {
-            finished = true
-            window.removeEventListener('message', handleMessage)
-            clearInterval(closeInterval)
-            clearTimeout(timeoutId)
-          }
-
-          const fail = (authError: Error) => {
-            cleanup()
-            try {
-              popup.close()
-            } catch {
-              // Ignore popup close errors after failed auth completion.
-            }
-            reject(authError)
-          }
-
-          const succeed = (value: string) => {
-            cleanup()
-            try {
-              popup.close()
-            } catch {
-              // Ignore popup close errors after successful auth completion.
-            }
-            resolve(value)
-          }
-
-          const handleMessage = (event: MessageEvent) => {
-            if (finished) return
-            if (event.origin !== expectedOrigin) return
-            if (event.source !== popup) return
-            if (!isHostedAuthMessage(event.data)) return
-
-            if (event.data.state !== state) {
-              fail(new HostedAuthStateMismatchError())
-              return
-            }
-
-            if ('error' in event.data) {
-              fail(
-                new HostedAuthError(
-                  event.data.error_description || event.data.error || 'Hosted authentication failed'
-                )
-              )
-              return
-            }
-
-            succeed(event.data.code)
-          }
-
-          const closeInterval = window.setInterval(() => {
-            if (!finished && popup.closed) {
-              fail(new HostedAuthPopupClosedError())
-            }
-          }, POPUP_CLOSE_POLL_MS)
-
-          const timeoutId = window.setTimeout(() => {
-            fail(new HostedAuthError('Hosted authentication timed out.'))
-          }, POPUP_TIMEOUT_MS)
-
-          window.addEventListener('message', handleMessage)
-        })
-
-        const response = await client.exchangeHostedAuthCode({
-          code,
-          code_verifier: verifier,
-          client_id: hostedAuthConfig.clientId,
-          redirect_uri: hostedAuthConfig.redirectUri,
-        })
-
-        const session = buildHostedAuthSession(response, hostedAuthConfig)
-        setHostedAuthSession(session)
-        return session
+        window.location.assign(authorizeUrl)
       } catch (loginError) {
-        try {
-          popup.close()
-        } catch {
-          // Ignore popup close errors after login setup failures.
-        }
-        const normalizedError =
-          loginError instanceof AccountingApiError && loginError.detail
-            ? new HostedAuthError(loginError.detail)
-            : loginError instanceof Error
-              ? loginError
-              : new HostedAuthError('Hosted authentication failed.')
+        clearPendingLogin()
+        const normalizedError = normalizeHostedAuthError(loginError)
         setError(normalizedError)
         throw normalizedError
       } finally {
@@ -217,7 +129,108 @@ export function useHostedRedirectAuth(): UseHostedRedirectAuthResult {
 
     loginInflight.current = loginPromise
     return loginPromise
-  }, [client, hostedAuthConfig, networkConfig.chainId, setHostedAuthSession])
+  }, [clearPendingLogin, client, hostedAuthConfig, networkConfig.chainId, pendingStorageKey])
+
+  const completeLogin = useCallback(async (): Promise<HostedAuthSession | null> => {
+    if (!hostedAuthConfig) {
+      throw new HostedAuthRequiredError(
+        'Hosted redirect authentication is not configured for this provider.'
+      )
+    }
+    if (hostedAuthConfig.responseMode !== 'redirect') {
+      throw new HostedAuthError(
+        'useHostedRedirectAuth() currently supports responseMode="redirect" only.'
+      )
+    }
+    if (typeof window === 'undefined') {
+      throw new HostedAuthError('Hosted redirect authentication requires a browser environment.')
+    }
+    if (!pendingStorageKey) {
+      throw new HostedAuthError('Hosted redirect authentication storage is not configured.')
+    }
+    if (completionInflight.current) {
+      return completionInflight.current
+    }
+
+    const completionPromise = (async () => {
+      setIsLoading(true)
+      setError(null)
+
+      const callbackUrl = new URL(window.location.href)
+      const cleanupCallbackUrl = () => {
+        window.history.replaceState(null, '', stripHostedAuthCallbackParams(callbackUrl))
+      }
+
+      try {
+        const callback = parseHostedAuthCallback(callbackUrl, hostedAuthConfig.redirectUri)
+        if (!callback) {
+          return null
+        }
+
+        const pending = readHostedAuthPendingTransaction(window.sessionStorage, pendingStorageKey)
+        if (!pending) {
+          clearPendingLogin()
+          cleanupCallbackUrl()
+          throw new HostedAuthError(
+            'Hosted authentication response could not be matched to a pending login request.'
+          )
+        }
+        if (!callback.state || callback.state !== pending.state) {
+          clearPendingLogin()
+          cleanupCallbackUrl()
+          throw new HostedAuthStateMismatchError()
+        }
+        if ('error' in callback) {
+          clearPendingLogin()
+          cleanupCallbackUrl()
+          throw new HostedAuthError(
+            callback.errorDescription || callback.error || 'Hosted authentication failed.'
+          )
+        }
+
+        const { codeVerifier } = pending
+        const exchangeKey = `${pendingStorageKey}:${callback.code}:${pending.state}`
+        let exchangePromise = hostedAuthExchangeInflight.get(exchangeKey)
+
+        if (!exchangePromise) {
+          exchangePromise = (async () => {
+            const response = await client.exchangeHostedAuthCode({
+              code: callback.code,
+              code_verifier: codeVerifier,
+              client_id: hostedAuthConfig.clientId,
+              redirect_uri: hostedAuthConfig.redirectUri,
+            })
+
+            const session = buildHostedAuthSession(response, hostedAuthConfig)
+            setHostedAuthSession(session)
+            clearPendingLogin()
+            cleanupCallbackUrl()
+            return session
+          })()
+
+          hostedAuthExchangeInflight.set(exchangeKey, exchangePromise)
+        }
+
+        try {
+          return await exchangePromise
+        } finally {
+          if (hostedAuthExchangeInflight.get(exchangeKey) === exchangePromise) {
+            hostedAuthExchangeInflight.delete(exchangeKey)
+          }
+        }
+      } catch (completionError) {
+        const normalizedError = normalizeHostedAuthError(completionError)
+        setError(normalizedError)
+        throw normalizedError
+      } finally {
+        completionInflight.current = null
+        setIsLoading(false)
+      }
+    })()
+
+    completionInflight.current = completionPromise
+    return completionPromise
+  }, [clearPendingLogin, client, hostedAuthConfig, pendingStorageKey, setHostedAuthSession])
 
   const logout = useCallback(async (): Promise<void> => {
     setError(null)
@@ -255,6 +268,7 @@ export function useHostedRedirectAuth(): UseHostedRedirectAuthResult {
     isLoading,
     error,
     login,
+    completeLogin,
     logout,
     refresh,
   }

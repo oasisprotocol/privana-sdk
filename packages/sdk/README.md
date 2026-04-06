@@ -112,7 +112,7 @@ through the same shared in-flight auth request.
 ### Hosted redirect auth for cross-domain apps
 
 For widget or cross-domain frontends, configure `hostedAuth` on `FlexvaultsProvider` and use
-`useHostedRedirectAuth()` to establish a hosted Flexvaults session:
+`useHostedRedirectAuth()` to start the hosted sign-in and complete it on your callback route:
 
 ```tsx
 import {
@@ -141,21 +141,52 @@ function HostedAuthButton() {
 }
 ```
 
+```tsx
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useHostedRedirectAuth } from '@oasisprotocol/flexvaults-sdk'
+
+function HostedAuthCallbackPage() {
+  const router = useRouter()
+  const { completeLogin } = useHostedRedirectAuth()
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    void completeLogin()
+      .then((session) => {
+        if (!session) {
+          setError('No hosted authentication response was found.')
+          return
+        }
+        router.replace('/')
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Hosted authentication failed.')
+      })
+  }, [completeLogin, router])
+
+  if (error) return <p>Error: {error}</p>
+  return <p>Completing sign-in…</p>
+}
+```
+
 In hosted-auth mode:
 
-- the SDK opens the hosted `/auth/authorize` popup on the Flexvaults auth origin
-- the popup signs on the current wallet chain if it is supported, otherwise it switches to the provider `networkConfig.chainId`
-- the popup completes SIWE there and returns an auth code via `web_message`
-- the SDK exchanges the code at `/auth/token`
+- the SDK stores PKCE and `state` in `sessionStorage`, then redirects the browser to the hosted `/auth/authorize` page on the Flexvaults auth origin
+- the hosted auth page signs on the current wallet chain if it is supported, otherwise it switches to the provider `networkConfig.chainId`
+- the hosted auth page redirects back to your registered callback URL with `code` / `state` or `error`
+- your callback route calls `completeLogin()` to exchange the code at `/auth/token`
 - private-read hooks use `Authorization: Bearer <access_token>` and refresh once through
   `/auth/jwt/refresh` on `401`
 
 Notes:
 
-- `useHostedRedirectAuth()` currently supports `responseMode="web_message"` for widget/popup
-  integrations.
+- `useHostedRedirectAuth()` currently supports `responseMode="redirect"` only.
+- low-level `FlexvaultsClient.getHostedAuthAuthorizeUrl()` still mirrors backend authorize URL support and can build either response mode explicitly.
+- consumer apps must implement a callback route at the exact registered `redirect_uri`.
 - `client_id` and exact `redirect_uri` values must be registered in backend `AUTH_CLIENTS`.
 - staging end-to-end verification requires that registration on the staging deployment.
+- the standalone localhost popup page used during Firefox debugging was diagnostic only; it is not part of the supported SDK integration path.
 
 ## Components
 

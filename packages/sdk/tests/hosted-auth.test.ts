@@ -2,11 +2,61 @@ import { describe, expect, it } from 'bun:test'
 import { AccountingApiError, FlexvaultsClient, HttpClient } from '../src/sdk/client'
 import {
   buildHostedAuthSession,
-  createHostedAuthState,
+  clearHostedAuthPendingTransaction,
+  createHostedAuthPendingStorageKey,
   createPkceChallenge,
   createPkceVerifier,
-  isHostedAuthMessage,
+  parseHostedAuthCallback,
+  persistHostedAuthPendingTransaction,
+  readHostedAuthPendingTransaction,
+  stripHostedAuthCallbackParams,
 } from '../src/sdk/auth'
+import {
+  readStoredHostedAuthSession,
+  syncHostedAuthSessionToClient,
+} from '../src/sdk/context/flexvaults-provider'
+import { executeHostedAuthPrivateReadRequest } from '../src/sdk/hooks/use-private-read-request'
+
+function createStorageMock(): Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> {
+  const values = new Map<string, string>()
+
+  return {
+    getItem(key: string) {
+      return values.has(key) ? values.get(key)! : null
+    },
+    setItem(key: string, value: string) {
+      values.set(key, value)
+    },
+    removeItem(key: string) {
+      values.delete(key)
+    },
+  }
+}
+
+function createClientMock(): {
+  clearBearerTokenCalls: number
+  clearPrivateReadTokenCalls: number
+  lastBearerToken: string | null
+  clearBearerToken(): void
+  clearPrivateReadToken(): void
+  setBearerToken(token: string): void
+} {
+  return {
+    clearBearerTokenCalls: 0,
+    clearPrivateReadTokenCalls: 0,
+    lastBearerToken: null,
+    clearBearerToken() {
+      this.clearBearerTokenCalls += 1
+      this.lastBearerToken = null
+    },
+    clearPrivateReadToken() {
+      this.clearPrivateReadTokenCalls += 1
+    },
+    setBearerToken(token: string) {
+      this.lastBearerToken = token
+    },
+  }
+}
 
 describe('hosted auth helpers', () => {
   it('creates a PKCE verifier and S256 challenge', async () => {
@@ -43,24 +93,128 @@ describe('hosted auth helpers', () => {
     expect(session.refreshExpiresAt).toBe(1_700_001_800_000)
   })
 
-  it('recognizes hosted auth web_message payloads', () => {
-    const state = createHostedAuthState(16)
+  it('persists and clears a pending hosted auth transaction', () => {
+    const storage = createStorageMock()
+    const key = createHostedAuthPendingStorageKey('https://flexvaults.example.com/', {
+      clientId: 'honoroll-web',
+      redirectUri: 'https://honoroll.test/auth/callback',
+    })
+
+    persistHostedAuthPendingTransaction(storage, key, {
+      codeVerifier: 'verifier',
+      state: 'state',
+    })
+    expect(readHostedAuthPendingTransaction(storage, key)).toEqual({
+      codeVerifier: 'verifier',
+      state: 'state',
+    })
+
+    clearHostedAuthPendingTransaction(storage, key)
+    expect(readHostedAuthPendingTransaction(storage, key)).toBeNull()
+  })
+
+  it('parses redirect callback query parameters', () => {
     expect(
-      isHostedAuthMessage({
-        type: 'flexvaults-auth-response',
-        code: 'auth-code',
-        state,
-      })
-    ).toBe(true)
+      parseHostedAuthCallback(
+        new URL('https://honoroll.test/auth/callback?code=auth-code&state=callback-state'),
+        'https://honoroll.test/auth/callback'
+      )
+    ).toEqual({
+      code: 'auth-code',
+      state: 'callback-state',
+    })
+
     expect(
-      isHostedAuthMessage({
-        type: 'flexvaults-auth-response',
-        error: 'access_denied',
-        error_description: 'cancelled',
-        state,
-      })
-    ).toBe(true)
-    expect(isHostedAuthMessage({ type: 'something-else', state })).toBe(false)
+      parseHostedAuthCallback(
+        new URL(
+          'https://honoroll.test/auth/callback?error=access_denied&error_description=cancelled&state=callback-state'
+        ),
+        'https://honoroll.test/auth/callback'
+      )
+    ).toEqual({
+      error: 'access_denied',
+      errorDescription: 'cancelled',
+      state: 'callback-state',
+    })
+  })
+
+  it('returns null when the current path does not match the registered redirect URI', () => {
+    expect(
+      parseHostedAuthCallback(
+        new URL('https://honoroll.test/some/other/page?code=auth-code&state=callback-state'),
+        'https://honoroll.test/auth/callback'
+      )
+    ).toBeNull()
+  })
+
+  it('strips hosted auth callback params while preserving other url parts', () => {
+    expect(
+      stripHostedAuthCallbackParams(
+        new URL(
+          'https://honoroll.test/auth/callback?code=auth-code&state=callback-state&foo=bar#section'
+        )
+      )
+    ).toBe('/auth/callback?foo=bar#section')
+  })
+
+  it('restores an active hosted auth session from storage and drops invalid entries', () => {
+    const storage = createStorageMock()
+    const session = buildHostedAuthSession(
+      {
+        access_token: 'access-token',
+        id_token: 'id-token',
+        refresh_token: 'refresh-token',
+        token_type: 'Bearer',
+        expires_in: 300,
+        refresh_expires_in: 1800,
+        address: '0x000000000000000000000000000000000000dEaD',
+      },
+      {
+        clientId: 'honoroll-web',
+        redirectUri: 'https://honoroll.test/auth/callback',
+      },
+      1_700_000_000_000
+    )
+
+    storage.setItem('active', JSON.stringify(session))
+    expect(readStoredHostedAuthSession(storage, 'active', 1_700_000_100_000)).toEqual(session)
+
+    storage.setItem('expired', JSON.stringify({ ...session, refreshExpiresAt: 1_699_999_999_000 }))
+    expect(readStoredHostedAuthSession(storage, 'expired', 1_700_000_000_000)).toBeNull()
+    expect(storage.getItem('expired')).toBeNull()
+
+    storage.setItem('broken', '{')
+    expect(readStoredHostedAuthSession(storage, 'broken', 1_700_000_000_000)).toBeNull()
+    expect(storage.getItem('broken')).toBeNull()
+  })
+
+  it('syncs an active hosted auth session to the client bearer token', () => {
+    const client = createClientMock()
+    const now = Date.now()
+    const session = buildHostedAuthSession(
+      {
+        access_token: 'access-token',
+        id_token: 'id-token',
+        refresh_token: 'refresh-token',
+        token_type: 'Bearer',
+        expires_in: 300,
+        refresh_expires_in: 1800,
+        address: '0x000000000000000000000000000000000000dEaD',
+      },
+      {
+        clientId: 'honoroll-web',
+        redirectUri: 'https://honoroll.test/auth/callback',
+      },
+      now
+    )
+
+    syncHostedAuthSessionToClient(client, { clientId: 'honoroll-web', redirectUri: 'x' }, session)
+    expect(client.lastBearerToken).toBe('access-token')
+    expect(client.clearPrivateReadTokenCalls).toBe(1)
+
+    syncHostedAuthSessionToClient(client, null, session)
+    expect(client.lastBearerToken).toBeNull()
+    expect(client.clearBearerTokenCalls).toBe(1)
   })
 })
 
@@ -84,8 +238,24 @@ describe('FlexvaultsClient hosted auth methods', () => {
     expect(url.searchParams.get('code_challenge')).toBe('challenge')
     expect(url.searchParams.get('chain_id')).toBe('23295')
     expect(url.searchParams.get('state')).toBe('state')
-    expect(url.searchParams.get('response_mode')).toBe('web_message')
+    expect(url.searchParams.get('response_mode')).toBe('redirect')
     expect(url.searchParams.get('code_challenge_method')).toBe('S256')
+  })
+
+  it('preserves an explicit hosted auth response mode for low-level callers', () => {
+    const client = new FlexvaultsClient({ baseUrl: 'https://flexvaults.example.com/' })
+    const url = new URL(
+      client.getHostedAuthAuthorizeUrl({
+        client_id: 'honoroll-web',
+        redirect_uri: 'https://honoroll.test/auth/callback',
+        code_challenge: 'challenge',
+        chain_id: 23295,
+        response_mode: 'web_message',
+        state: 'state',
+      })
+    )
+
+    expect(url.searchParams.get('response_mode')).toBe('web_message')
   })
 
   it('preserves a baseUrl path prefix when building the hosted auth authorize url', () => {
@@ -164,5 +334,89 @@ describe('HttpClient auth error handling', () => {
     } finally {
       globalThis.fetch = originalFetch
     }
+  })
+})
+
+describe('hosted auth private read execution', () => {
+  it('retries once after a hosted auth 401 using a refreshed session', async () => {
+    const client = createClientMock()
+    const activeSession = buildHostedAuthSession(
+      {
+        access_token: 'stale-access-token',
+        id_token: 'id-token',
+        refresh_token: 'refresh-token',
+        token_type: 'Bearer',
+        expires_in: 300,
+        refresh_expires_in: 1800,
+        address: '0x000000000000000000000000000000000000dEaD',
+      },
+      {
+        clientId: 'honoroll-web',
+        redirectUri: 'https://honoroll.test/auth/callback',
+      },
+      Date.now()
+    )
+
+    let refreshCalls = 0
+    let requestCalls = 0
+
+    const result = await executeHostedAuthPrivateReadRequest({
+      client,
+      hostedAuthSession: activeSession,
+      refreshHostedAuthSession: async () => {
+        refreshCalls += 1
+        return { ...activeSession, accessToken: 'fresh-access-token' }
+      },
+      request: async () => {
+        requestCalls += 1
+        if (requestCalls === 1) {
+          throw new AccountingApiError('Unauthorized', 401)
+        }
+        return 'ok'
+      },
+    })
+
+    expect(result).toBe('ok')
+    expect(requestCalls).toBe(2)
+    expect(refreshCalls).toBe(1)
+    expect(client.lastBearerToken).toBe('fresh-access-token')
+    expect(client.clearPrivateReadTokenCalls).toBe(2)
+  })
+
+  it('uses the active hosted auth session without refreshing on a successful request', async () => {
+    const client = createClientMock()
+    const activeSession = buildHostedAuthSession(
+      {
+        access_token: 'access-token',
+        id_token: 'id-token',
+        refresh_token: 'refresh-token',
+        token_type: 'Bearer',
+        expires_in: 300,
+        refresh_expires_in: 1800,
+        address: '0x000000000000000000000000000000000000dEaD',
+      },
+      {
+        clientId: 'honoroll-web',
+        redirectUri: 'https://honoroll.test/auth/callback',
+      },
+      Date.now()
+    )
+
+    let refreshCalls = 0
+
+    const result = await executeHostedAuthPrivateReadRequest({
+      client,
+      hostedAuthSession: activeSession,
+      refreshHostedAuthSession: async () => {
+        refreshCalls += 1
+        return activeSession
+      },
+      request: async () => 'ok',
+    })
+
+    expect(result).toBe('ok')
+    expect(refreshCalls).toBe(0)
+    expect(client.lastBearerToken).toBe('access-token')
+    expect(client.clearPrivateReadTokenCalls).toBe(1)
   })
 })

@@ -240,7 +240,7 @@ export class FlexvaultsClient {
     url.searchParams.set('code_challenge', request.code_challenge)
     url.searchParams.set('state', request.state)
     url.searchParams.set('chain_id', String(request.chain_id))
-    url.searchParams.set('response_mode', request.response_mode ?? 'web_message')
+    url.searchParams.set('response_mode', request.response_mode ?? 'redirect')
     url.searchParams.set('code_challenge_method', request.code_challenge_method ?? 'S256')
     return url.toString()
   }

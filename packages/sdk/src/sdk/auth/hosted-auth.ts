@@ -1,6 +1,7 @@
 import type {
+  HostedAuthCallback,
   HostedAuthConfig,
-  HostedAuthMessage,
+  HostedAuthPendingTransaction,
   HostedAuthSession,
   HostedAuthTokenExchangeResponse,
   JwtRefreshResponse,
@@ -10,6 +11,9 @@ export const HOSTED_AUTH_CLOCK_SKEW_MS = 30_000
 
 const PKCE_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
 const DEFAULT_RANDOM_LENGTH = 64
+const HOSTED_AUTH_CALLBACK_QUERY_KEYS = ['code', 'error', 'error_description', 'state'] as const
+
+type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
 function randomString(length: number): string {
   const values = new Uint8Array(length)
@@ -54,14 +58,80 @@ export function createHostedAuthStorageKey(apiUrl: string, config: HostedAuthCon
   ].join(':')
 }
 
-export function isHostedAuthMessage(value: unknown): value is HostedAuthMessage {
-  if (!value || typeof value !== 'object') return false
-  const message = value as Record<string, unknown>
-  return (
-    message.type === 'flexvaults-auth-response' &&
-    typeof message.state === 'string' &&
-    (typeof message.code === 'string' || typeof message.error === 'string')
-  )
+export function createHostedAuthPendingStorageKey(
+  apiUrl: string,
+  config: HostedAuthConfig
+): string {
+  return `${createHostedAuthStorageKey(apiUrl, config)}:pending`
+}
+
+export function persistHostedAuthPendingTransaction(
+  storage: StorageLike,
+  key: string,
+  transaction: HostedAuthPendingTransaction
+): void {
+  storage.setItem(key, JSON.stringify(transaction))
+}
+
+export function readHostedAuthPendingTransaction(
+  storage: StorageLike,
+  key: string
+): HostedAuthPendingTransaction | null {
+  const raw = storage.getItem(key)
+  if (!raw) return null
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<HostedAuthPendingTransaction>
+    if (typeof parsed.codeVerifier !== 'string' || typeof parsed.state !== 'string') {
+      return null
+    }
+
+    return {
+      codeVerifier: parsed.codeVerifier,
+      state: parsed.state,
+    }
+  } catch {
+    return null
+  }
+}
+
+export function clearHostedAuthPendingTransaction(storage: StorageLike, key: string): void {
+  storage.removeItem(key)
+}
+
+export function parseHostedAuthCallback(url: URL, redirectUri: string): HostedAuthCallback | null {
+  const expectedPath = new URL(redirectUri).pathname
+  if (url.pathname !== expectedPath) {
+    return null
+  }
+
+  const code = url.searchParams.get('code')
+  if (code) {
+    return {
+      code,
+      state: url.searchParams.get('state'),
+    }
+  }
+
+  const error = url.searchParams.get('error')
+  if (error) {
+    return {
+      error,
+      errorDescription: url.searchParams.get('error_description') ?? undefined,
+      state: url.searchParams.get('state'),
+    }
+  }
+
+  return null
+}
+
+export function stripHostedAuthCallbackParams(url: URL): string {
+  const nextUrl = new URL(url.toString())
+  HOSTED_AUTH_CALLBACK_QUERY_KEYS.forEach((key) => {
+    nextUrl.searchParams.delete(key)
+  })
+
+  return `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`
 }
 
 export function buildHostedAuthSession(

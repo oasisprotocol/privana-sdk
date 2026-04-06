@@ -4,6 +4,8 @@ export type Address = `0x${string}`
 export type Bytes32 = `0x${string}`
 export type HexString = `0x${string}`
 export type IntegerLike = string | number
+// Mirrors backend protocol support for authorize URL construction.
+// High-level hosted auth in the provider/hooks layer is intentionally redirect-only.
 export type HostedAuthResponseMode = 'web_message' | 'redirect'
 
 export type Network = keyof typeof config.networks

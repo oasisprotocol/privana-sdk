@@ -70,6 +70,7 @@ export function Providers({ children, network = 'testnet' }: ProvidersProps) {
                   ? {
                       clientId: hostedAuthClientId,
                       redirectUri: hostedAuthRedirectUri,
+                      responseMode: 'redirect',
                     }
                   : undefined
               }
