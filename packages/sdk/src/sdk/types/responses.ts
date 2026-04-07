@@ -53,6 +53,13 @@ export interface TokenInfoResponse {
   chain_id?: number | null
   chain_name?: string | null
   token_address?: Address | null
+  symbol?: string | null
+  name?: string | null
+  decimals?: number | null
+}
+
+export interface TokenListResponse {
+  tokens: TokenInfoResponse[]
 }
 
 export interface LockInfo {
