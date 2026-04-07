@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { DepositForm } from './deposit-form'
 import { WithdrawForm } from './withdraw-form'
-import { type TokenConfig, getTokenById } from '@/sdk/types/tokens'
+import type { TokenConfig } from '@/sdk/types/tokens'
 import { useFlexvaultsContext } from '@/sdk/context/flexvaults-provider'
 import { SUPPORTED_CHAINS } from '@/sdk/types/chains'
 import { useBalance, useLockedFunds, useUnlockFunds } from '@/sdk/hooks'
@@ -235,6 +235,7 @@ interface LockedFundsSection {
 }
 
 function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: () => void }) {
+  const { enabledTokens } = useFlexvaultsContext()
   const { locks, isLoading } = useLockedFunds()
   const { unlockFunds, unlockAllExpired, isPending } = useUnlockFunds()
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
@@ -252,7 +253,11 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
       }
       sectionMap[lock.service_address].items.push({
         lockId: lock.lock_id,
-        amount: formatTokenAmount(String(lock.amount), getTokenById(lock.token_id)?.decimals ?? 18),
+        amount: formatTokenAmount(
+          String(lock.amount),
+          enabledTokens.find((t) => t.id.toLowerCase() === lock.token_id.toLowerCase())?.decimals ??
+            18
+        ),
         serviceAddress: lock.service_address,
         time: lock.is_expired ? 'Click to unlock' : formatTimeRemaining(lock.expiry),
         isExpired: lock.is_expired,
@@ -260,7 +265,7 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
     })
 
     return Object.values(sectionMap)
-  }, [locks])
+  }, [enabledTokens, locks])
 
   const toggleSection = (title: string) => {
     setCollapsedSections((prev) => ({
@@ -402,15 +407,8 @@ function BalanceTokenRow({ token }: { token: TokenConfig }) {
 }
 
 function BalanceDetailsView({ onBack, onClose }: { onBack: () => void; onClose?: () => void }) {
+  const { enabledTokens } = useFlexvaultsContext()
   const [selectedChainId, setSelectedChainId] = useState<number>(SUPPORTED_CHAINS[0]?.id ?? 84532)
-
-  const selectedChain = useMemo(() => {
-    return SUPPORTED_CHAINS.find((c) => c.id === selectedChainId)
-  }, [selectedChainId])
-
-  const chainTokens = useMemo(() => {
-    return selectedChain?.tokens ?? []
-  }, [selectedChain])
 
   return (
     <>
@@ -467,7 +465,7 @@ function BalanceDetailsView({ onBack, onClose }: { onBack: () => void; onClose?:
             <span className="text-muted-foreground text-sm">Token Balance</span>
           </div>
           <div className="mt-2 flex-1 overflow-y-auto">
-            {chainTokens.map((token) => (
+            {enabledTokens.map((token) => (
               <BalanceTokenRow key={token.id} token={token} />
             ))}
           </div>
@@ -534,24 +532,14 @@ function TokenSelectorView({
   const [selectedChainId, setSelectedChainId] = useState<number>(SUPPORTED_CHAINS[0]?.id ?? 84532)
   const { enabledTokens } = useFlexvaultsContext()
 
-  const enabledTokenIds = useMemo(() => new Set(enabledTokens.map((t) => t.id)), [enabledTokens])
-
-  const selectedChain = useMemo(() => {
-    return SUPPORTED_CHAINS.find((c) => c.id === selectedChainId)
-  }, [selectedChainId])
-
-  const chainTokens = useMemo(() => {
-    return (selectedChain?.tokens ?? []).filter((t) => enabledTokenIds.has(t.id))
-  }, [selectedChain, enabledTokenIds])
-
   const filteredTokens = useMemo(() => {
-    if (!tokenSearch) return chainTokens
-    return chainTokens.filter(
+    if (!tokenSearch) return enabledTokens
+    return enabledTokens.filter(
       (t) =>
         t.symbol.toLowerCase().includes(tokenSearch.toLowerCase()) ||
         t.name.toLowerCase().includes(tokenSearch.toLowerCase())
     )
-  }, [tokenSearch, chainTokens])
+  }, [tokenSearch, enabledTokens])
 
   const handleTokenSelect = (token: TokenConfig) => {
     onSelect(token)

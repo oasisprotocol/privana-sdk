@@ -8,7 +8,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog'
-import { SUPPORTED_TOKENS, type TokenConfig } from '@/sdk/types/tokens'
+import type { TokenConfig } from '@/sdk/types/tokens'
 import { useFlexvaultsContext } from '@/sdk/context/flexvaults-provider'
 import { cn } from '@/lib/utils'
 import { getTokenIcon } from './token-icons'
@@ -31,27 +31,19 @@ export function TokenSelectorModal({
   const descId = useId()
   const { enabledTokens } = useFlexvaultsContext()
 
-  const enabledTokenIds = useMemo(() => new Set(enabledTokens.map((t) => t.id)), [enabledTokens])
-
-  const allTokens = useMemo(() => {
-    return Object.entries(SUPPORTED_TOKENS).map(([key, token]) => ({
-      ...token,
-      key,
-      enabled: enabledTokenIds.has(token.id),
-    }))
-  }, [enabledTokenIds])
-
   const filteredTokens = useMemo(() => {
-    let tokens = allTokens
-    if (tokenSearch) {
-      tokens = tokens.filter(
-        (token) =>
-          token.symbol.toLowerCase().includes(tokenSearch.toLowerCase()) ||
-          token.name.toLowerCase().includes(tokenSearch.toLowerCase())
-      )
-    }
-    return tokens
-  }, [tokenSearch, allTokens])
+    const tokens = enabledTokens.map((token) => ({
+      ...token,
+      key: token.id,
+      enabled: true,
+    }))
+    if (!tokenSearch) return tokens
+    return tokens.filter(
+      (token) =>
+        token.symbol.toLowerCase().includes(tokenSearch.toLowerCase()) ||
+        token.name.toLowerCase().includes(tokenSearch.toLowerCase())
+    )
+  }, [tokenSearch, enabledTokens])
 
   const handleSelect = (token: TokenConfig & { enabled: boolean }) => {
     if (!token.enabled) return

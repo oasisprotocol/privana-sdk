@@ -3,7 +3,7 @@
 import { useAccount } from 'wagmi'
 import { usePendingWithdrawals } from '@/sdk/hooks'
 import { formatTokenAmount } from '@/lib/utils'
-import { getTokenById } from '@/sdk/types/tokens'
+import { useFlexvaultsContext } from '@/sdk/context/flexvaults-provider'
 import { getTokenIcon } from './token-icons'
 import { SUPPORTED_CHAINS, getExplorerAddressUrl } from '@/sdk/types/chains'
 
@@ -29,6 +29,7 @@ function Skeleton() {
 
 export function RecentActivity() {
   const { address } = useAccount()
+  const { enabledTokens } = useFlexvaultsContext()
   const { withdrawals, isLoading } = usePendingWithdrawals()
   const chain = SUPPORTED_CHAINS[0]
 
@@ -53,7 +54,7 @@ export function RecentActivity() {
   return (
     <div className="space-y-2">
       {withdrawals.map((withdrawal) => {
-        const token = getTokenById(withdrawal.token_id)
+        const token = enabledTokens.find((t) => t.id.toLowerCase() === withdrawal.token_id.toLowerCase())
         const formattedAmount = formatTokenAmount(String(withdrawal.amount), token?.decimals ?? 18)
         // Pending withdrawals endpoint only returns unresolved withdrawals
         const isPending = !withdrawal.resolved
