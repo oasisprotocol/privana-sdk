@@ -51,7 +51,9 @@ export function LockedFundsList() {
     <div className="flex flex-col">
       <div className="flex flex-col">
         {locks.map((lock, _index) => {
-          const token = enabledTokens.find((t) => t.id.toLowerCase() === lock.token_id.toLowerCase())
+          const token = enabledTokens.find(
+            (t) => t.id.toLowerCase() === lock.token_id.toLowerCase()
+          )
           const formattedAmount = formatTokenAmount(String(lock.amount), token?.decimals ?? 18)
           const isHighlighted = lock.is_expired
 

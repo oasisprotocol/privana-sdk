@@ -54,7 +54,9 @@ export function RecentActivity() {
   return (
     <div className="space-y-2">
       {withdrawals.map((withdrawal) => {
-        const token = enabledTokens.find((t) => t.id.toLowerCase() === withdrawal.token_id.toLowerCase())
+        const token = enabledTokens.find(
+          (t) => t.id.toLowerCase() === withdrawal.token_id.toLowerCase()
+        )
         const formattedAmount = formatTokenAmount(String(withdrawal.amount), token?.decimals ?? 18)
         // Pending withdrawals endpoint only returns unresolved withdrawals
         const isPending = !withdrawal.resolved
