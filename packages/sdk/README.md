@@ -38,6 +38,10 @@ function App() {
             apiUrl: 'https://flexvaults-staging.rofl.build',
             accountingContract: '0xYourContractAddress',
           }}
+          hostedAuth={{
+            clientId: 'honoroll-web',
+            redirectUri: 'https://honoroll.example.com/auth/callback',
+          }}
         >
           <YourApp />
         </FlexvaultsProvider>
@@ -91,7 +95,11 @@ function CustomWallet() {
 ## Private Reads
 
 `useBalance`, `useBatchBalances`, `useLockedFunds`, `useExpiredLocks`, and `useTotalLockedBalance`
-use the backend's direct SIWE private-read flow:
+support two auth modes:
+
+### Direct SIWE private reads
+
+Default mode for same-origin Flexvaults browser integrations:
 
 - `GET /v1/accounting/auth/domain`
 - `GET /v1/accounting/auth/nonce?address=0x...`
@@ -101,7 +109,83 @@ The hooks cache the returned `X-SIWE-Token`, dedupe concurrent auth so a group o
 private-read hooks only triggers one sign prompt, and retry once on `401` by re-authenticating
 through the same shared in-flight auth request.
 
-This package does **not** wrap the hosted `/auth/authorize` + `/auth/token` flow in this release.
+### Hosted redirect auth for cross-domain apps
+
+For widget or cross-domain frontends, configure `hostedAuth` on `FlexvaultsProvider` and use
+`useHostedRedirectAuth()` to start the hosted sign-in and complete it on your callback route:
+
+```tsx
+import {
+  FlexvaultsProvider,
+  useBalance,
+  useHostedRedirectAuth,
+} from '@oasisprotocol/flexvaults-sdk'
+
+function HostedAuthButton() {
+  const { login, logout, refresh, isAuthenticated, isLoading, error, session } =
+    useHostedRedirectAuth()
+  const { balanceFormatted } = useBalance()
+
+  return (
+    <div>
+      <button onClick={() => void login()} disabled={isLoading || isAuthenticated}>
+        Sign in with Flexvaults
+      </button>
+      {isAuthenticated ? <button onClick={() => void refresh()}>Refresh Session</button> : null}
+      {isAuthenticated ? <button onClick={() => void logout()}>Logout</button> : null}
+      {session ? <p>Signed in as {session.address}</p> : null}
+      {error ? <p>{error.message}</p> : null}
+      <p>Balance: {balanceFormatted}</p>
+    </div>
+  )
+}
+```
+
+```tsx
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useHostedRedirectAuth } from '@oasisprotocol/flexvaults-sdk'
+
+function HostedAuthCallbackPage() {
+  const router = useRouter()
+  const { completeLogin } = useHostedRedirectAuth()
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    void completeLogin()
+      .then((session) => {
+        if (!session) {
+          setError('No hosted authentication response was found.')
+          return
+        }
+        router.replace('/')
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Hosted authentication failed.')
+      })
+  }, [completeLogin, router])
+
+  if (error) return <p>Error: {error}</p>
+  return <p>Completing sign-in…</p>
+}
+```
+
+In hosted-auth mode:
+
+- the SDK stores PKCE and `state` in `sessionStorage`, then redirects the browser to the hosted `/auth/authorize` page on the Flexvaults auth origin
+- the hosted auth page signs on the current wallet chain if it is supported, otherwise it switches to the provider `networkConfig.chainId`
+- the hosted auth page redirects back to your registered callback URL with `code` / `state` or `error`
+- your callback route calls `completeLogin()` to exchange the code at `/auth/token`
+- private-read hooks use `Authorization: Bearer <access_token>` and refresh once through
+  `/auth/jwt/refresh` on `401`
+
+Notes:
+
+- low-level `FlexvaultsClient.getHostedAuthAuthorizeUrl()` still mirrors backend authorize URL support and can build either response mode explicitly.
+- consumer apps must implement a callback route at the exact registered `redirect_uri`.
+- `client_id` and exact `redirect_uri` values must be registered in backend `AUTH_CLIENTS`.
+- staging end-to-end verification requires that registration on the staging deployment.
+- the standalone localhost popup page used during Firefox debugging was diagnostic only; it is not part of the supported SDK integration path.
 
 ## Components
 
@@ -134,6 +218,7 @@ A customizable button that opens the wallet modal.
 
 | Hook                    | Description                            |
 | ----------------------- | -------------------------------------- |
+| `useHostedRedirectAuth` | Hosted redirect auth for widget apps   |
 | `useBalance`            | Get token balance (available + locked) |
 | `useBatchBalances`      | Get multiple token balances            |
 | `useDeposit`            | Deposit tokens                         |

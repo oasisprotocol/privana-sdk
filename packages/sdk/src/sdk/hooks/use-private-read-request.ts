@@ -4,9 +4,11 @@ import { useCallback, useContext, useMemo } from 'react'
 import { createSiweMessage } from 'viem/siwe'
 import { WagmiContext } from 'wagmi'
 import { getWalletClient } from 'wagmi/actions'
-import { AccountingApiError } from '../client'
+import { isHostedAuthSessionActive } from '../auth'
+import { AccountingApiError, HostedAuthRequiredError } from '../client'
 import type { FlexvaultsClient } from '../client'
 import { useFlexvaultsContext } from '../context'
+import type { Address, HostedAuthSession } from '../types'
 import { useSafeAccount } from './use-safe-account'
 
 const AUTH_CLOCK_SKEW_MS = 30_000
@@ -28,6 +30,48 @@ interface PrivateReadFailureEntry {
 const privateReadTokenCache = new Map<string, PrivateReadTokenEntry>()
 const privateReadFailureCache = new Map<string, PrivateReadFailureEntry>()
 const privateReadInflight = new Map<string, Promise<string>>()
+
+export async function executeHostedAuthPrivateReadRequest<T>({
+  client,
+  hostedAuthSession,
+  refreshHostedAuthSession,
+  request,
+}: {
+  client: Pick<FlexvaultsClient, 'clearPrivateReadToken' | 'setBearerToken'>
+  hostedAuthSession: HostedAuthSession | null
+  refreshHostedAuthSession: () => Promise<HostedAuthSession>
+  request: () => Promise<T>
+}): Promise<T> {
+  const ensureHostedAuth = async (forceRefresh: boolean): Promise<string> => {
+    if (!hostedAuthSession) {
+      throw new HostedAuthRequiredError()
+    }
+
+    if (!forceRefresh && isHostedAuthSessionActive(hostedAuthSession)) {
+      client.clearPrivateReadToken()
+      client.setBearerToken(hostedAuthSession.accessToken)
+      return hostedAuthSession.accessToken
+    }
+
+    const refreshed = await refreshHostedAuthSession()
+    client.clearPrivateReadToken()
+    client.setBearerToken(refreshed.accessToken)
+    return refreshed.accessToken
+  }
+
+  await ensureHostedAuth(false)
+
+  try {
+    return await request()
+  } catch (error) {
+    if (!(error instanceof AccountingApiError) || error.statusCode !== 401) {
+      throw error
+    }
+
+    await ensureHostedAuth(true)
+    return request()
+  }
+}
 
 function createScopeKey(apiUrl: string, deploymentChainId: number, address: string): string {
   return `${apiUrl.replace(/\/$/, '')}:${deploymentChainId}:${address.toLowerCase()}`
@@ -79,19 +123,35 @@ function ensureFailureBackoff(scopeKey: string): void {
 
 export function usePrivateReadRequest(): {
   executePrivateRead<T>(request: () => Promise<T>): Promise<T>
-  privateReadQueryScope: readonly [string, number, `0x${string}` | null]
+  privateReadAddress: Address | null
+  privateReadReady: boolean
+  privateReadQueryScope: readonly [string, number, Address | null]
 } {
   const wagmiContext = useContext(WagmiContext)
-  const { client, networkConfig } = useFlexvaultsContext()
-  const { address } = useSafeAccount()
+  const { client, networkConfig, hostedAuthConfig, hostedAuthSession, refreshHostedAuthSession } =
+    useFlexvaultsContext()
+  const { address: walletAddress } = useSafeAccount()
+  const privateReadAddress = hostedAuthConfig
+    ? (hostedAuthSession?.address ?? null)
+    : (walletAddress ?? null)
+  const privateReadReady = hostedAuthConfig ? !!hostedAuthSession : !!walletAddress
 
   const executePrivateRead = useCallback(
     async <T>(request: () => Promise<T>): Promise<T> => {
-      if (!address) {
-        throw new Error('No wallet connected')
+      if (hostedAuthConfig) {
+        return executeHostedAuthPrivateReadRequest({
+          client,
+          hostedAuthSession,
+          refreshHostedAuthSession,
+          request,
+        })
       }
+
       if (!wagmiContext) {
         throw new Error('WagmiProvider is required for authenticated private reads')
+      }
+      if (!walletAddress) {
+        throw new Error('No wallet connected')
       }
 
       const walletClient = await getWalletClient(wagmiContext)
@@ -100,7 +160,7 @@ export function usePrivateReadRequest(): {
       }
 
       const apiUrl = networkConfig.apiUrl
-      const scopeKey = createScopeKey(apiUrl, networkConfig.chainId, address)
+      const scopeKey = createScopeKey(apiUrl, networkConfig.chainId, walletAddress)
 
       const getToken = async (forceRefresh: boolean): Promise<string> => {
         const inflight = privateReadInflight.get(scopeKey)
@@ -124,7 +184,7 @@ export function usePrivateReadRequest(): {
           try {
             const [{ domain }, nonceResponse] = await Promise.all([
               client.getSiweDomain(),
-              client.getSiweNonce(address),
+              client.getSiweNonce(walletAddress),
             ])
             const issuedAt = new Date()
             // The nonce must be consumed within its short expiry window, but the backend
@@ -136,7 +196,7 @@ export function usePrivateReadRequest(): {
                 : apiUrl
 
             const message = createSiweMessage({
-              address,
+              address: walletAddress,
               chainId: walletClient.chain?.id ?? networkConfig.chainId,
               domain,
               expirationTime,
@@ -148,7 +208,7 @@ export function usePrivateReadRequest(): {
             })
 
             const signature = await walletClient.signMessage({
-              account: walletClient.account ?? address,
+              account: walletClient.account ?? walletAddress,
               message,
             })
 
@@ -194,16 +254,27 @@ export function usePrivateReadRequest(): {
         return request()
       }
     },
-    [address, client, networkConfig.apiUrl, networkConfig.chainId, wagmiContext]
+    [
+      client,
+      hostedAuthConfig,
+      hostedAuthSession,
+      networkConfig.apiUrl,
+      networkConfig.chainId,
+      refreshHostedAuthSession,
+      walletAddress,
+      wagmiContext,
+    ]
   )
 
   const privateReadQueryScope = useMemo(
-    () => [networkConfig.apiUrl, networkConfig.chainId, address ?? null] as const,
-    [networkConfig.apiUrl, networkConfig.chainId, address]
+    () => [networkConfig.apiUrl, networkConfig.chainId, privateReadAddress] as const,
+    [networkConfig.apiUrl, networkConfig.chainId, privateReadAddress]
   )
 
   return {
     executePrivateRead,
+    privateReadAddress,
+    privateReadReady,
     privateReadQueryScope,
   }
 }

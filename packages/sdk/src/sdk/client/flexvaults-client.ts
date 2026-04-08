@@ -4,6 +4,13 @@ import type {
   Bytes32,
   DepositQuoteRequest,
   DepositQuoteResponse,
+  HostedAuthAuthorizeUrlRequest,
+  HostedAuthTokenExchangeRequest,
+  HostedAuthTokenExchangeResponse,
+  JwtLogoutRequest,
+  JwtLogoutResponse,
+  JwtRefreshRequest,
+  JwtRefreshResponse,
   LockFundsRequest,
   UnlockFundsRequest,
   UnlockAllExpiredRequest,
@@ -40,6 +47,10 @@ export class FlexvaultsClient {
 
   constructor(config: FlexvaultsClientConfig) {
     this.http = new HttpClient(config)
+  }
+
+  getBaseUrl(): string {
+    return this.http.getBaseUrl()
   }
 
   async getDepositQuote(request: DepositQuoteRequest): Promise<DepositQuoteResponse> {
@@ -216,6 +227,46 @@ export class FlexvaultsClient {
     return this.http.post<SiweLoginResponse>('/v1/accounting/auth/login', {
       siwe_message: request.siwe_message,
       signature: normalizeHex(request.signature),
+    })
+  }
+
+  getHostedAuthAuthorizeUrl(request: HostedAuthAuthorizeUrlRequest): string {
+    const url = new URL(
+      'v1/accounting/auth/authorize',
+      `${this.http.getBaseUrl().replace(/\/$/, '')}/`
+    )
+    url.searchParams.set('client_id', request.client_id)
+    url.searchParams.set('redirect_uri', request.redirect_uri)
+    url.searchParams.set('code_challenge', request.code_challenge)
+    url.searchParams.set('state', request.state)
+    url.searchParams.set('chain_id', String(request.chain_id))
+    url.searchParams.set('response_mode', request.response_mode ?? 'redirect')
+    url.searchParams.set('code_challenge_method', request.code_challenge_method ?? 'S256')
+    return url.toString()
+  }
+
+  async exchangeHostedAuthCode(
+    request: HostedAuthTokenExchangeRequest
+  ): Promise<HostedAuthTokenExchangeResponse> {
+    return this.http.post<HostedAuthTokenExchangeResponse>('/v1/accounting/auth/token', {
+      grant_type: request.grant_type ?? 'authorization_code',
+      code: request.code,
+      code_verifier: request.code_verifier,
+      client_id: request.client_id,
+      redirect_uri: request.redirect_uri,
+    })
+  }
+
+  async refreshJwtSession(request: JwtRefreshRequest): Promise<JwtRefreshResponse> {
+    return this.http.post<JwtRefreshResponse>('/v1/accounting/auth/jwt/refresh', {
+      refresh_token: request.refresh_token,
+    })
+  }
+
+  async logoutJwtSession(request: JwtLogoutRequest = {}): Promise<JwtLogoutResponse> {
+    return this.http.post<JwtLogoutResponse>('/v1/accounting/auth/jwt/logout', {
+      refresh_token: request.refresh_token,
+      revoke_all: request.revoke_all ?? false,
     })
   }
 
