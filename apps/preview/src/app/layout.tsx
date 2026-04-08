@@ -2,8 +2,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import '@oasisprotocol/flexvaults-sdk/styles.css'
-import { Providers } from '@/providers'
-import { Toaster } from 'sonner'
+import { ClientShell } from './client-shell'
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -29,18 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <Providers network="testnet">
-          {children}
-          <Toaster
-            theme="system"
-            position="bottom-right"
-            toastOptions={{
-              classNames: {
-                toast: 'bg-card border-border text-foreground',
-              },
-            }}
-          />
-        </Providers>
+        <ClientShell>{children}</ClientShell>
       </body>
     </html>
   )
