@@ -18,13 +18,7 @@ import {
   isHostedAuthSessionActive,
 } from '../auth'
 import { HostedAuthRequiredError } from '../client'
-import type {
-  Address,
-  HostedAuthConfig,
-  HostedAuthSession,
-  NetworkConfig,
-  TokenInfoResponse,
-} from '../types'
+import type { Address, HostedAuthConfig, HostedAuthSession, NetworkConfig } from '../types'
 import { NETWORK_CONFIG, type TokenConfig } from '../types'
 
 export interface FlexvaultsContextValue {
@@ -155,39 +149,18 @@ export function FlexvaultsProvider({
   const [allTokens, setAllTokens] = useState<TokenConfig[] | null>(null)
 
   useEffect(() => {
-    let cancelled = false
     client.listTokens().then(({ tokens: list }) => {
-      if (cancelled) return
-      const mapped: TokenConfig[] = list
-        .filter(
-          (
-            t
-          ): t is TokenInfoResponse & {
-            symbol: string
-            name: string
-            decimals: number
-            token_address: string
-            chain_id: number
-          } =>
-            t.symbol != null &&
-            t.name != null &&
-            t.decimals != null &&
-            t.token_address != null &&
-            t.chain_id != null
-        )
-        .map((t) => ({
+      setAllTokens(
+        list.map((t) => ({
           id: t.token_id,
           symbol: t.symbol,
           decimals: t.decimals,
-          contract: t.token_address as Address,
+          contract: t.token_address,
           name: t.name,
           chainId: t.chain_id,
         }))
-      setAllTokens(mapped)
+      )
     })
-    return () => {
-      cancelled = true
-    }
   }, [client])
 
   const enabledTokens = useMemo(() => {

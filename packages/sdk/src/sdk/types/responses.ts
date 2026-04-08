@@ -50,12 +50,12 @@ export interface TokenInfoResponse {
   token_type: number
   token_type_name: string
   data: string
-  chain_id?: number | null
-  chain_name?: string | null
-  token_address?: Address | null
-  symbol?: string | null
-  name?: string | null
-  decimals?: number | null
+  chain_id: number
+  chain_name: string
+  token_address: Address
+  symbol: string
+  name: string
+  decimals: number
 }
 
 export interface TokenListResponse {
