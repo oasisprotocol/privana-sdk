@@ -31,6 +31,7 @@ export function useTotalLockedBalance(
     queryKey: ['accounting-total-locked-balance', ...privateReadQueryScope, tokenId],
     queryFn: async () => {
       if (!privateReadAddress) throw new Error('No authenticated account available')
+      if (!tokenId) throw new Error('No token ID provided')
       return executePrivateRead(() => client.getTotalLockedBalance(privateReadAddress, tokenId))
     },
     enabled:

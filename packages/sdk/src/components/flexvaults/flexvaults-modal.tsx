@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useId } from 'react'
+import { useState, useMemo, useEffect, useId } from 'react'
 import { useAccount, useReadContract } from 'wagmi'
 import { erc20Abi } from 'viem'
 import {
@@ -657,11 +657,18 @@ function ModalBody({
   defaultTab = 'deposit',
   onDepositSuccess,
 }: ModalBodyProps) {
-  const { defaultToken } = useFlexvaultsContext()
-  const [selectedToken, setSelectedToken] = useState<TokenConfig>(defaultToken)
+  const { defaultToken, tokensStatus } = useFlexvaultsContext()
+  const [selectedToken, setSelectedToken] = useState<TokenConfig | undefined>(defaultToken)
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>(defaultTab)
   const [currentView, setCurrentView] = useState<ModalView>('main')
   const [isTransactionPending, setIsTransactionPending] = useState(false)
+
+  // Sync selectedToken once tokens finish loading
+  useEffect(() => {
+    if (!selectedToken && defaultToken) {
+      setSelectedToken(defaultToken)
+    }
+  }, [selectedToken, defaultToken])
 
   const handleTransactionPendingChange = (isPending: boolean) => {
     setIsTransactionPending(isPending)
@@ -675,6 +682,16 @@ function ModalBody({
 
   const handleTokenSelect = (token: TokenConfig) => {
     setSelectedToken(token)
+  }
+
+  if (tokensStatus === 'loading' || !selectedToken) {
+    return (
+      <div className="flex flex-col gap-2 pb-4">
+        <div className="bg-secondary h-25 animate-pulse rounded-[10px]" />
+        <div className="bg-secondary h-11 animate-pulse rounded-[10px]" />
+        <div className="bg-secondary h-50 animate-pulse rounded-[10px]" />
+      </div>
+    )
   }
 
   if (currentView === 'locked-funds') {

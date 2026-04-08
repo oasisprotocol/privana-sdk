@@ -21,11 +21,15 @@ import { HostedAuthRequiredError } from '../client'
 import type { Address, HostedAuthConfig, HostedAuthSession, NetworkConfig } from '../types'
 import { NETWORK_CONFIG, type TokenConfig } from '../types'
 
+export type TokensStatus = 'loading' | 'ready' | 'error'
+
 export interface FlexvaultsContextValue {
   client: FlexvaultsClient
   networkConfig: NetworkConfig
   enabledTokens: TokenConfig[]
-  defaultToken: TokenConfig
+  defaultToken: TokenConfig | undefined
+  tokensStatus: TokensStatus
+  tokensError?: Error
   pollingInterval: number
   serviceAddress?: Address
   hostedAuthConfig: HostedAuthConfig | null
@@ -146,25 +150,35 @@ export function FlexvaultsProvider({
     [networkConfig.apiUrl]
   )
 
-  const [allTokens, setAllTokens] = useState<TokenConfig[] | null>(null)
+  const [allTokens, setAllTokens] = useState<TokenConfig[]>([])
+  const [tokensStatus, setTokensStatus] = useState<TokensStatus>('loading')
+  const [tokensError, setTokensError] = useState<Error | undefined>()
 
   useEffect(() => {
-    client.listTokens().then(({ tokens: list }) => {
-      setAllTokens(
-        list.map((t) => ({
-          id: t.token_id,
-          symbol: t.symbol,
-          decimals: t.decimals,
-          contract: t.token_address,
-          name: t.name,
-          chainId: t.chain_id,
-        }))
-      )
-    })
+    setTokensStatus('loading')
+    setTokensError(undefined)
+    client
+      .listTokens()
+      .then(({ tokens: list }) => {
+        setAllTokens(
+          list.map((t) => ({
+            id: t.token_id,
+            symbol: t.symbol,
+            decimals: t.decimals,
+            contract: t.token_address,
+            name: t.name,
+            chainId: t.chain_id,
+          }))
+        )
+        setTokensStatus('ready')
+      })
+      .catch((err) => {
+        setTokensError(err instanceof Error ? err : new Error(String(err)))
+        setTokensStatus('error')
+      })
   }, [client])
 
   const enabledTokens = useMemo(() => {
-    if (!allTokens) return null
     if (tokens && tokens.length > 0) {
       const allowed = new Set(tokens.map((id) => id.toLowerCase()))
       return allTokens.filter((t) => allowed.has(t.id.toLowerCase()))
@@ -320,13 +334,14 @@ export function FlexvaultsProvider({
     syncHostedAuthSessionToClient(client, hostedAuthConfig, hostedAuthSession)
   }, [client, hostedAuthConfig, hostedAuthSession])
 
-  const value = useMemo<FlexvaultsContextValue | null>(() => {
-    if (!enabledTokens || enabledTokens.length === 0) return null
-    return {
+  const value = useMemo<FlexvaultsContextValue>(
+    () => ({
       client,
       networkConfig,
       enabledTokens,
       defaultToken: enabledTokens[0],
+      tokensStatus,
+      tokensError,
       pollingInterval,
       serviceAddress,
       hostedAuthConfig,
@@ -334,21 +349,22 @@ export function FlexvaultsProvider({
       setHostedAuthSession,
       clearHostedAuthSession,
       refreshHostedAuthSession,
-    }
-  }, [
-    client,
-    networkConfig,
-    enabledTokens,
-    pollingInterval,
-    serviceAddress,
-    hostedAuthConfig,
-    hostedAuthSession,
-    setHostedAuthSession,
-    clearHostedAuthSession,
-    refreshHostedAuthSession,
-  ])
-
-  if (!value) return null
+    }),
+    [
+      client,
+      networkConfig,
+      enabledTokens,
+      tokensStatus,
+      tokensError,
+      pollingInterval,
+      serviceAddress,
+      hostedAuthConfig,
+      hostedAuthSession,
+      setHostedAuthSession,
+      clearHostedAuthSession,
+      refreshHostedAuthSession,
+    ]
+  )
 
   return <FlexvaultsContext.Provider value={value}>{children}</FlexvaultsContext.Provider>
 }
