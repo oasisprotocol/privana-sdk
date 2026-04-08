@@ -181,7 +181,6 @@ In hosted-auth mode:
 
 Notes:
 
-- `useHostedRedirectAuth()` currently supports `responseMode="redirect"` only.
 - low-level `FlexvaultsClient.getHostedAuthAuthorizeUrl()` still mirrors backend authorize URL support and can build either response mode explicitly.
 - consumer apps must implement a callback route at the exact registered `redirect_uri`.
 - `client_id` and exact `redirect_uri` values must be registered in backend `AUTH_CLIENTS`.

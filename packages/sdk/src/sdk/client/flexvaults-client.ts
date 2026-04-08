@@ -286,10 +286,6 @@ export class FlexvaultsClient {
     this.http.setHeader('Authorization', `Bearer ${token}`)
   }
 
-  getBearerToken(): string | undefined {
-    return this.http.getHeader('Authorization')
-  }
-
   clearBearerToken(): void {
     this.http.removeHeader('Authorization')
   }

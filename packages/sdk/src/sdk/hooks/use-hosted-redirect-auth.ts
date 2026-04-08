@@ -78,11 +78,6 @@ export function useHostedRedirectAuth(): UseHostedRedirectAuthResult {
         'Hosted redirect authentication is not configured for this provider.'
       )
     }
-    if (hostedAuthConfig.responseMode !== 'redirect') {
-      throw new HostedAuthError(
-        'useHostedRedirectAuth() currently supports responseMode="redirect" only.'
-      )
-    }
     if (typeof window === 'undefined') {
       throw new HostedAuthError('Hosted redirect authentication requires a browser environment.')
     }
@@ -135,11 +130,6 @@ export function useHostedRedirectAuth(): UseHostedRedirectAuthResult {
     if (!hostedAuthConfig) {
       throw new HostedAuthRequiredError(
         'Hosted redirect authentication is not configured for this provider.'
-      )
-    }
-    if (hostedAuthConfig.responseMode !== 'redirect') {
-      throw new HostedAuthError(
-        'useHostedRedirectAuth() currently supports responseMode="redirect" only.'
       )
     }
     if (typeof window === 'undefined') {

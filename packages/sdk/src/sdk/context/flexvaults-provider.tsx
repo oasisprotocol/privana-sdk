@@ -67,6 +67,7 @@ export function syncHostedAuthSessionToClient(
 ): void {
   if (!hostedAuthConfig) {
     client.clearBearerToken()
+    client.clearPrivateReadToken()
     return
   }
 
@@ -77,6 +78,7 @@ export function syncHostedAuthSessionToClient(
   }
 
   client.clearBearerToken()
+  client.clearPrivateReadToken()
 }
 
 /**
@@ -160,7 +162,6 @@ export function FlexvaultsProvider({
 
     const clientId = hostedAuth.clientId.trim()
     const redirectUri = hostedAuth.redirectUri.trim()
-    const responseMode = hostedAuth.responseMode ?? 'redirect'
     if (!clientId) {
       throw new Error(
         'FlexvaultsProvider: hostedAuth.clientId must be provided when hostedAuth is enabled'
@@ -171,16 +172,10 @@ export function FlexvaultsProvider({
         'FlexvaultsProvider: hostedAuth.redirectUri must be provided when hostedAuth is enabled'
       )
     }
-    if (responseMode !== 'redirect') {
-      throw new Error(
-        'FlexvaultsProvider: hostedAuth.responseMode currently supports "redirect" only'
-      )
-    }
 
     return {
       clientId,
       redirectUri,
-      responseMode,
     }
   }, [hostedAuth])
 
@@ -191,11 +186,17 @@ export function FlexvaultsProvider({
   )
 
   const [hostedAuthSession, setHostedAuthSessionState] = useState<HostedAuthSession | null>(null)
+  const hostedAuthSessionRef = useRef<HostedAuthSession | null>(null)
+  const hostedAuthStateVersionRef = useRef(0)
   const hostedAuthRefreshInflight = useRef<Promise<HostedAuthSession> | null>(null)
 
   const clearHostedAuthSession = useCallback(() => {
+    hostedAuthStateVersionRef.current += 1
+    hostedAuthSessionRef.current = null
+    hostedAuthRefreshInflight.current = null
     setHostedAuthSessionState(null)
     client.clearBearerToken()
+    client.clearPrivateReadToken()
     if (hostedAuthStorageKey && typeof window !== 'undefined') {
       window.sessionStorage.removeItem(hostedAuthStorageKey)
     }
@@ -208,6 +209,8 @@ export function FlexvaultsProvider({
         return
       }
 
+      hostedAuthStateVersionRef.current += 1
+      hostedAuthSessionRef.current = session
       setHostedAuthSessionState(session)
       if (isHostedAuthSessionActive(session)) {
         client.setBearerToken(session.accessToken)
@@ -229,10 +232,11 @@ export function FlexvaultsProvider({
         'Hosted redirect authentication is not configured for this provider.'
       )
     }
-    if (!hostedAuthSession) {
+    const currentSession = hostedAuthSessionRef.current
+    if (!currentSession) {
       throw new HostedAuthRequiredError()
     }
-    if (!isHostedAuthRefreshActive(hostedAuthSession)) {
+    if (!isHostedAuthRefreshActive(currentSession)) {
       clearHostedAuthSession()
       throw new HostedAuthRequiredError(
         'Hosted redirect authentication has expired. Start login again.'
@@ -244,15 +248,30 @@ export function FlexvaultsProvider({
     }
 
     const refreshPromise = (async () => {
+      const refreshVersion = hostedAuthStateVersionRef.current
+
       try {
         const response = await client.refreshJwtSession({
-          refresh_token: hostedAuthSession.refreshToken,
+          refresh_token: currentSession.refreshToken,
         })
-        const nextSession = applyRefreshResponse(hostedAuthSession, response)
+        if (refreshVersion !== hostedAuthStateVersionRef.current) {
+          const latestSession = hostedAuthSessionRef.current
+          if (latestSession) {
+            return latestSession
+          }
+
+          throw new HostedAuthRequiredError(
+            'Hosted redirect authentication has changed. Start login again.'
+          )
+        }
+
+        const nextSession = applyRefreshResponse(currentSession, response)
         setHostedAuthSession(nextSession)
         return nextSession
       } catch (error) {
-        clearHostedAuthSession()
+        if (refreshVersion === hostedAuthStateVersionRef.current) {
+          clearHostedAuthSession()
+        }
         throw error
       } finally {
         hostedAuthRefreshInflight.current = null
@@ -261,16 +280,25 @@ export function FlexvaultsProvider({
 
     hostedAuthRefreshInflight.current = refreshPromise
     return refreshPromise
-  }, [clearHostedAuthSession, client, hostedAuthConfig, hostedAuthSession, setHostedAuthSession])
+  }, [clearHostedAuthSession, client, hostedAuthConfig, setHostedAuthSession])
+
+  useEffect(() => {
+    hostedAuthSessionRef.current = hostedAuthSession
+  }, [hostedAuthSession])
 
   useEffect(() => {
     if (!hostedAuthStorageKey || typeof window === 'undefined') {
+      hostedAuthStateVersionRef.current += 1
+      hostedAuthSessionRef.current = null
+      hostedAuthRefreshInflight.current = null
       setHostedAuthSessionState(null)
       return
     }
-    setHostedAuthSessionState(
-      readStoredHostedAuthSession(window.sessionStorage, hostedAuthStorageKey)
-    )
+    const restoredSession = readStoredHostedAuthSession(window.sessionStorage, hostedAuthStorageKey)
+    hostedAuthStateVersionRef.current += 1
+    hostedAuthSessionRef.current = restoredSession
+    hostedAuthRefreshInflight.current = null
+    setHostedAuthSessionState(restoredSession)
   }, [hostedAuthStorageKey])
 
   useEffect(() => {

@@ -3,7 +3,6 @@ import type { Address } from './common'
 export interface HostedAuthConfig {
   clientId: string
   redirectUri: string
-  responseMode?: 'redirect'
 }
 
 export interface HostedAuthSession {

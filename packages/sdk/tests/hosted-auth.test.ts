@@ -147,6 +147,15 @@ describe('hosted auth helpers', () => {
     ).toBeNull()
   })
 
+  it('returns null when the current origin does not match the registered redirect URI', () => {
+    expect(
+      parseHostedAuthCallback(
+        new URL('https://attacker.test/auth/callback?code=auth-code&state=callback-state'),
+        'https://honoroll.test/auth/callback'
+      )
+    ).toBeNull()
+  })
+
   it('strips hosted auth callback params while preserving other url parts', () => {
     expect(
       stripHostedAuthCallbackParams(
@@ -215,6 +224,31 @@ describe('hosted auth helpers', () => {
     syncHostedAuthSessionToClient(client, null, session)
     expect(client.lastBearerToken).toBeNull()
     expect(client.clearBearerTokenCalls).toBe(1)
+    expect(client.clearPrivateReadTokenCalls).toBe(2)
+  })
+
+  it('clears private-read auth when the hosted session is inactive', () => {
+    const client = createClientMock()
+
+    syncHostedAuthSessionToClient(
+      client,
+      { clientId: 'honoroll-web', redirectUri: 'https://honoroll.test/auth/callback' },
+      {
+        accessToken: 'expired-access-token',
+        refreshToken: 'refresh-token',
+        idToken: 'id-token',
+        tokenType: 'Bearer',
+        address: '0x000000000000000000000000000000000000dEaD',
+        clientId: 'honoroll-web',
+        redirectUri: 'https://honoroll.test/auth/callback',
+        expiresAt: Date.now() - 1,
+        refreshExpiresAt: Date.now() + 60_000,
+      }
+    )
+
+    expect(client.lastBearerToken).toBeNull()
+    expect(client.clearBearerTokenCalls).toBe(1)
+    expect(client.clearPrivateReadTokenCalls).toBe(1)
   })
 })
 

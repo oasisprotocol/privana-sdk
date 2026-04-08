@@ -100,8 +100,8 @@ export function clearHostedAuthPendingTransaction(storage: StorageLike, key: str
 }
 
 export function parseHostedAuthCallback(url: URL, redirectUri: string): HostedAuthCallback | null {
-  const expectedPath = new URL(redirectUri).pathname
-  if (url.pathname !== expectedPath) {
+  const expectedUrl = new URL(redirectUri)
+  if (url.origin !== expectedUrl.origin || url.pathname !== expectedUrl.pathname) {
     return null
   }
 

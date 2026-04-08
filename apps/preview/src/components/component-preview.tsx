@@ -62,7 +62,7 @@ function HostedAuthPreview() {
   const { client, hostedAuthConfig } = useFlexvaultsContext()
   const { session, login, logout, refresh, isAuthenticated, isLoading, error } =
     useHostedRedirectAuth()
-  const [jwtMeAddress, setJwtMeAddress] = useState<string>('-')
+  const [jwtMeAddress, setJwtMeAddress] = useState<string | null>(null)
   const [jwtMeError, setJwtMeError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -70,7 +70,7 @@ function HostedAuthPreview() {
 
     async function loadJwtMe() {
       if (!session) {
-        setJwtMeAddress('-')
+        setJwtMeAddress(null)
         setJwtMeError(null)
         return
       }
@@ -85,15 +85,15 @@ function HostedAuthPreview() {
         if (cancelled) return
         if (!response.ok) {
           setJwtMeError(data.detail || 'Request failed')
-          setJwtMeAddress('-')
+          setJwtMeAddress(null)
           return
         }
-        setJwtMeAddress(data.address || '-')
+        setJwtMeAddress(data.address ?? null)
         setJwtMeError(null)
       } catch (fetchError) {
         if (cancelled) return
         setJwtMeError(fetchError instanceof Error ? fetchError.message : 'Request failed')
-        setJwtMeAddress('-')
+        setJwtMeAddress(null)
       }
     }
 
@@ -139,7 +139,7 @@ function HostedAuthPreview() {
         <p>Address: {session?.address || '-'}</p>
         <p>Client ID: {session?.clientId || '-'}</p>
         <p>Redirect URI: {session?.redirectUri || '-'}</p>
-        <p>JWT /me: {jwtMeAddress}</p>
+        <p>JWT /me: {jwtMeAddress ?? '-'}</p>
         {jwtMeError ? <p>JWT /me error: {jwtMeError}</p> : null}
         {error ? <p>Error: {error.message}</p> : null}
       </div>
