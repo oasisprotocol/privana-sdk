@@ -6,4 +6,5 @@ export interface TokenConfig {
   decimals: number
   contract: Address
   name: string
+  chainId: number
 }

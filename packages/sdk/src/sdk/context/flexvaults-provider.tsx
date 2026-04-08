@@ -167,7 +167,13 @@ export function FlexvaultsProvider({
             name: string
             decimals: number
             token_address: string
-          } => t.symbol != null && t.name != null && t.decimals != null && t.token_address != null
+            chain_id: number
+          } =>
+            t.symbol != null &&
+            t.name != null &&
+            t.decimals != null &&
+            t.token_address != null &&
+            t.chain_id != null
         )
         .map((t) => ({
           id: t.token_id,
@@ -175,6 +181,7 @@ export function FlexvaultsProvider({
           decimals: t.decimals,
           contract: t.token_address as Address,
           name: t.name,
+          chainId: t.chain_id,
         }))
       setAllTokens(mapped)
     })

@@ -410,6 +410,10 @@ function BalanceDetailsView({ onBack, onClose }: { onBack: () => void; onClose?:
   const { enabledTokens } = useFlexvaultsContext()
   const [selectedChainId, setSelectedChainId] = useState<number>(SUPPORTED_CHAINS[0]?.id ?? 84532)
 
+  const chainTokens = useMemo(() => {
+    return enabledTokens.filter((t) => t.chainId === selectedChainId)
+  }, [enabledTokens, selectedChainId])
+
   return (
     <>
       <div className="flex items-center justify-between px-5 py-4">
@@ -465,7 +469,7 @@ function BalanceDetailsView({ onBack, onClose }: { onBack: () => void; onClose?:
             <span className="text-muted-foreground text-sm">Token Balance</span>
           </div>
           <div className="mt-2 flex-1 overflow-y-auto">
-            {enabledTokens.map((token) => (
+            {chainTokens.map((token) => (
               <BalanceTokenRow key={token.id} token={token} />
             ))}
           </div>
@@ -532,14 +536,18 @@ function TokenSelectorView({
   const [selectedChainId, setSelectedChainId] = useState<number>(SUPPORTED_CHAINS[0]?.id ?? 84532)
   const { enabledTokens } = useFlexvaultsContext()
 
+  const chainTokens = useMemo(() => {
+    return enabledTokens.filter((t) => t.chainId === selectedChainId)
+  }, [enabledTokens, selectedChainId])
+
   const filteredTokens = useMemo(() => {
-    if (!tokenSearch) return enabledTokens
-    return enabledTokens.filter(
+    if (!tokenSearch) return chainTokens
+    return chainTokens.filter(
       (t) =>
         t.symbol.toLowerCase().includes(tokenSearch.toLowerCase()) ||
         t.name.toLowerCase().includes(tokenSearch.toLowerCase())
     )
-  }, [tokenSearch, enabledTokens])
+  }, [tokenSearch, chainTokens])
 
   const handleTokenSelect = (token: TokenConfig) => {
     onSelect(token)
