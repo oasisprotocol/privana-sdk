@@ -28,6 +28,7 @@ export interface FlexvaultsContextValue {
   networkConfig: NetworkConfig
   enabledTokens: TokenConfig[]
   defaultToken: TokenConfig | undefined
+  getTokenById: (id: string) => TokenConfig | undefined
   tokensStatus: TokensStatus
   tokensError?: Error
   pollingInterval: number
@@ -186,6 +187,13 @@ export function FlexvaultsProvider({
     return allTokens
   }, [allTokens, tokens])
 
+  const tokenById = useMemo(
+    () => Object.fromEntries(enabledTokens.map((t) => [t.id.toLowerCase(), t])),
+    [enabledTokens]
+  )
+
+  const getTokenById = useMemo(() => (id: string) => tokenById[id.toLowerCase()], [tokenById])
+
   const hostedAuthConfig = useMemo<HostedAuthConfig | null>(() => {
     if (!hostedAuth) return null
 
@@ -340,6 +348,7 @@ export function FlexvaultsProvider({
       networkConfig,
       enabledTokens,
       defaultToken: enabledTokens[0],
+      getTokenById,
       tokensStatus,
       tokensError,
       pollingInterval,
@@ -354,6 +363,7 @@ export function FlexvaultsProvider({
       client,
       networkConfig,
       enabledTokens,
+      getTokenById,
       tokensStatus,
       tokensError,
       pollingInterval,

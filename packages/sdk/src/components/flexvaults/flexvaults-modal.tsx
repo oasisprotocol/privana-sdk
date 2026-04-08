@@ -235,7 +235,7 @@ interface LockedFundsSection {
 }
 
 function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: () => void }) {
-  const { enabledTokens } = useFlexvaultsContext()
+  const { getTokenById } = useFlexvaultsContext()
   const { locks, isLoading } = useLockedFunds()
   const { unlockFunds, unlockAllExpired, isPending } = useUnlockFunds()
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
@@ -253,11 +253,7 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
       }
       sectionMap[lock.service_address].items.push({
         lockId: lock.lock_id,
-        amount: formatTokenAmount(
-          String(lock.amount),
-          enabledTokens.find((t) => t.id.toLowerCase() === lock.token_id.toLowerCase())?.decimals ??
-            18
-        ),
+        amount: formatTokenAmount(String(lock.amount), getTokenById(lock.token_id)?.decimals ?? 18),
         serviceAddress: lock.service_address,
         time: lock.is_expired ? 'Click to unlock' : formatTimeRemaining(lock.expiry),
         isExpired: lock.is_expired,
@@ -265,7 +261,7 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
     })
 
     return Object.values(sectionMap)
-  }, [enabledTokens, locks])
+  }, [getTokenById, locks])
 
   const toggleSection = (title: string) => {
     setCollapsedSections((prev) => ({

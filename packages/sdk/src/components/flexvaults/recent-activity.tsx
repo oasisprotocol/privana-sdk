@@ -29,7 +29,7 @@ function Skeleton() {
 
 export function RecentActivity() {
   const { address } = useAccount()
-  const { enabledTokens } = useFlexvaultsContext()
+  const { getTokenById } = useFlexvaultsContext()
   const { withdrawals, isLoading } = usePendingWithdrawals()
   const chain = SUPPORTED_CHAINS[0]
 
@@ -54,9 +54,7 @@ export function RecentActivity() {
   return (
     <div className="space-y-2">
       {withdrawals.map((withdrawal) => {
-        const token = enabledTokens.find(
-          (t) => t.id.toLowerCase() === withdrawal.token_id.toLowerCase()
-        )
+        const token = getTokenById(withdrawal.token_id)
         const formattedAmount = formatTokenAmount(String(withdrawal.amount), token?.decimals ?? 18)
         // Pending withdrawals endpoint only returns unresolved withdrawals
         const isPending = !withdrawal.resolved
