@@ -1,37 +1,9 @@
 {
-  "tokens": {
-    "USDC": {
-      "id": "0xc719650e9f4b0f27d956638c54518932ef9d15e720a1a2b2850250bcd0816514",
-      "symbol": "USDC",
-      "decimals": 6,
-      "contract": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-      "name": "USD Coin"
-    },
-    "USDC_SWAP": {
-      "id": "0x330ba47d00c7ce3018deee017b319fd7cc6473a2ddc9e6eba6ebb4207be15279",
-      "symbol": "USDC",
-      "decimals": 6,
-      "contract": "0x8eEDCff0b07609Cfb5e2775dFf21EDbACc30D0df",
-      "name": "USD Coin"
-    },
-    "WETH": {
-      "id": "0x335b5cccd1e63b2fe79863a0db73fce430e4e66902e2b78424f8662621e29fb7",
-      "symbol": "WETH",
-      "decimals": 18,
-      "contract": "0xA9B8D8039cb3FF9d9Fff6decD18EA7bb792e51D3",
-      "name": "Wrapped Ether"
-    }
-  },
   "chains": [
     {
       "id": 84532,
       "name": "Base Sepolia",
-      "explorerUrl": "https://sepolia.basescan.org",
-      "tokens": [
-        "0xc719650e9f4b0f27d956638c54518932ef9d15e720a1a2b2850250bcd0816514",
-        "0x330ba47d00c7ce3018deee017b319fd7cc6473a2ddc9e6eba6ebb4207be15279",
-        "0x335b5cccd1e63b2fe79863a0db73fce430e4e66902e2b78424f8662621e29fb7"
-      ]
+      "explorerUrl": "https://sepolia.basescan.org"
     }
   ],
   "networks": {
@@ -39,7 +11,7 @@
       "chainId": 23295,
       "name": "Sapphire Testnet",
       "accountingContract": "0xaF8e5de153A584528B57DD4B9B0195956BBDF571",
-      "apiUrl": "https://p8000.m1356.opf-testnet-rofl-25.rofl.app"
+      "apiUrl": "https://flexvaults-staging.rofl.build"
     },
     "mainnet": {
       "chainId": 23294,

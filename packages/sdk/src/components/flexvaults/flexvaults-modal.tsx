@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useId } from 'react'
+import { useState, useMemo, useEffect, useId } from 'react'
 import { useAccount, useReadContract } from 'wagmi'
 import { erc20Abi } from 'viem'
 import {
@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { DepositForm } from './deposit-form'
 import { WithdrawForm } from './withdraw-form'
-import { type TokenConfig, getTokenById } from '@/sdk/types/tokens'
+import type { TokenConfig } from '@/sdk/types/tokens'
 import { useFlexvaultsContext } from '@/sdk/context/flexvaults-provider'
 import { SUPPORTED_CHAINS } from '@/sdk/types/chains'
 import { useBalance, useLockedFunds, useUnlockFunds } from '@/sdk/hooks'
@@ -235,6 +235,7 @@ interface LockedFundsSection {
 }
 
 function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: () => void }) {
+  const { getTokenById } = useFlexvaultsContext()
   const { locks, isLoading } = useLockedFunds()
   const { unlockFunds, unlockAllExpired, isPending } = useUnlockFunds()
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
@@ -260,7 +261,7 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
     })
 
     return Object.values(sectionMap)
-  }, [locks])
+  }, [getTokenById, locks])
 
   const toggleSection = (title: string) => {
     setCollapsedSections((prev) => ({
@@ -402,15 +403,12 @@ function BalanceTokenRow({ token }: { token: TokenConfig }) {
 }
 
 function BalanceDetailsView({ onBack, onClose }: { onBack: () => void; onClose?: () => void }) {
+  const { enabledTokens } = useFlexvaultsContext()
   const [selectedChainId, setSelectedChainId] = useState<number>(SUPPORTED_CHAINS[0]?.id ?? 84532)
 
-  const selectedChain = useMemo(() => {
-    return SUPPORTED_CHAINS.find((c) => c.id === selectedChainId)
-  }, [selectedChainId])
-
   const chainTokens = useMemo(() => {
-    return selectedChain?.tokens ?? []
-  }, [selectedChain])
+    return enabledTokens.filter((t) => t.chainId === selectedChainId)
+  }, [enabledTokens, selectedChainId])
 
   return (
     <>
@@ -534,15 +532,9 @@ function TokenSelectorView({
   const [selectedChainId, setSelectedChainId] = useState<number>(SUPPORTED_CHAINS[0]?.id ?? 84532)
   const { enabledTokens } = useFlexvaultsContext()
 
-  const enabledTokenIds = useMemo(() => new Set(enabledTokens.map((t) => t.id)), [enabledTokens])
-
-  const selectedChain = useMemo(() => {
-    return SUPPORTED_CHAINS.find((c) => c.id === selectedChainId)
-  }, [selectedChainId])
-
   const chainTokens = useMemo(() => {
-    return (selectedChain?.tokens ?? []).filter((t) => enabledTokenIds.has(t.id))
-  }, [selectedChain, enabledTokenIds])
+    return enabledTokens.filter((t) => t.chainId === selectedChainId)
+  }, [enabledTokens, selectedChainId])
 
   const filteredTokens = useMemo(() => {
     if (!tokenSearch) return chainTokens
@@ -661,11 +653,18 @@ function ModalBody({
   defaultTab = 'deposit',
   onDepositSuccess,
 }: ModalBodyProps) {
-  const { defaultToken } = useFlexvaultsContext()
-  const [selectedToken, setSelectedToken] = useState<TokenConfig>(defaultToken)
+  const { defaultToken, tokensStatus } = useFlexvaultsContext()
+  const [selectedToken, setSelectedToken] = useState<TokenConfig | undefined>(defaultToken)
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>(defaultTab)
   const [currentView, setCurrentView] = useState<ModalView>('main')
   const [isTransactionPending, setIsTransactionPending] = useState(false)
+
+  // Sync selectedToken once tokens finish loading
+  useEffect(() => {
+    if (!selectedToken && defaultToken) {
+      setSelectedToken(defaultToken)
+    }
+  }, [selectedToken, defaultToken])
 
   const handleTransactionPendingChange = (isPending: boolean) => {
     setIsTransactionPending(isPending)
@@ -679,6 +678,16 @@ function ModalBody({
 
   const handleTokenSelect = (token: TokenConfig) => {
     setSelectedToken(token)
+  }
+
+  if (tokensStatus === 'loading' || !selectedToken) {
+    return (
+      <div className="flex flex-col gap-2 pb-4">
+        <div className="bg-secondary h-25 animate-pulse rounded-[10px]" />
+        <div className="bg-secondary h-11 animate-pulse rounded-[10px]" />
+        <div className="bg-secondary h-50 animate-pulse rounded-[10px]" />
+      </div>
+    )
   }
 
   if (currentView === 'locked-funds') {

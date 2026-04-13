@@ -3,7 +3,7 @@
 import { useAccount } from 'wagmi'
 import { usePendingWithdrawals } from '@/sdk/hooks'
 import { formatTokenAmount } from '@/lib/utils'
-import { getTokenById } from '@/sdk/types/tokens'
+import { useFlexvaultsContext } from '@/sdk/context/flexvaults-provider'
 import { getTokenIcon } from './token-icons'
 import { SUPPORTED_CHAINS, getExplorerAddressUrl } from '@/sdk/types/chains'
 
@@ -29,6 +29,7 @@ function Skeleton() {
 
 export function RecentActivity() {
   const { address } = useAccount()
+  const { getTokenById } = useFlexvaultsContext()
   const { withdrawals, isLoading } = usePendingWithdrawals()
   const chain = SUPPORTED_CHAINS[0]
 

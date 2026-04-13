@@ -3,7 +3,7 @@
 import { toast } from 'sonner'
 import { useLockedFunds, useUnlockFunds } from '@/sdk/hooks'
 import { formatTokenAmount, formatTimeRemaining, shortenAddress } from '@/lib/utils'
-import { getTokenById } from '@/sdk/types/tokens'
+import { useFlexvaultsContext } from '@/sdk/context/flexvaults-provider'
 import { getTokenIcon } from './token-icons'
 import { SUPPORTED_CHAINS } from '@/sdk/types/chains'
 
@@ -28,6 +28,7 @@ function Skeleton() {
 }
 
 export function LockedFundsList() {
+  const { getTokenById } = useFlexvaultsContext()
   const { locks, isLoading } = useLockedFunds()
   const { unlockFunds, unlockAllExpired, isPending } = useUnlockFunds()
 

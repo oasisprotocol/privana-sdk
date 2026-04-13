@@ -35,6 +35,7 @@ import type {
   SiweNonceResponse,
   SiweLoginRequest,
   SiweLoginResponse,
+  TokenListResponse,
 } from '../types'
 import { normalizeAddress, normalizeHex } from '../types'
 
@@ -86,6 +87,10 @@ export class FlexvaultsClient {
       user_address: normalizeAddress(request.user_address),
       token_ids: request.token_ids.map((id) => normalizeHex(id)),
     })
+  }
+
+  async listTokens(): Promise<TokenListResponse> {
+    return this.http.get<TokenListResponse>('/v1/accounting/tokens')
   }
 
   async getTokenInfo(tokenId: Bytes32 | string): Promise<TokenInfoResponse> {
