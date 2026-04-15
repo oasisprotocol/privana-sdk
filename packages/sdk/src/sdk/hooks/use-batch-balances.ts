@@ -27,12 +27,7 @@ export function useBatchBalances(options: UseBatchBalancesOptions): UseBatchBala
     queryKey: ['accounting-batch-balances', ...privateReadQueryScope, options.tokenIds],
     queryFn: async () => {
       if (!privateReadAddress) throw new Error('No authenticated account available')
-      return executePrivateRead(() =>
-        client.getBatchBalances({
-          user_address: privateReadAddress,
-          token_ids: options.tokenIds,
-        })
-      )
+      return executePrivateRead(() => client.getBatchBalances({ token_ids: options.tokenIds }))
     },
     enabled:
       (options.enabled ?? true) &&

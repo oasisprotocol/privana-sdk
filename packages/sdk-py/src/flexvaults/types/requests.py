@@ -86,5 +86,4 @@ class WithdrawalRequest:
 
 @dataclass
 class BatchBalancesRequest:
-    user_address: Address
     token_ids: list[Bytes32]

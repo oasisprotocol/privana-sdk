@@ -173,15 +173,10 @@ class FlexvaultsClient:
             status=data["status"],
         )
 
-    async def get_balance(
-        self,
-        user_address: str,
-        token_id: str,
-    ) -> BalanceResponse:
+    async def get_balance(self, token_id: str) -> BalanceResponse:
         self._check_token(token_id)
-        user = normalize_address(user_address)
         token = normalize_hex(token_id)
-        data = await self._http.get(f"/v1/accounting/balances/{user}/{token}")
+        data = await self._http.get(f"/v1/accounting/balances/{token}")
         return BalanceResponse(
             user_address=data["user_address"],
             token_id=data["token_id"],
@@ -201,7 +196,6 @@ class FlexvaultsClient:
         data = await self._http.post(
             "/v1/accounting/balances/batch",
             {
-                "user_address": normalize_address(request.user_address),
                 "token_ids": [normalize_hex(tid) for tid in request.token_ids],
             },
         )
@@ -287,16 +281,11 @@ class FlexvaultsClient:
             detail=data.get("detail"),
         )
 
-    async def get_locked_funds(
-        self,
-        user_address: str,
-        service_address: str | None = None,
-    ) -> LockedFundsResponse:
-        user = normalize_address(user_address)
+    async def get_locked_funds(self, service_address: str | None = None) -> LockedFundsResponse:
         query_params = ""
         if service_address:
             query_params = f"?service_address={normalize_address(service_address)}"
-        data = await self._http.get(f"/v1/accounting/funds/locked/{user}{query_params}")
+        data = await self._http.get(f"/v1/accounting/funds/locked{query_params}")
         return LockedFundsResponse(
             user_address=data["user_address"],
             service_address=data.get("service_address"),
@@ -304,24 +293,18 @@ class FlexvaultsClient:
             total_locked=data.get("total_locked", "0"),
         )
 
-    async def get_total_locked_balance(
-        self,
-        user_address: str,
-        token_id: str,
-    ) -> TotalLockedBalanceResponse:
+    async def get_total_locked_balance(self, token_id: str) -> TotalLockedBalanceResponse:
         self._check_token(token_id)
-        user = normalize_address(user_address)
         token = normalize_hex(token_id)
-        data = await self._http.get(f"/v1/accounting/funds/locked/total/{user}/{token}")
+        data = await self._http.get(f"/v1/accounting/funds/locked/total/{token}")
         return TotalLockedBalanceResponse(
             user_address=data["user_address"],
             token_id=data["token_id"],
             total_locked=data["total_locked"],
         )
 
-    async def get_expired_locks(self, user_address: str) -> ExpiredLocksResponse:
-        user = normalize_address(user_address)
-        data = await self._http.get(f"/v1/accounting/funds/expired/{user}")
+    async def get_expired_locks(self) -> ExpiredLocksResponse:
+        data = await self._http.get("/v1/accounting/funds/expired")
         return ExpiredLocksResponse(
             user_address=data["user_address"],
             expired_locks=[_parse_lock_info(lock) for lock in data.get("expired_locks", [])],
@@ -481,6 +464,7 @@ class FlexvaultsClient:
         return login
 
     def set_private_read_token(self, token: str) -> None:
+        self._http.remove_header("Authorization")
         self._http.set_header(PRIVATE_READ_TOKEN_HEADER, token)
 
     def get_private_read_token(self) -> str | None:
@@ -490,6 +474,7 @@ class FlexvaultsClient:
         self._http.remove_header(PRIVATE_READ_TOKEN_HEADER)
 
     def set_bearer_token(self, token: str) -> None:
+        self._http.remove_header(PRIVATE_READ_TOKEN_HEADER)
         self._http.set_header("Authorization", f"Bearer {token}")
 
     def clear_bearer_token(self) -> None:

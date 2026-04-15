@@ -1,3 +1,5 @@
+import json
+
 import httpx
 import pytest
 import respx
@@ -27,7 +29,7 @@ def client():
 class TestGetBalance:
     @respx.mock
     async def test_get_balance(self, client):
-        respx.get(f"{BASE_URL}/v1/accounting/balances/0xuser123/0xtoken456").mock(
+        respx.get(f"{BASE_URL}/v1/accounting/balances/0xtoken456").mock(
             return_value=httpx.Response(
                 200,
                 json={
@@ -40,14 +42,14 @@ class TestGetBalance:
             )
         )
 
-        result = await client.get_balance("0xuser123", "0xtoken456")
+        result = await client.get_balance("0xtoken456")
         assert result.balance == "1000000"
         assert result.token_symbol == "USDC"
         assert result.chain_id == "84532"
 
     @respx.mock
     async def test_get_balance_normalizes_inputs(self, client):
-        respx.get(f"{BASE_URL}/v1/accounting/balances/0xuser123/0xtoken456").mock(
+        respx.get(f"{BASE_URL}/v1/accounting/balances/0xtoken456").mock(
             return_value=httpx.Response(
                 200,
                 json={
@@ -60,7 +62,7 @@ class TestGetBalance:
             )
         )
 
-        result = await client.get_balance("0xUSER123", "0xTOKEN456")
+        result = await client.get_balance("0xTOKEN456")
         assert result.balance == "0"
 
 
@@ -204,7 +206,7 @@ class TestUnlockFunds:
 class TestLockedFunds:
     @respx.mock
     async def test_get_locked_funds(self, client):
-        respx.get(f"{BASE_URL}/v1/accounting/funds/locked/0xuser").mock(
+        respx.get(f"{BASE_URL}/v1/accounting/funds/locked").mock(
             return_value=httpx.Response(
                 200,
                 json={
@@ -225,14 +227,14 @@ class TestLockedFunds:
             )
         )
 
-        result = await client.get_locked_funds("0xuser")
+        result = await client.get_locked_funds()
         assert len(result.locks) == 1
         assert result.locks[0].amount == "500"
         assert result.total_locked == "500"
 
     @respx.mock
     async def test_get_locked_funds_with_service(self, client):
-        respx.get(f"{BASE_URL}/v1/accounting/funds/locked/0xuser?service_address=0xservice").mock(
+        respx.get(f"{BASE_URL}/v1/accounting/funds/locked?service_address=0xservice").mock(
             return_value=httpx.Response(
                 200,
                 json={
@@ -244,7 +246,7 @@ class TestLockedFunds:
             )
         )
 
-        result = await client.get_locked_funds("0xuser", "0xservice")
+        result = await client.get_locked_funds("0xservice")
         assert result.service_address == "0xservice"
 
 
@@ -372,8 +374,11 @@ class TestWithdrawal:
 class TestBatchBalances:
     @respx.mock
     async def test_get_batch_balances(self, client):
-        respx.post(f"{BASE_URL}/v1/accounting/balances/batch").mock(
-            return_value=httpx.Response(
+        def handler(request: httpx.Request) -> httpx.Response:
+            body = json.loads(request.content.decode())
+            assert body == {"token_ids": ["0xtoken1"]}
+            assert "user_address" not in body
+            return httpx.Response(
                 200,
                 json={
                     "user_address": "0xuser",
@@ -387,14 +392,10 @@ class TestBatchBalances:
                     ],
                 },
             )
-        )
 
-        result = await client.get_batch_balances(
-            BatchBalancesRequest(
-                user_address="0xuser",
-                token_ids=["0xtoken1"],
-            )
-        )
+        respx.post(f"{BASE_URL}/v1/accounting/balances/batch").mock(side_effect=handler)
+
+        result = await client.get_batch_balances(BatchBalancesRequest(token_ids=["0xtoken1"]))
         assert len(result.balances) == 1
         assert result.balances[0].token_symbol == "USDC"
 
@@ -402,7 +403,6 @@ class TestBatchBalances:
         with pytest.raises(ValueError, match="at most 100 token IDs"):
             await client.get_batch_balances(
                 BatchBalancesRequest(
-                    user_address="0xuser",
                     token_ids=["0xtoken"] * 101,
                 )
             )
@@ -437,7 +437,7 @@ class TestTokenInfo:
 class TestExpiredLocks:
     @respx.mock
     async def test_get_expired_locks(self, client):
-        respx.get(f"{BASE_URL}/v1/accounting/funds/expired/0xuser").mock(
+        respx.get(f"{BASE_URL}/v1/accounting/funds/expired").mock(
             return_value=httpx.Response(
                 200,
                 json={
@@ -447,14 +447,14 @@ class TestExpiredLocks:
             )
         )
 
-        result = await client.get_expired_locks("0xuser")
+        result = await client.get_expired_locks()
         assert result.expired_locks == []
 
 
 class TestTotalLockedBalance:
     @respx.mock
     async def test_get_total_locked_balance(self, client):
-        respx.get(f"{BASE_URL}/v1/accounting/funds/locked/total/0xuser/0xtoken").mock(
+        respx.get(f"{BASE_URL}/v1/accounting/funds/locked/total/0xtoken").mock(
             return_value=httpx.Response(
                 200,
                 json={
@@ -465,7 +465,7 @@ class TestTotalLockedBalance:
             )
         )
 
-        result = await client.get_total_locked_balance("0xuser", "0xtoken")
+        result = await client.get_total_locked_balance("0xtoken")
         assert result.total_locked == "500"
 
 
@@ -490,7 +490,7 @@ class TestNonces:
 class TestErrorHandling:
     @respx.mock
     async def test_api_error(self, client):
-        respx.get(f"{BASE_URL}/v1/accounting/balances/0xuser/0xtoken").mock(
+        respx.get(f"{BASE_URL}/v1/accounting/balances/0xtoken").mock(
             return_value=httpx.Response(
                 404,
                 json={"detail": "Not found"},
@@ -498,18 +498,18 @@ class TestErrorHandling:
         )
 
         with pytest.raises(AccountingApiError) as exc_info:
-            await client.get_balance("0xuser", "0xtoken")
+            await client.get_balance("0xtoken")
         assert exc_info.value.status_code == 404
         assert exc_info.value.detail == "Not found"
 
     @respx.mock
     async def test_network_timeout(self, client):
-        respx.get(f"{BASE_URL}/v1/accounting/balances/0xuser/0xtoken").mock(
+        respx.get(f"{BASE_URL}/v1/accounting/balances/0xtoken").mock(
             side_effect=httpx.ReadTimeout("timeout")
         )
 
         with pytest.raises(NetworkError):
-            await client.get_balance("0xuser", "0xtoken")
+            await client.get_balance("0xtoken")
 
 
 class TestAuthHelpers:
@@ -558,3 +558,17 @@ class TestAuthHelpers:
         result = await client.authenticate_private_reads("message", "0xsig")
         assert result.siwe_token == "0xabc123"
         assert client.get_private_read_token() == "0xabc123"
+
+    async def test_setting_private_read_token_clears_bearer_auth(self, client):
+        client.set_bearer_token("jwt-token")
+        client.set_private_read_token("0xsiwe")
+
+        assert client.get_private_read_token() == "0xsiwe"
+        assert client._http.get_header("Authorization") is None
+
+    async def test_setting_bearer_token_clears_private_read_auth(self, client):
+        client.set_private_read_token("0xsiwe")
+        client.set_bearer_token("jwt-token")
+
+        assert client.get_private_read_token() is None
+        assert client._http.get_header("Authorization") == "Bearer jwt-token"
