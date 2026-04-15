@@ -230,6 +230,8 @@ A customizable button that opens the wallet modal.
 | `useTotalLockedBalance` | Get total locked balance for one token |
 | `usePendingWithdrawals` | Get pending withdrawal requests        |
 | `useExpiredLocks`       | Get expired locks that can be claimed  |
+| `useTokenList`          | List all registered tokens             |
+| `useTokenInfo`          | Get info for a single token            |
 
 ## License
 
