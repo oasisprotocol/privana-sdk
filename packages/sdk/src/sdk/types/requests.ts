@@ -62,7 +62,6 @@ export interface WithdrawalRequest {
 }
 
 export interface BatchBalancesRequest {
-  user_address: Address
   token_ids: Bytes32[]
 }
 

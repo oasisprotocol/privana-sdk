@@ -253,6 +253,28 @@ describe('hosted auth helpers', () => {
 })
 
 describe('FlexvaultsClient hosted auth methods', () => {
+  it('setting a private-read token clears bearer auth', () => {
+    const client = new FlexvaultsClient({ baseUrl: 'https://flexvaults.example.com/' })
+
+    client.setBearerToken('access-token')
+    client.setPrivateReadToken('0xsiwe-token')
+
+    const http = (client as unknown as { http: HttpClient }).http
+    expect(client.getPrivateReadToken()).toBe('0xsiwe-token')
+    expect(http.getHeader('Authorization')).toBeUndefined()
+  })
+
+  it('setting bearer auth clears the private-read token', () => {
+    const client = new FlexvaultsClient({ baseUrl: 'https://flexvaults.example.com/' })
+
+    client.setPrivateReadToken('0xsiwe-token')
+    client.setBearerToken('access-token')
+
+    const http = (client as unknown as { http: HttpClient }).http
+    expect(client.getPrivateReadToken()).toBeUndefined()
+    expect(http.getHeader('Authorization')).toBe('Bearer access-token')
+  })
+
   it('builds the hosted auth authorize url with exact query params', () => {
     const client = new FlexvaultsClient({ baseUrl: 'https://flexvaults.example.com/' })
     const url = new URL(

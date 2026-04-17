@@ -67,13 +67,9 @@ export class FlexvaultsClient {
   // to detect when the deposit has been credited.
   // TODO: Add a dedicated deposit status endpoint for more reliable tracking.
 
-  async getBalance(
-    userAddress: Address | string,
-    tokenId: Bytes32 | string
-  ): Promise<BalanceResponse> {
-    const user = normalizeAddress(userAddress)
+  async getBalance(tokenId: Bytes32 | string): Promise<BalanceResponse> {
     const token = normalizeHex(tokenId)
-    return this.http.get<BalanceResponse>(`/v1/accounting/balances/${user}/${token}`)
+    return this.http.get<BalanceResponse>(`/v1/accounting/balances/${token}`)
   }
 
   async getBatchBalances(request: BatchBalancesRequest): Promise<BatchBalancesResponse> {
@@ -84,7 +80,6 @@ export class FlexvaultsClient {
     }
 
     return this.http.post<BatchBalancesResponse>('/v1/accounting/balances/batch', {
-      user_address: normalizeAddress(request.user_address),
       token_ids: request.token_ids.map((id) => normalizeHex(id)),
     })
   }
@@ -126,29 +121,18 @@ export class FlexvaultsClient {
     )
   }
 
-  async getLockedFunds(
-    userAddress: Address | string,
-    serviceAddress?: Address | string
-  ): Promise<LockedFundsResponse> {
-    const user = normalizeAddress(userAddress)
+  async getLockedFunds(serviceAddress?: Address | string): Promise<LockedFundsResponse> {
     const queryParams = serviceAddress ? `?service_address=${normalizeAddress(serviceAddress)}` : ''
-    return this.http.get<LockedFundsResponse>(`/v1/accounting/funds/locked/${user}${queryParams}`)
+    return this.http.get<LockedFundsResponse>(`/v1/accounting/funds/locked${queryParams}`)
   }
 
-  async getTotalLockedBalance(
-    userAddress: Address | string,
-    tokenId: Bytes32 | string
-  ): Promise<TotalLockedBalanceResponse> {
-    const user = normalizeAddress(userAddress)
+  async getTotalLockedBalance(tokenId: Bytes32 | string): Promise<TotalLockedBalanceResponse> {
     const token = normalizeHex(tokenId)
-    return this.http.get<TotalLockedBalanceResponse>(
-      `/v1/accounting/funds/locked/total/${user}/${token}`
-    )
+    return this.http.get<TotalLockedBalanceResponse>(`/v1/accounting/funds/locked/total/${token}`)
   }
 
-  async getExpiredLocks(userAddress: Address | string): Promise<ExpiredLocksResponse> {
-    const user = normalizeAddress(userAddress)
-    return this.http.get<ExpiredLocksResponse>(`/v1/accounting/funds/expired/${user}`)
+  async getExpiredLocks(): Promise<ExpiredLocksResponse> {
+    return this.http.get<ExpiredLocksResponse>('/v1/accounting/funds/expired')
   }
 
   async transferFunds(request: TransferFundsRequest): Promise<TransactionSubmissionResponse> {
@@ -276,6 +260,7 @@ export class FlexvaultsClient {
   }
 
   setPrivateReadToken(token: string): void {
+    this.http.removeHeader('Authorization')
     this.http.setHeader(PRIVATE_READ_TOKEN_HEADER, token)
   }
 
@@ -288,6 +273,7 @@ export class FlexvaultsClient {
   }
 
   setBearerToken(token: string): void {
+    this.http.removeHeader(PRIVATE_READ_TOKEN_HEADER)
     this.http.setHeader('Authorization', `Bearer ${token}`)
   }
 

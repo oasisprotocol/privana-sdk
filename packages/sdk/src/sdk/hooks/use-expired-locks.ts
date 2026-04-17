@@ -27,7 +27,7 @@ export function useExpiredLocks(options: UseExpiredLocksOptions = {}): UseExpire
     queryKey: ['accounting-expired-locks', ...privateReadQueryScope],
     queryFn: async () => {
       if (!privateReadAddress) throw new Error('No authenticated account available')
-      return executePrivateRead(() => client.getExpiredLocks(privateReadAddress))
+      return executePrivateRead(() => client.getExpiredLocks())
     },
     enabled: (options.enabled ?? true) && privateReadReady && !!privateReadAddress && !!client,
     refetchInterval: pollingInterval,

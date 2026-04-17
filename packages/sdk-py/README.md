@@ -49,7 +49,7 @@ async def main():
             signature="0xYourSignature",
         )
 
-        balance = await client.get_balance("0xYourAddress", "0xTokenId")
+        balance = await client.get_balance("0xTokenId")
         print(domain.domain, nonce.nonce, login.address, balance.balance)
 
 asyncio.run(main())
@@ -94,7 +94,7 @@ signature = sign_lock_message(
 - `FlexvaultsClient(base_url, timeout=30.0, headers=None)` - Main API client
   - `get_deposit_quote(request)` - Get deposit quote
   - `include_deposit(request)` - Include deposit proof
-  - `get_balance(user_address, token_id)` - Get token balance
+  - `get_balance(token_id)` - Get token balance for the authenticated user
   - `get_batch_balances(request)` - Get multiple token balances
   - `get_token_info(token_id)` - Get token information
   - `lock_funds(request)` - Lock funds for a service
@@ -103,9 +103,9 @@ signature = sign_lock_message(
   - `modify_lock(request)` - Modify an existing lock (add funds and/or extend expiry)
   - `unlock_funds(request)` - Unlock specific lock
   - `unlock_all_expired(request)` - Unlock all expired locks
-  - `get_locked_funds(user_address, service_address=None)` - Get locked funds
-  - `get_total_locked_balance(user_address, token_id)` - Get total locked balance
-  - `get_expired_locks(user_address)` - Get expired locks
+  - `get_locked_funds(service_address=None)` - Get locked funds for the authenticated user
+  - `get_total_locked_balance(token_id)` - Get total locked balance for the authenticated user
+  - `get_expired_locks()` - Get expired locks for the authenticated user
   - `transfer_funds(request)` - Transfer tokens (requires nonce)
   - `get_transfer_nonce(user_address)` - Get next transfer nonce
   - `transfer_locked_funds(request)` - Transfer locked tokens
