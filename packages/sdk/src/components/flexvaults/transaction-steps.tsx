@@ -179,3 +179,66 @@ export function TransactionWarningView({ title, message, onDone }: TransactionWa
     </div>
   )
 }
+
+interface TransactionErrorViewProps {
+  title: string
+  message: string
+  explorerUrl?: string
+  explorerLabel?: string
+  onRetry: () => void
+  onDismiss: () => void
+  isRetrying?: boolean
+}
+
+export function TransactionErrorView({
+  title,
+  message,
+  explorerUrl,
+  explorerLabel,
+  onRetry,
+  onDismiss,
+  isRetrying,
+}: TransactionErrorViewProps) {
+  return (
+    <div className="flex w-full flex-col gap-4">
+      <div className="flex items-center gap-3">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-500/10 text-amber-400">
+          <WarningIcon />
+        </div>
+        <div className="flex flex-col gap-0.5">
+          <span className="text-foreground text-sm font-medium">{title}</span>
+          <span className="text-muted-foreground text-xs">{message}</span>
+        </div>
+      </div>
+
+      {explorerUrl && (
+        <a
+          href={explorerUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="border-border text-foreground hover:bg-secondary flex h-10 w-full items-center justify-center gap-1.5 rounded-[10px] border text-sm transition-colors"
+        >
+          {explorerLabel ?? 'View on Explorer'}
+          <ExternalLinkIcon />
+        </a>
+      )}
+
+      <div className="flex gap-2">
+        <button
+          onClick={onDismiss}
+          disabled={isRetrying}
+          className="border-border text-foreground hover:bg-secondary flex h-10 flex-1 cursor-pointer items-center justify-center rounded-[10px] border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Close
+        </button>
+        <button
+          onClick={onRetry}
+          disabled={isRetrying}
+          className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 flex-1 cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isRetrying ? 'Retrying...' : 'Retry Verification'}
+        </button>
+      </div>
+    </div>
+  )
+}

@@ -73,6 +73,16 @@ WITHDRAW_TYPES = {
     ],
 }
 
+WITHDRAW_FROM_LOCK_TYPES = {
+    "WithdrawFromLock": [
+        {"name": "userAddress", "type": "address"},
+        {"name": "toAddress", "type": "address"},
+        {"name": "lockId", "type": "uint256"},
+        {"name": "amount", "type": "uint256"},
+        {"name": "nonce", "type": "uint256"},
+    ],
+}
+
 
 @dataclass
 class LockMessage:
@@ -116,5 +126,14 @@ class TransferLockedMessage:
 class WithdrawMessage:
     user_address: Address
     token_id: Bytes32
+    amount: int
+    nonce: int
+
+
+@dataclass
+class WithdrawFromLockMessage:
+    user_address: Address
+    to_address: Address
+    lock_id: int
     amount: int
     nonce: int

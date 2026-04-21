@@ -12,19 +12,23 @@ pip install flexvaults-sdk
 
 ```python
 import asyncio
-from flexvaults import FlexvaultsClient, DepositQuoteRequest
+from flexvaults import FlexvaultsClient, DepositCheckRequest
 
 async def main():
     async with FlexvaultsClient(base_url="https://api.example.com") as client:
-        # Get a deposit quote
-        quote = await client.get_deposit_quote(
-            DepositQuoteRequest(
-                user_address="0xYourAddress",
-                token_id="0xTokenId",
+        # Get per-user deposit address
+        addr = await client.get_deposit_address()
+        print(f"Deposit to: {addr.deposit_address}")
+
+        # After sending tokens to the deposit address, verify the deposit
+        result = await client.check_deposit(
+            DepositCheckRequest(
+                chain_id=84532,
+                tx_hash="0xYourTxHash",
                 amount=1000000,
             )
         )
-        print(f"Deposit to: {quote.deposit_address}")
+        print(f"Deposit status: {result.status}")
 
 asyncio.run(main())
 ```
@@ -92,8 +96,8 @@ signature = sign_lock_message(
 ### Client
 
 - `FlexvaultsClient(base_url, timeout=30.0, headers=None)` - Main API client
-  - `get_deposit_quote(request)` - Get deposit quote
-  - `include_deposit(request)` - Include deposit proof
+  - `get_deposit_address(request=None)` - Get per-user deposit address
+  - `check_deposit(request)` - Verify a deposit and trigger credit
   - `get_balance(token_id)` - Get token balance for the authenticated user
   - `get_batch_balances(request)` - Get multiple token balances
   - `get_token_info(token_id)` - Get token information

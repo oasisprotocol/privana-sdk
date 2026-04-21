@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
-import { useAccount, useChainId, useSwitchChain } from 'wagmi'
+import { useAccount } from 'wagmi'
 import { useWithdraw, useBalance } from '@/sdk/hooks'
 import type { WithdrawStep } from '@/sdk/hooks'
 import type { TokenConfig } from '@/sdk/types/tokens'
@@ -14,7 +14,8 @@ import {
   TransactionWarningView,
   type Step,
 } from './transaction-steps'
-import { SUPPORTED_CHAINS, getExplorerAddressUrl } from '@/sdk/types/chains'
+import { useFlexvaultsContext } from '@/sdk/context/flexvaults-provider'
+import { getExplorerAddressUrl } from '@/sdk/types/chains'
 
 interface WithdrawFormProps {
   selectedToken: TokenConfig
@@ -24,15 +25,13 @@ interface WithdrawFormProps {
 
 export function WithdrawForm({ selectedToken, onTokenSelect, onPendingChange }: WithdrawFormProps) {
   const { isConnected, address } = useAccount()
-  const chainId = useChainId()
-  const { switchChain, isPending: isSwitchingChain } = useSwitchChain()
+  const { chains, getChainById } = useFlexvaultsContext()
   const [amount, setAmount] = useState('')
   const [showSuccess, setShowSuccess] = useState(false)
   const [showTimeout, setShowTimeout] = useState(false)
   const [cancelled, setCancelled] = useState(false)
 
-  const targetChain = SUPPORTED_CHAINS[0]
-  const isWrongChain = isConnected && chainId !== targetChain?.id
+  const targetChain = getChainById(selectedToken.chainId) ?? chains[0]
 
   const {
     balanceWei,
@@ -103,10 +102,6 @@ export function WithdrawForm({ selectedToken, onTokenSelect, onPendingChange }: 
   }
 
   const handleWithdraw = async () => {
-    if (isWrongChain && targetChain) {
-      switchChain({ chainId: targetChain.id })
-      return
-    }
     if (!amount || !selectedToken || exceedsBalance) return
     setCancelled(false)
     const amountInWei = parseTokenAmount(amount, selectedToken.decimals)
@@ -134,8 +129,6 @@ export function WithdrawForm({ selectedToken, onTokenSelect, onPendingChange }: 
 
   const getButtonText = () => {
     if (!isConnected) return 'Connect Wallet'
-    if (isSwitchingChain) return 'Switching...'
-    if (isWrongChain) return `Switch to ${targetChain?.name ?? 'Base Sepolia'}`
     return 'Withdraw'
   }
 
@@ -239,11 +232,7 @@ export function WithdrawForm({ selectedToken, onTokenSelect, onPendingChange }: 
       <button
         onClick={handleWithdraw}
         disabled={
-          !isConnected ||
-          (!isWrongChain && !hasValidAmount) ||
-          tooManyDecimals ||
-          !!exceedsBalance ||
-          isSwitchingChain
+          !isConnected || !hasValidAmount || tooManyDecimals || !!exceedsBalance || isPending
         }
         className={cn(
           'flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors',

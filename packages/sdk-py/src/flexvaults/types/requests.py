@@ -1,25 +1,27 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from .common import Address, Bytes32, HexString
 
+HostedAuthResponseMode = Literal["web_message", "redirect"]
+
 
 @dataclass
-class DepositQuoteRequest:
-    user_address: Address
-    token_id: Bytes32
+class DepositAddressRequest:
+    chain_type: str = "evm"
+    version: int = 0
+
+
+@dataclass
+class DepositCheckRequest:
+    chain_id: int
+    tx_hash: HexString
     amount: int | str
-
-
-@dataclass
-class IncludeDepositRequest:
-    user_address: Address
-    token_id: Bytes32
-    evm_transaction_data: HexString
-    rlp_block_header: HexString | None = None
-    transaction_index_rlp: HexString | None = None
-    transaction_proof_stack: HexString | None = None
+    chain_type: str = "evm"
+    log_index: int = 0
+    version: int = 0
 
 
 @dataclass
@@ -85,5 +87,45 @@ class WithdrawalRequest:
 
 
 @dataclass
+class WithdrawFromLockRequest:
+    to_address: Address
+    lock_id: int
+    amount: int | str
+    nonce: int | str
+    signature: HexString
+
+
+@dataclass
 class BatchBalancesRequest:
     token_ids: list[Bytes32]
+
+
+@dataclass
+class HostedAuthAuthorizeUrlRequest:
+    client_id: str
+    redirect_uri: str
+    code_challenge: str
+    state: str
+    chain_id: int
+    response_mode: HostedAuthResponseMode = "redirect"
+    code_challenge_method: Literal["S256"] = "S256"
+
+
+@dataclass
+class HostedAuthTokenExchangeRequest:
+    code: str
+    code_verifier: str
+    client_id: str
+    redirect_uri: str
+    grant_type: Literal["authorization_code"] = "authorization_code"
+
+
+@dataclass
+class JwtRefreshRequest:
+    refresh_token: str
+
+
+@dataclass
+class JwtLogoutRequest:
+    refresh_token: str | None = None
+    revoke_all: bool = False

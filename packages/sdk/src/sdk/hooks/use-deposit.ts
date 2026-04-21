@@ -2,28 +2,27 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import {
-  useAccount,
-  useWalletClient,
-  useSendTransaction,
-  useWaitForTransactionReceipt,
-} from 'wagmi'
+import { useAccount, useWalletClient, useWriteContract, useSendTransaction, useConfig } from 'wagmi'
+import { waitForTransactionReceipt } from '@wagmi/core'
+import { erc20Abi, zeroAddress } from 'viem'
 import { useFlexvaultsContext } from '../context/flexvaults-provider'
 import { useEnsureCorrectChain } from './use-ensure-correct-chain'
-import type { Bytes32, DepositQuoteResponse, BalanceResponse } from '../types'
 import { usePrivateReadRequest } from './use-private-read-request'
+import type { Bytes32, DepositAddressResponse, DepositCheckResponse } from '../types'
 
 export interface UseDepositOptions {
-  onQuoteSuccess?: (quote: DepositQuoteResponse) => void
+  onDepositAddressReceived?: (response: DepositAddressResponse) => void
   onDepositSuccess?: (txHash: string) => void
-  onIncludeSuccess?: (txHash: string) => void
-  /** Called when deposit processing times out - deposit may still be processing */
-  onIncludeTimeout?: (txHash: string) => void
+  onCredited?: (txHash: string, response: DepositCheckResponse) => void
+  /** Called when deposit check polling times out - deposit may still be processing */
+  onCheckTimeout?: (txHash: string) => void
   onError?: (error: Error) => void
-  /** Polling interval in ms for checking deposit status (default: 3000) */
+  /** Polling interval in ms for checking deposit status (default: 5000) */
   pollInterval?: number
-  /** Max time to wait for deposit to be processed in ms (default: 120000 = 2 minutes) */
+  /** Max time to wait for deposit to be credited in ms (default: 180000 = 3 minutes) */
   pollTimeout?: number
+  /** Number of block confirmations to wait before checking deposit status (default: 15) */
+  confirmations?: number
 }
 
 export interface DepositParams {
@@ -32,312 +31,444 @@ export interface DepositParams {
 }
 
 export interface UseDepositResult {
-  quote: DepositQuoteResponse | null
+  depositAddress: DepositAddressResponse | null
   txHash: `0x${string}` | undefined
-  isGettingQuote: boolean
+  isGettingAddress: boolean
   isSwitchingChain: boolean
   isSendingTransaction: boolean
   isWaitingForConfirmation: boolean
   isWaitingForProcessing: boolean
   /** True if processing timed out (deposit may still be processing in background) */
   didTimeout: boolean
+  /**
+   * True when an on-chain transfer succeeded but the API verification step
+   * (checkDeposit or status polling) failed. The funds have already left the
+   * wallet, so a fresh `deposit()` would cause a double spend. Call
+   * `retryVerification()` to re-run verification against the existing txHash,
+   * or `reset()` to discard local tracking (the deposit may still be credited
+   * in the background).
+   */
+  verificationFailed: boolean
   isPending: boolean
   error: Error | null
   deposit: (params: DepositParams) => Promise<void>
-  getQuote: (params: DepositParams) => Promise<DepositQuoteResponse | undefined>
-  executeDeposit: () => Promise<void>
+  /** Re-run the API verification (sweep trigger + polling) for the existing txHash. */
+  retryVerification: () => Promise<void>
   reset: () => void
+}
+
+interface VerificationContext {
+  hash: `0x${string}`
+  chainId: number
+  amount: bigint
 }
 
 export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   const { address } = useAccount()
-  const { client } = useFlexvaultsContext()
+  const { client, enabledTokens, getChainById } = useFlexvaultsContext()
   const { data: walletClient } = useWalletClient()
   const queryClient = useQueryClient()
-  const { executePrivateRead, privateReadQueryScope } = usePrivateReadRequest()
+  const config = useConfig()
+  const { executePrivateRead } = usePrivateReadRequest()
 
-  const pollInterval = options.pollInterval ?? 3000
-  const pollTimeout = options.pollTimeout ?? 120000 // 2 minutes
+  const pollInterval = options.pollInterval ?? 5000
+  const pollTimeout = options.pollTimeout ?? 180000
+  const confirmations = options.confirmations ?? 15
 
-  const [quote, setQuote] = useState<DepositQuoteResponse | null>(null)
+  const [depositAddress, setDepositAddress] = useState<DepositAddressResponse | null>(null)
+  const [txHash, setTxHash] = useState<`0x${string}` | undefined>()
   const [isSwitchingChain, setIsSwitchingChain] = useState(false)
+  const [isWaitingForConfirmation, setIsWaitingForConfirmation] = useState(false)
   const [isWaitingForProcessing, setIsWaitingForProcessing] = useState(false)
   const [didTimeout, setDidTimeout] = useState(false)
+  const [verificationFailed, setVerificationFailed] = useState(false)
+  const [depositError, setDepositError] = useState<Error | null>(null)
 
-  // Store initial balance before deposit to detect when it changes
-  const initialBalanceRef = useRef<bigint | null>(null)
-  const initialBalanceFetchedRef = useRef(false)
-  const pollStartTimeRef = useRef<number | null>(null)
+  const generationRef = useRef(0)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  // Track when polling has completed (success or timeout) to prevent effect re-triggering
-  const pollingCompletedRef = useRef(false)
-  // Store the original tokenId from deposit params to ensure query key consistency
-  const depositTokenIdRef = useRef<Bytes32 | null>(null)
+  // Populated once the on-chain transfer is sent. Presence of this context
+  // means a new deposit() call would double-spend, so we guard against it.
+  const verificationContextRef = useRef<VerificationContext | null>(null)
 
-  // Use refs for callbacks to avoid re-triggering effects when options object changes
+  // Use refs for callbacks to avoid stale closures in the long-running deposit flow
+  const onDepositAddressReceivedRef = useRef(options.onDepositAddressReceived)
   const onDepositSuccessRef = useRef(options.onDepositSuccess)
-  const onIncludeSuccessRef = useRef(options.onIncludeSuccess)
-  const onIncludeTimeoutRef = useRef(options.onIncludeTimeout)
+  const onCreditedRef = useRef(options.onCredited)
+  const onCheckTimeoutRef = useRef(options.onCheckTimeout)
+  const onErrorRef = useRef(options.onError)
   useEffect(() => {
+    onDepositAddressReceivedRef.current = options.onDepositAddressReceived
     onDepositSuccessRef.current = options.onDepositSuccess
-    onIncludeSuccessRef.current = options.onIncludeSuccess
-    onIncludeTimeoutRef.current = options.onIncludeTimeout
-  }, [options.onDepositSuccess, options.onIncludeSuccess, options.onIncludeTimeout])
+    onCreditedRef.current = options.onCredited
+    onCheckTimeoutRef.current = options.onCheckTimeout
+    onErrorRef.current = options.onError
+  }, [
+    options.onDepositAddressReceived,
+    options.onDepositSuccess,
+    options.onCredited,
+    options.onCheckTimeout,
+    options.onError,
+  ])
 
-  const quoteMutation = useMutation({
-    mutationFn: async (params: DepositParams) => {
+  const addressMutation = useMutation({
+    mutationFn: async () => {
       if (!address) throw new Error('No wallet connected')
-
-      // Store the original tokenId to ensure query key consistency later
-      // (API response might have different casing)
-      depositTokenIdRef.current = params.tokenId
-
-      // Fetch initial balance FIRST before getting quote
-      // This ensures we have a baseline to compare against when polling
-      // TODO: This polling approach is a workaround. Ideally we should have a dedicated
-      // endpoint to check deposit status by source chain tx hash, or the Deposit event
-      // on Sapphire should include the source tx hash so we can query it directly.
-      initialBalanceRef.current = null
-      initialBalanceFetchedRef.current = false
-      try {
-        const balanceResponse = await executePrivateRead(() => client.getBalance(params.tokenId))
-        initialBalanceRef.current = BigInt(balanceResponse.balance)
-      } catch (error) {
-        // Without a trusted pre-deposit baseline we cannot safely infer completion from
-        // a later balance read, so polling falls back to timeout-only behavior.
-        console.warn('Failed to fetch initial balance before deposit confirmation polling:', error)
-      } finally {
-        initialBalanceFetchedRef.current = true
-      }
-
-      return client.getDepositQuote({
-        user_address: address,
-        token_id: params.tokenId,
-        amount: params.amount.toString(),
-      })
+      return executePrivateRead(() => client.getDepositAddress())
     },
     onSuccess: (data) => {
-      setQuote(data)
-      options.onQuoteSuccess?.(data)
+      setDepositAddress(data)
+      onDepositAddressReceivedRef.current?.(data)
     },
     onError: (error) => {
-      options.onError?.(error as Error)
+      onErrorRef.current?.(error as Error)
     },
   })
 
   const {
-    sendTransaction,
-    data: txHash,
-    isPending: isSendingTx,
-    error: sendError,
+    writeContractAsync,
+    isPending: isWritingContract,
+    error: writeError,
+    reset: resetWriteContract,
+  } = useWriteContract()
+
+  const {
+    sendTransactionAsync,
+    isPending: isSendingNative,
+    error: sendNativeError,
     reset: resetSendTransaction,
   } = useSendTransaction()
 
-  const { ensureCorrectChain } = useEnsureCorrectChain()
+  const isSendingTx = isWritingContract || isSendingNative
+  const sendError = writeError ?? sendNativeError
 
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
-    hash: txHash,
-  })
+  const { ensureCorrectChain } = useEnsureCorrectChain()
 
   // Cleanup polling on unmount
   useEffect(() => {
     return () => {
       if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current)
+        clearTimeout(pollIntervalRef.current)
       }
     }
   }, [])
 
-  // When tx is confirmed, start polling for deposit to be processed
-  // TODO: Replace balance polling with a proper deposit status check.
-  // The accounting module's deposit listener processes deposits automatically,
-  // but we don't have a clean way to check if a specific deposit has been processed.
-  // Polling balance works but could give false positives if balance changes for other reasons.
-  useEffect(() => {
-    if (
-      isConfirmed &&
-      txHash &&
-      quote &&
-      address &&
-      !isWaitingForProcessing &&
-      !didTimeout &&
-      !pollingCompletedRef.current
-    ) {
-      // Ensure we have initial balance before starting to poll
-      if (!initialBalanceFetchedRef.current) {
-        console.warn('Initial balance not fetched, cannot poll for deposit confirmation')
-        return
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearTimeout(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
+  }, [])
+
+  const reset = useCallback(() => {
+    generationRef.current++
+    stopPolling()
+    verificationContextRef.current = null
+    setDepositAddress(null)
+    setTxHash(undefined)
+    setIsSwitchingChain(false)
+    setIsWaitingForConfirmation(false)
+    setIsWaitingForProcessing(false)
+    setDidTimeout(false)
+    setVerificationFailed(false)
+    setDepositError(null)
+    addressMutation.reset()
+    resetWriteContract()
+    resetSendTransaction()
+  }, [addressMutation, resetWriteContract, resetSendTransaction, stopPolling])
+
+  // Verification = Phase 1 (POST checkDeposit) + Phase 2 (poll getDepositStatus).
+  // Shared by deposit() and retryVerification(). Callers must set the
+  // verification context and a fresh generation before invoking.
+  const runVerification = useCallback(
+    async (ctx: VerificationContext, generation: number): Promise<void> => {
+      const isStale = () => generation !== generationRef.current
+      const { hash, chainId, amount } = ctx
+
+      setVerificationFailed(false)
+      setDepositError(null)
+      setDidTimeout(false)
+      setIsWaitingForProcessing(true)
+
+      const pollStartTime = Date.now()
+
+      const markVerificationFailed = (err: Error) => {
+        setIsWaitingForProcessing(false)
+        setDepositError(err)
+        setVerificationFailed(true)
+        onErrorRef.current?.(err)
       }
 
-      onDepositSuccessRef.current?.(txHash)
-      setIsWaitingForProcessing(true)
-      pollStartTimeRef.current = Date.now()
+      try {
+        // Phase 1: trigger sweep
+        const triggerResult = await executePrivateRead(() =>
+          client.checkDeposit({
+            chain_id: chainId,
+            tx_hash: hash,
+            amount: amount.toString(),
+          })
+        )
+        if (isStale()) return
 
-      // Invalidate wagmi wallet balance queries since tokens have left the wallet
-      // This refreshes the "Amount X USDC" display in the deposit form
-      queryClient.invalidateQueries({ queryKey: ['readContract'] })
+        if (triggerResult.status === 'credited') {
+          setIsWaitingForProcessing(false)
+          verificationContextRef.current = null
+          queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
+          onCreditedRef.current?.(hash, triggerResult)
+          return
+        }
 
-      const checkBalance = async () => {
-        try {
-          const balanceResponse = await executePrivateRead(() => client.getBalance(quote.token_id))
-          const currentBalance = BigInt(balanceResponse.balance)
-          const initialBalance = initialBalanceRef.current
+        if (triggerResult.status === 'error') {
+          markVerificationFailed(new Error(triggerResult.detail ?? 'Deposit verification failed'))
+          return
+        }
 
-          // Deposit is processed when balance has changed (increased)
-          if (initialBalance !== null && currentBalance > initialBalance) {
-            if (pollIntervalRef.current) {
-              clearInterval(pollIntervalRef.current)
-              pollIntervalRef.current = null
-            }
-            pollingCompletedRef.current = true
-            setIsWaitingForProcessing(false)
-            // Directly update the query cache with the balance we already fetched
-            // Use depositTokenIdRef (original param) instead of quote.token_id to ensure
-            // the query key matches what useBalance uses (avoiding casing mismatches)
-            if (depositTokenIdRef.current) {
-              queryClient.setQueryData<BalanceResponse>(
-                ['accounting-balance', ...privateReadQueryScope, depositTokenIdRef.current],
-                balanceResponse
-              )
-            }
-            onIncludeSuccessRef.current?.(txHash)
-            return
-          }
+        const depositId = triggerResult.deposit_id
+        if (!depositId) {
+          markVerificationFailed(new Error('Deposit check did not return a deposit id'))
+          return
+        }
 
-          // Check for timeout
-          if (pollStartTimeRef.current && Date.now() - pollStartTimeRef.current > pollTimeout) {
-            if (pollIntervalRef.current) {
-              clearInterval(pollIntervalRef.current)
-              pollIntervalRef.current = null
-            }
-            pollingCompletedRef.current = true
+        // Phase 2: poll status
+        let consecutiveFailures = 0
+
+        const checkStatus = async (): Promise<boolean> => {
+          if (isStale()) return true
+
+          if (Date.now() - pollStartTime > pollTimeout) {
+            stopPolling()
             setIsWaitingForProcessing(false)
             setDidTimeout(true)
-            // Call timeout callback - deposit may still be processing in background
-            onIncludeTimeoutRef.current?.(txHash)
-            // Invalidate balance queries so they refetch when observed
+            onCheckTimeoutRef.current?.(hash)
             queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
+            return true
           }
-        } catch (err) {
-          // Don't fail on polling errors, just keep trying
-          console.warn('Error polling balance:', err)
+
+          try {
+            const result = await executePrivateRead(() => client.getDepositStatus(depositId))
+            if (isStale()) return true
+            consecutiveFailures = 0
+
+            if (result.status === 'credited') {
+              stopPolling()
+              setIsWaitingForProcessing(false)
+              verificationContextRef.current = null
+              queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
+              onCreditedRef.current?.(hash, result)
+              return true
+            }
+
+            if (result.status === 'error') {
+              stopPolling()
+              markVerificationFailed(new Error(result.detail ?? 'Deposit verification failed'))
+              return true
+            }
+          } catch (err) {
+            if (isStale()) return true
+            consecutiveFailures++
+            console.warn('Error polling deposit status:', err)
+            if (consecutiveFailures >= 3) {
+              stopPolling()
+              markVerificationFailed(
+                err instanceof Error ? err : new Error('Deposit status polling failed')
+              )
+              return true
+            }
+          }
+          return false
         }
+
+        const pollLoop = async () => {
+          const done = await checkStatus()
+          if (!done && !isStale() && pollIntervalRef.current !== null) {
+            pollIntervalRef.current = setTimeout(pollLoop, pollInterval)
+          }
+        }
+        pollIntervalRef.current = setTimeout(pollLoop, pollInterval)
+      } catch (err) {
+        if (isStale()) return
+        stopPolling()
+        markVerificationFailed(
+          err instanceof Error ? err : new Error('Deposit verification failed')
+        )
       }
-
-      // Start polling
-      pollIntervalRef.current = setInterval(checkBalance, pollInterval)
-      // Also check immediately
-      checkBalance()
-    }
-  }, [
-    isConfirmed,
-    txHash,
-    quote,
-    address,
-    isWaitingForProcessing,
-    didTimeout,
-    client,
-    executePrivateRead,
-    queryClient,
-    pollInterval,
-    pollTimeout,
-    privateReadQueryScope,
-  ])
-
-  const getQuote = useCallback(
-    async (params: DepositParams) => {
-      return quoteMutation.mutateAsync(params)
     },
-    [quoteMutation]
+    [client, executePrivateRead, pollInterval, pollTimeout, queryClient, stopPolling]
   )
 
-  const executeDeposit = useCallback(async () => {
-    if (!quote || !walletClient) {
-      throw new Error('No quote available or wallet not connected')
+  const retryVerification = useCallback(async (): Promise<void> => {
+    const ctx = verificationContextRef.current
+    if (!ctx) {
+      throw new Error('No pending deposit to verify')
     }
-
-    // Switch to the correct chain before sending the deposit transaction
-    setIsSwitchingChain(true)
-    try {
-      await ensureCorrectChain(quote.transaction.chain_id)
-    } finally {
-      setIsSwitchingChain(false)
-    }
-
-    sendTransaction({
-      to: quote.transaction.to,
-      value: BigInt(quote.transaction.value),
-      data: quote.transaction.data as `0x${string}`,
-      chainId: quote.transaction.chain_id,
-    })
-  }, [quote, walletClient, sendTransaction, ensureCorrectChain])
+    // Bump generation so any residual polling work from the failed run no-ops,
+    // then start a fresh verification against the same on-chain transfer.
+    generationRef.current++
+    stopPolling()
+    const generation = generationRef.current
+    await runVerification(ctx, generation)
+  }, [runVerification, stopPolling])
 
   const deposit = useCallback(
     async (params: DepositParams) => {
-      const quoteResult = await quoteMutation.mutateAsync(params)
-      if (!quoteResult || !walletClient) {
-        throw new Error('Failed to get quote or wallet not connected')
+      // Guard: a prior deposit already sent funds on-chain and is waiting on
+      // verification. Starting a new flow here would issue a second transfer.
+      if (verificationContextRef.current) {
+        throw new Error(
+          'A deposit is pending verification. Call retryVerification() or reset() first.'
+        )
       }
 
-      // Switch to the correct chain before sending the deposit transaction
-      setIsSwitchingChain(true)
+      // Clear state from any previous deposit attempt
+      reset()
+      const generation = generationRef.current
+      const isStale = () => generation !== generationRef.current
+
       try {
-        await ensureCorrectChain(quoteResult.transaction.chain_id)
-      } finally {
-        setIsSwitchingChain(false)
-      }
+        if (!address || !walletClient) throw new Error('No wallet connected')
 
-      sendTransaction({
-        to: quoteResult.transaction.to,
-        value: BigInt(quoteResult.transaction.value),
-        data: quoteResult.transaction.data as `0x${string}`,
-        chainId: quoteResult.transaction.chain_id,
-      })
+        // Resolve token and source chain before anything else
+        const token = enabledTokens.find((t) => t.id.toLowerCase() === params.tokenId.toLowerCase())
+        if (!token) throw new Error(`Unknown token ID: ${params.tokenId}`)
+        const sourceChain = getChainById(token.chainId)
+        if (!sourceChain) throw new Error(`Chain ${token.chainId} not configured`)
+
+        // 1. Get deposit address
+        const addrResponse = await addressMutation.mutateAsync()
+        if (isStale()) return
+
+        // 2. Switch to source chain
+        setIsSwitchingChain(true)
+        try {
+          await ensureCorrectChain(sourceChain.id)
+        } finally {
+          if (!isStale()) setIsSwitchingChain(false)
+        }
+        if (isStale()) return
+
+        // 3. Validate deposit address
+        const depositAddr = addrResponse.deposit_address
+        if (!depositAddr || depositAddr === zeroAddress) {
+          throw new Error('Invalid deposit address received from API')
+        }
+
+        // 3b. Validate amount against the backend minimum. Below this the
+        // deposit processor refuses to credit and funds would be stranded
+        // at the per-user deposit address.
+        const isNative = token.contract === zeroAddress
+        const minsForChain = addrResponse.min_deposit?.[String(sourceChain.id)]
+        const minAmountStr = isNative ? minsForChain?.native : minsForChain?.erc20
+        if (minAmountStr && params.amount < BigInt(minAmountStr)) {
+          throw new Error(
+            `Amount is below the minimum deposit (${minAmountStr}) for ${isNative ? 'native' : 'ERC-20'} on chain ${sourceChain.id}`
+          )
+        }
+
+        // 4. Send transfer to the deposit address (native or ERC-20)
+        const hash =
+          token.contract === zeroAddress
+            ? await sendTransactionAsync({
+                to: depositAddr,
+                value: params.amount,
+                chainId: sourceChain.id,
+              })
+            : await writeContractAsync({
+                address: token.contract,
+                abi: erc20Abi,
+                functionName: 'transfer',
+                args: [depositAddr, params.amount],
+                chainId: sourceChain.id,
+              })
+        if (isStale()) return
+        setTxHash(hash)
+
+        // Past this point the wallet has already dispatched the transfer, so any
+        // subsequent failure must preserve the hash and route to a retry state
+        // rather than appearing terminal.
+        const ctx: VerificationContext = {
+          hash,
+          chainId: sourceChain.id,
+          amount: params.amount,
+        }
+        verificationContextRef.current = ctx
+
+        try {
+          // 5. Wait for on-chain confirmation
+          setIsWaitingForConfirmation(true)
+          try {
+            await waitForTransactionReceipt(config, { hash, confirmations })
+          } finally {
+            if (!isStale()) setIsWaitingForConfirmation(false)
+          }
+          if (isStale()) return
+
+          onDepositSuccessRef.current?.(hash)
+
+          // Invalidate wagmi wallet balance queries since tokens have left the wallet
+          queryClient.invalidateQueries({ queryKey: ['readContract'] })
+
+          // 6-7. Verification (phase 1 + phase 2)
+          await runVerification(ctx, generation)
+        } catch (err) {
+          if (isStale()) return
+          setIsWaitingForConfirmation(false)
+          stopPolling()
+          const error = err instanceof Error ? err : new Error('Deposit verification failed')
+          setIsWaitingForProcessing(false)
+          setDepositError(error)
+          setVerificationFailed(true)
+          onErrorRef.current?.(error)
+        }
+      } catch (err) {
+        if (isStale()) return
+        const error = err instanceof Error ? err : new Error('Deposit failed')
+        // Pre-transfer failure: nothing left the wallet, safe to surface
+        // as a terminal error. Post-transfer failures are handled in the
+        // inner catch above and never reach here.
+        setDepositError(error)
+        onErrorRef.current?.(error)
+      }
     },
-    [quoteMutation, walletClient, sendTransaction, ensureCorrectChain]
+    [
+      address,
+      walletClient,
+      addressMutation,
+      getChainById,
+      config,
+      confirmations,
+      enabledTokens,
+      ensureCorrectChain,
+      queryClient,
+      writeContractAsync,
+      sendTransactionAsync,
+      stopPolling,
+      reset,
+      runVerification,
+    ]
   )
 
-  const reset = useCallback(() => {
-    setQuote(null)
-    setIsSwitchingChain(false)
-    setIsWaitingForProcessing(false)
-    setDidTimeout(false)
-    initialBalanceRef.current = null
-    initialBalanceFetchedRef.current = false
-    pollStartTimeRef.current = null
-    pollingCompletedRef.current = false
-    depositTokenIdRef.current = null
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current)
-      pollIntervalRef.current = null
-    }
-    quoteMutation.reset()
-    resetSendTransaction()
-  }, [quoteMutation, resetSendTransaction])
-
   const isPending =
-    quoteMutation.isPending ||
+    addressMutation.isPending ||
     isSwitchingChain ||
     isSendingTx ||
-    isConfirming ||
+    isWaitingForConfirmation ||
     isWaitingForProcessing
 
-  const error = quoteMutation.error || sendError
+  const error = addressMutation.error || sendError || depositError
 
   return {
-    quote,
+    depositAddress,
     txHash,
-    isGettingQuote: quoteMutation.isPending,
+    isGettingAddress: addressMutation.isPending,
     isSwitchingChain,
     isSendingTransaction: isSendingTx,
-    isWaitingForConfirmation: isConfirming,
+    isWaitingForConfirmation,
     isWaitingForProcessing,
     didTimeout,
+    verificationFailed,
     isPending,
     error: error as Error | null,
     deposit,
-    getQuote,
-    executeDeposit,
+    retryVerification,
     reset,
   }
 }

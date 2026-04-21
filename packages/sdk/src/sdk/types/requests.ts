@@ -1,18 +1,17 @@
 import type { Address, Bytes32, HexString, HostedAuthResponseMode, IntegerLike } from './common'
 
-export interface DepositQuoteRequest {
-  user_address: Address
-  token_id: Bytes32
-  amount: IntegerLike
+export interface DepositAddressRequest {
+  chain_type?: string
+  version?: number
 }
 
-export interface IncludeDepositRequest {
-  user_address: Address
-  token_id: Bytes32
-  evm_transaction_data: HexString
-  rlp_block_header?: HexString
-  transaction_index_rlp?: HexString
-  transaction_proof_stack?: HexString
+export interface DepositCheckRequest {
+  chain_type?: string
+  chain_id: number
+  tx_hash: HexString
+  amount: IntegerLike
+  log_index?: number
+  version?: number
 }
 
 export interface LockFundsRequest {
@@ -65,6 +64,14 @@ export interface TransferLockedFundsRequest {
 export interface WithdrawalRequest {
   user_address: Address
   token_id: Bytes32
+  amount: IntegerLike
+  nonce: IntegerLike
+  signature: HexString
+}
+
+export interface WithdrawFromLockRequest {
+  to_address: Address
+  lock_id: number
   amount: IntegerLike
   nonce: IntegerLike
   signature: HexString

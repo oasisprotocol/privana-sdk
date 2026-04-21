@@ -2,8 +2,10 @@ import { HttpClient, type HttpClientConfig } from './http-client'
 import type {
   Address,
   Bytes32,
-  DepositQuoteRequest,
-  DepositQuoteResponse,
+  DepositAddressRequest,
+  DepositAddressResponse,
+  DepositCheckRequest,
+  DepositCheckResponse,
   HostedAuthAuthorizeUrlRequest,
   HostedAuthTokenExchangeRequest,
   HostedAuthTokenExchangeResponse,
@@ -18,6 +20,7 @@ import type {
   TransferFundsRequest,
   TransferLockedFundsRequest,
   WithdrawalRequest,
+  WithdrawFromLockRequest,
   BatchBalancesRequest,
   TransactionSubmissionResponse,
   BalanceResponse,
@@ -56,18 +59,27 @@ export class FlexvaultsClient {
     return this.http.getBaseUrl()
   }
 
-  async getDepositQuote(request: DepositQuoteRequest): Promise<DepositQuoteResponse> {
-    return this.http.post<DepositQuoteResponse>('/v1/accounting/quote/deposit', {
-      user_address: normalizeAddress(request.user_address),
-      token_id: normalizeHex(request.token_id),
-      amount: String(request.amount),
+  async getDepositAddress(request: DepositAddressRequest = {}): Promise<DepositAddressResponse> {
+    return this.http.post<DepositAddressResponse>('/v1/accounting/deposits/address', {
+      chain_type: request.chain_type ?? 'evm',
+      version: request.version ?? 0,
     })
   }
 
-  // NOTE: includeDeposit was removed - deposits are now processed automatically
-  // by the accounting module's deposit listener. The SDK polls for balance changes
-  // to detect when the deposit has been credited.
-  // TODO: Add a dedicated deposit status endpoint for more reliable tracking.
+  async checkDeposit(request: DepositCheckRequest): Promise<DepositCheckResponse> {
+    return this.http.post<DepositCheckResponse>('/v1/accounting/deposits/check', {
+      chain_type: request.chain_type ?? 'evm',
+      chain_id: request.chain_id,
+      tx_hash: normalizeHex(request.tx_hash),
+      amount: String(request.amount),
+      log_index: request.log_index ?? 0,
+      version: request.version ?? 0,
+    })
+  }
+
+  async getDepositStatus(depositId: string): Promise<DepositCheckResponse> {
+    return this.http.get<DepositCheckResponse>(`/v1/accounting/deposits/status/${depositId}`)
+  }
 
   async getBalance(tokenId: Bytes32 | string): Promise<BalanceResponse> {
     const token = normalizeHex(tokenId)
@@ -186,6 +198,19 @@ export class FlexvaultsClient {
       nonce: String(request.nonce),
       signature: normalizeHex(request.signature),
     })
+  }
+
+  async withdrawFromLock(request: WithdrawFromLockRequest): Promise<TransactionSubmissionResponse> {
+    return this.http.post<TransactionSubmissionResponse>(
+      '/v1/accounting/funds/withdraw-from-lock',
+      {
+        to_address: normalizeAddress(request.to_address),
+        lock_id: request.lock_id,
+        amount: String(request.amount),
+        nonce: String(request.nonce),
+        signature: normalizeHex(request.signature),
+      }
+    )
   }
 
   async requestWithdrawal(request: WithdrawalRequest): Promise<TransactionSubmissionResponse> {

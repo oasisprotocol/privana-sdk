@@ -67,6 +67,16 @@ export const MODIFY_LOCK_TYPES = {
   ],
 } as const
 
+export const WITHDRAW_FROM_LOCK_TYPES = {
+  WithdrawFromLock: [
+    { name: 'userAddress', type: 'address' },
+    { name: 'toAddress', type: 'address' },
+    { name: 'lockId', type: 'uint256' },
+    { name: 'amount', type: 'uint256' },
+    { name: 'nonce', type: 'uint256' },
+  ],
+} as const
+
 export interface LockMessage {
   userAddress: Address
   serviceAddress: Address
@@ -105,5 +115,13 @@ export interface ModifyLockMessage {
   lockId: bigint
   amount: bigint
   newExpiry: bigint
+  nonce: bigint
+}
+
+export interface WithdrawFromLockMessage {
+  userAddress: Address
+  toAddress: Address
+  lockId: bigint
+  amount: bigint
   nonce: bigint
 }

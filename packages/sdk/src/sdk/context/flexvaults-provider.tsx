@@ -10,6 +10,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { zeroAddress } from 'viem'
 import { FlexvaultsClient } from '../client'
 import {
   applyRefreshResponse,
@@ -20,6 +21,7 @@ import {
 import { HostedAuthRequiredError } from '../client'
 import type { Address, HostedAuthConfig, HostedAuthSession, NetworkConfig } from '../types'
 import { NETWORK_CONFIG, type TokenConfig } from '../types'
+import { SUPPORTED_CHAINS, type ChainConfig } from '../types/chains'
 
 export type TokensStatus = 'loading' | 'ready' | 'error'
 
@@ -29,6 +31,8 @@ export interface FlexvaultsContextValue {
   enabledTokens: TokenConfig[]
   defaultToken: TokenConfig | undefined
   getTokenById: (id: string) => TokenConfig | undefined
+  getChainById: (id: number) => ChainConfig | undefined
+  chains: ChainConfig[]
   tokensStatus: TokensStatus
   tokensError?: Error
   pollingInterval: number
@@ -98,7 +102,17 @@ export interface FlexvaultsProviderProps {
    * Defaults to testnet config. Partial overrides are merged with defaults.
    */
   networkConfig?: Partial<NetworkConfig>
+  /**
+   * Optional list of token IDs to filter from the API response.
+   * When provided, only tokens whose ID matches this list are enabled.
+   * When omitted, all tokens returned by the API are enabled.
+   */
   tokens?: string[]
+  /**
+   * Chain configurations to use. Defaults to SDK built-in chains from config.json.
+   * Pass custom ChainConfig[] for deployments targeting different chains.
+   */
+  chains?: ChainConfig[]
   pollingInterval?: number
   /**
    * The service address for lock operations.
@@ -114,6 +128,7 @@ export function FlexvaultsProvider({
   children,
   networkConfig: networkConfigOverride,
   tokens,
+  chains,
   pollingInterval = 10000,
   serviceAddress,
   hostedAuth,
@@ -146,6 +161,11 @@ export function FlexvaultsProvider({
     networkConfigOverride?.apiUrl,
   ])
 
+  const resolvedChains = useMemo(() => {
+    if (chains && chains.length > 0) return chains
+    return SUPPORTED_CHAINS
+  }, [chains])
+
   const client = useMemo(
     () => new FlexvaultsClient({ baseUrl: networkConfig.apiUrl }),
     [networkConfig.apiUrl]
@@ -166,7 +186,7 @@ export function FlexvaultsProvider({
             id: t.token_id,
             symbol: t.symbol,
             decimals: t.decimals,
-            contract: t.token_address,
+            contract: t.token_address ?? zeroAddress,
             name: t.name,
             chainId: t.chain_id,
           }))
@@ -193,6 +213,13 @@ export function FlexvaultsProvider({
   )
 
   const getTokenById = useMemo(() => (id: string) => tokenById[id.toLowerCase()], [tokenById])
+
+  const chainById = useMemo(
+    () => Object.fromEntries(resolvedChains.map((c) => [c.id, c])),
+    [resolvedChains]
+  )
+
+  const getChainById = useMemo(() => (id: number) => chainById[id], [chainById])
 
   const hostedAuthConfig = useMemo<HostedAuthConfig | null>(() => {
     if (!hostedAuth) return null
@@ -349,6 +376,8 @@ export function FlexvaultsProvider({
       enabledTokens,
       defaultToken: enabledTokens[0],
       getTokenById,
+      getChainById,
+      chains: resolvedChains,
       tokensStatus,
       tokensError,
       pollingInterval,
@@ -364,6 +393,8 @@ export function FlexvaultsProvider({
       networkConfig,
       enabledTokens,
       getTokenById,
+      getChainById,
+      resolvedChains,
       tokensStatus,
       tokensError,
       pollingInterval,

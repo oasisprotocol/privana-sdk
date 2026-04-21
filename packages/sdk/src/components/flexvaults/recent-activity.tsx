@@ -4,8 +4,8 @@ import { useAccount } from 'wagmi'
 import { usePendingWithdrawals } from '@/sdk/hooks'
 import { formatTokenAmount } from '@/lib/utils'
 import { useFlexvaultsContext } from '@/sdk/context/flexvaults-provider'
+import { getExplorerAddressUrl } from '@/sdk/types/chains'
 import { getTokenIcon } from './token-icons'
-import { SUPPORTED_CHAINS, getExplorerAddressUrl } from '@/sdk/types/chains'
 
 function Skeleton() {
   return (
@@ -29,9 +29,8 @@ function Skeleton() {
 
 export function RecentActivity() {
   const { address } = useAccount()
-  const { getTokenById } = useFlexvaultsContext()
+  const { getTokenById, getChainById, chains } = useFlexvaultsContext()
   const { withdrawals, isLoading } = usePendingWithdrawals()
-  const chain = SUPPORTED_CHAINS[0]
 
   if (!address) {
     return <span className="text-xs text-zinc-600">Connect wallet</span>
@@ -49,12 +48,12 @@ export function RecentActivity() {
     )
   }
 
-  const explorerUrl = address && chain ? getExplorerAddressUrl(chain.id, address) : undefined
-
   return (
     <div className="space-y-2">
       {withdrawals.map((withdrawal) => {
         const token = getTokenById(withdrawal.token_id)
+        const chain = (token?.chainId ? getChainById(token.chainId) : undefined) ?? chains[0]
+        const explorerUrl = address && chain ? getExplorerAddressUrl(chain.id, address) : undefined
         const formattedAmount = formatTokenAmount(String(withdrawal.amount), token?.decimals ?? 18)
         // Pending withdrawals endpoint only returns unresolved withdrawals
         const isPending = !withdrawal.resolved

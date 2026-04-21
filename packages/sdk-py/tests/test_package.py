@@ -37,8 +37,8 @@ class TestPackageExports:
         assert hasattr(flexvaults, "format_relative_time")
 
     def test_request_types(self):
-        assert hasattr(flexvaults, "DepositQuoteRequest")
-        assert hasattr(flexvaults, "IncludeDepositRequest")
+        assert hasattr(flexvaults, "DepositAddressRequest")
+        assert hasattr(flexvaults, "DepositCheckRequest")
         assert hasattr(flexvaults, "LockFundsRequest")
         assert hasattr(flexvaults, "UnlockFundsRequest")
         assert hasattr(flexvaults, "TransferFundsRequest")
@@ -46,8 +46,8 @@ class TestPackageExports:
         assert hasattr(flexvaults, "BatchBalancesRequest")
 
     def test_response_types(self):
-        assert hasattr(flexvaults, "DepositQuoteResponse")
-        assert hasattr(flexvaults, "IncludeDepositResponse")
+        assert hasattr(flexvaults, "DepositAddressResponse")
+        assert hasattr(flexvaults, "DepositCheckResponse")
         assert hasattr(flexvaults, "TransactionSubmissionResponse")
         assert hasattr(flexvaults, "BalanceResponse")
         assert hasattr(flexvaults, "BatchBalancesResponse")

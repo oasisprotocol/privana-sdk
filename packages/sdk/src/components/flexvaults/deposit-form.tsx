@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
-import { useAccount, useChainId, useSwitchChain, useReadContract } from 'wagmi'
+import { useAccount, useBalance, useReadContract } from 'wagmi'
 import { useDeposit } from '@/sdk/hooks'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import { parseTokenAmount, formatTokenAmount, cn } from '@/lib/utils'
@@ -11,10 +11,11 @@ import {
   TransactionProgressView,
   TransactionSuccessView,
   TransactionWarningView,
+  TransactionErrorView,
   type Step,
 } from './transaction-steps'
-import { SUPPORTED_CHAINS } from '@/sdk/types/chains'
-import { erc20Abi } from 'viem'
+import { erc20Abi, zeroAddress } from 'viem'
+import { useFlexvaultsContext } from '@/sdk/context/flexvaults-provider'
 
 interface DepositFormProps {
   selectedToken: TokenConfig
@@ -30,25 +31,38 @@ export function DepositForm({
   onSuccess,
 }: DepositFormProps) {
   const { isConnected, address } = useAccount()
-  const chainId = useChainId()
-  const { switchChain, isPending: isSwitchingChain } = useSwitchChain()
+  const { chains, getChainById } = useFlexvaultsContext()
   const [amount, setAmount] = useState('')
   const [showSuccess, setShowSuccess] = useState(false)
   const [showTimeout, setShowTimeout] = useState(false)
   const [cancelled, setCancelled] = useState(false)
 
-  const targetChain = SUPPORTED_CHAINS[0]
-  const isWrongChain = isConnected && chainId !== targetChain?.id
+  const targetChain = getChainById(selectedToken.chainId) ?? chains[0]
 
-  const { data: walletBalance } = useReadContract({
+  // Read balance from the token's chain directly (uses app RPC, not wallet chain).
+  // This lets the form display correct balance without forcing a wallet switch;
+  // the wallet switch happens on-demand inside deposit() via ensureCorrectChain.
+  // Native and ERC-20 need different wagmi hooks (wagmi v2 dropped `token` from
+  // useBalance), so we call both unconditionally and gate via `query.enabled`.
+  const isNative = selectedToken.contract === zeroAddress
+  const { data: nativeBalanceData } = useBalance({
+    address,
+    chainId: targetChain?.id,
+    query: {
+      enabled: !!address && isNative,
+    },
+  })
+  const { data: erc20Balance } = useReadContract({
     address: selectedToken.contract as `0x${string}`,
     abi: erc20Abi,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
+    chainId: targetChain?.id,
     query: {
-      enabled: !!address,
+      enabled: !!address && !isNative,
     },
   })
+  const walletBalance = isNative ? nativeBalanceData?.value : erc20Balance
 
   const formattedWalletBalance = walletBalance
     ? formatTokenAmount(walletBalance.toString(), selectedToken.decimals)
@@ -70,16 +84,20 @@ export function DepositForm({
     parseTokenAmount(amount, selectedToken.decimals) > walletBalance
 
   const {
-    isGettingQuote,
+    txHash,
+    isGettingAddress,
+    isSwitchingChain,
     isSendingTransaction,
     isWaitingForConfirmation,
     isWaitingForProcessing,
+    verificationFailed,
     isPending,
     error,
     deposit,
+    retryVerification,
     reset,
   } = useDeposit({
-    onIncludeSuccess: () => {
+    onCredited: () => {
       setAmount('')
       if (onSuccess) {
         reset()
@@ -88,7 +106,7 @@ export function DepositForm({
         setShowSuccess(true)
       }
     },
-    onIncludeTimeout: () => {
+    onCheckTimeout: () => {
       setAmount('')
       setShowTimeout(true)
     },
@@ -96,8 +114,19 @@ export function DepositForm({
 
   const depositSteps: Step[] = [
     {
-      label: 'Getting quote',
-      status: isGettingQuote
+      label: 'Getting deposit address',
+      status: isGettingAddress
+        ? 'active'
+        : isSwitchingChain ||
+            isSendingTransaction ||
+            isWaitingForConfirmation ||
+            isWaitingForProcessing
+          ? 'completed'
+          : 'pending',
+    },
+    {
+      label: `Switching to ${targetChain?.name ?? 'deposit chain'}`,
+      status: isSwitchingChain
         ? 'active'
         : isSendingTransaction || isWaitingForConfirmation || isWaitingForProcessing
           ? 'completed'
@@ -120,16 +149,18 @@ export function DepositForm({
           : 'pending',
     },
     {
-      label: 'Processing deposit — may take up to a minute',
+      label: 'Verifying deposit — may take up to a few minutes',
       status: isWaitingForProcessing ? 'active' : 'pending',
     },
   ]
 
   useEffect(() => {
-    if (error) {
+    // Post-transfer verification errors are surfaced via the dedicated
+    // TransactionErrorView below, so skip the toast for those.
+    if (error && !verificationFailed) {
       toast.error(error.message.length > 100 ? `${error.message.slice(0, 100)}...` : error.message)
     }
-  }, [error])
+  }, [error, verificationFailed])
 
   useEffect(() => {
     onPendingChange?.(isPending && !cancelled)
@@ -147,11 +178,22 @@ export function DepositForm({
     reset()
   }
 
+  const handleDismissVerificationError = () => {
+    setAmount('')
+    setCancelled(false)
+    reset()
+  }
+
+  const handleRetryVerification = () => {
+    retryVerification().catch(() => {
+      // Errors are already surfaced via the hook's error state and onError callback.
+    })
+  }
+
+  const explorerTxUrl =
+    txHash && targetChain?.explorerUrl ? `${targetChain.explorerUrl}/tx/${txHash}` : undefined
+
   const handleSubmit = async () => {
-    if (isWrongChain && targetChain) {
-      switchChain({ chainId: targetChain.id })
-      return
-    }
     if (!amount || !selectedToken || exceedsBalance) return
     setCancelled(false)
     const amountInWei = parseTokenAmount(amount, selectedToken.decimals)
@@ -164,7 +206,6 @@ export function DepositForm({
   const getButtonText = () => {
     if (!isConnected) return 'Connect Wallet'
     if (isSwitchingChain) return 'Switching...'
-    if (isWrongChain) return `Switch to ${targetChain?.name ?? 'Base Sepolia'}`
     return 'Deposit'
   }
 
@@ -188,9 +229,26 @@ export function DepositForm({
     )
   }
 
+  if (verificationFailed) {
+    const baseMessage =
+      'Your transfer was sent on-chain but we could not verify the deposit. The funds are already at the deposit address — retry verification instead of starting a new deposit.'
+    const detail = error?.message
+    const message = detail ? `${baseMessage} (${detail})` : baseMessage
+    return (
+      <TransactionErrorView
+        title="Verification failed"
+        message={message}
+        explorerUrl={explorerTxUrl}
+        explorerLabel="View transaction"
+        onRetry={handleRetryVerification}
+        onDismiss={handleDismissVerificationError}
+      />
+    )
+  }
+
   if (isPending && !cancelled) {
-    // Only allow cancel before transaction is confirmed (during quote/wallet signing)
-    const canCancel = isGettingQuote || isSendingTransaction
+    // Only allow cancel before transaction is confirmed (during address fetch/wallet signing)
+    const canCancel = isGettingAddress || isSendingTransaction
     return (
       <TransactionProgressView
         title="Depositing..."
@@ -265,11 +323,7 @@ export function DepositForm({
       <button
         onClick={handleSubmit}
         disabled={
-          !isConnected ||
-          (!isWrongChain && !hasValidAmount) ||
-          tooManyDecimals ||
-          !!exceedsBalance ||
-          isSwitchingChain
+          !isConnected || !hasValidAmount || tooManyDecimals || !!exceedsBalance || isPending
         }
         className={cn(
           'flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors',
