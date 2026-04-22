@@ -216,6 +216,7 @@ export class FlexvaultsClient {
     return this.http.post<SiweLoginResponse>('/v1/accounting/auth/login', {
       siwe_message: request.siwe_message,
       signature: normalizeHex(request.signature),
+      ...(request.client_id && { client_id: request.client_id }),
     })
   }
 

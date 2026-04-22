@@ -68,6 +68,7 @@ export interface BatchBalancesRequest {
 export interface SiweLoginRequest {
   siwe_message: string
   signature: HexString
+  client_id?: string
 }
 
 export interface HostedAuthAuthorizeUrlRequest {

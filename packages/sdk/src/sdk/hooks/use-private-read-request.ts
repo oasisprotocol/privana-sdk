@@ -128,7 +128,7 @@ export function usePrivateReadRequest(): {
   privateReadQueryScope: readonly [string, number, Address | null]
 } {
   const wagmiContext = useContext(WagmiContext)
-  const { client, networkConfig, hostedAuthConfig, hostedAuthSession, refreshHostedAuthSession } =
+  const { client, networkConfig, siweClientId, hostedAuthConfig, hostedAuthSession, refreshHostedAuthSession } =
     useFlexvaultsContext()
   const { address: walletAddress } = useSafeAccount()
   const privateReadAddress = hostedAuthConfig
@@ -215,6 +215,7 @@ export function usePrivateReadRequest(): {
             const login = await client.loginWithSiwe({
               siwe_message: message,
               signature,
+              ...(siweClientId && { client_id: siweClientId }),
             })
 
             privateReadTokenCache.set(scopeKey, {

@@ -33,6 +33,7 @@ export interface FlexvaultsContextValue {
   tokensError?: Error
   pollingInterval: number
   serviceAddress?: Address
+  siweClientId?: string
   hostedAuthConfig: HostedAuthConfig | null
   hostedAuthSession: HostedAuthSession | null
   setHostedAuthSession: (session: HostedAuthSession | null) => void
@@ -108,6 +109,7 @@ export interface FlexvaultsProviderProps {
    * Optional hosted redirect auth configuration for cross-domain browser apps.
    */
   hostedAuth?: HostedAuthConfig
+  siweClientId?: string
 }
 
 export function FlexvaultsProvider({
@@ -117,6 +119,7 @@ export function FlexvaultsProvider({
   pollingInterval = 10000,
   serviceAddress,
   hostedAuth,
+  siweClientId,
 }: FlexvaultsProviderProps) {
   const networkConfig = useMemo<NetworkConfig>(() => {
     const config: NetworkConfig = {
@@ -368,6 +371,7 @@ export function FlexvaultsProvider({
       tokensError,
       pollingInterval,
       serviceAddress,
+      siweClientId,
       hostedAuthConfig,
       hostedAuthSession,
       setHostedAuthSession,
