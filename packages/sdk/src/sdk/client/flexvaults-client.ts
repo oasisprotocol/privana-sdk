@@ -12,6 +12,7 @@ import type {
   JwtRefreshRequest,
   JwtRefreshResponse,
   LockFundsRequest,
+  ModifyLockRequest,
   UnlockFundsRequest,
   UnlockAllExpiredRequest,
   TransferFundsRequest,
@@ -30,6 +31,7 @@ import type {
   TransferNonceResponse,
   WithdrawalNonceResponse,
   LockNonceResponse,
+  ModifyLockNonceResponse,
   TransferLockedNonceResponse,
   SiweDomainResponse,
   SiweNonceResponse,
@@ -105,6 +107,17 @@ export class FlexvaultsClient {
     })
   }
 
+  async modifyLock(request: ModifyLockRequest): Promise<TransactionSubmissionResponse> {
+    return this.http.post<TransactionSubmissionResponse>('/v1/accounting/funds/modify-lock', {
+      user_address: normalizeAddress(request.user_address),
+      lock_id: request.lock_id,
+      amount: String(request.amount),
+      new_expiry: String(request.new_expiry),
+      nonce: String(request.nonce),
+      signature: normalizeHex(request.signature),
+    })
+  }
+
   async unlockFunds(request: UnlockFundsRequest): Promise<TransactionSubmissionResponse> {
     return this.http.post<TransactionSubmissionResponse>('/v1/accounting/funds/unlock', {
       user_address: normalizeAddress(request.user_address),
@@ -154,6 +167,11 @@ export class FlexvaultsClient {
   async getLockNonce(userAddress: Address | string): Promise<LockNonceResponse> {
     const user = normalizeAddress(userAddress)
     return this.http.get<LockNonceResponse>(`/v1/accounting/funds/lock/nonce/${user}`)
+  }
+
+  async getModifyLockNonce(userAddress: Address | string): Promise<ModifyLockNonceResponse> {
+    const user = normalizeAddress(userAddress)
+    return this.http.get<ModifyLockNonceResponse>(`/v1/accounting/funds/modify-lock/nonce/${user}`)
   }
 
   async transferLockedFunds(
