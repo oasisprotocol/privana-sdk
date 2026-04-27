@@ -25,6 +25,15 @@ export interface LockFundsRequest {
   signature: HexString
 }
 
+export interface ModifyLockRequest {
+  user_address: Address
+  lock_id: number
+  amount: IntegerLike
+  new_expiry: IntegerLike
+  nonce: IntegerLike
+  signature: HexString
+}
+
 export interface UnlockFundsRequest {
   user_address: Address
   lock_id: number
