@@ -26,6 +26,9 @@ class HttpClient:
             timeout=httpx.Timeout(self._timeout),
         )
 
+    def get_base_url(self) -> str:
+        return self._base_url
+
     async def get(self, path: str) -> Any:
         return await self._request("GET", path)
 

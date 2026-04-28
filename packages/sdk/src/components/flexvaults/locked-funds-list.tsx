@@ -5,7 +5,6 @@ import { useLockedFunds, useUnlockFunds } from '@/sdk/hooks'
 import { formatTokenAmount, formatTimeRemaining, shortenAddress } from '@/lib/utils'
 import { useFlexvaultsContext } from '@/sdk/context/flexvaults-provider'
 import { getTokenIcon } from './token-icons'
-import { SUPPORTED_CHAINS } from '@/sdk/types/chains'
 
 function Skeleton() {
   return (
@@ -28,12 +27,11 @@ function Skeleton() {
 }
 
 export function LockedFundsList() {
-  const { getTokenById } = useFlexvaultsContext()
+  const { getTokenById, getChainById, chains } = useFlexvaultsContext()
   const { locks, isLoading } = useLockedFunds()
   const { unlockFunds, unlockAllExpired, isPending } = useUnlockFunds()
 
   const expiredLocks = locks.filter((lock) => lock.is_expired)
-  const chain = SUPPORTED_CHAINS[0]
 
   if (isLoading) {
     return <Skeleton />
@@ -52,6 +50,7 @@ export function LockedFundsList() {
       <div className="flex flex-col">
         {locks.map((lock, _index) => {
           const token = getTokenById(lock.token_id)
+          const chain = (token?.chainId ? getChainById(token.chainId) : undefined) ?? chains[0]
           const formattedAmount = formatTokenAmount(String(lock.amount), token?.decimals ?? 18)
           const isHighlighted = lock.is_expired
 

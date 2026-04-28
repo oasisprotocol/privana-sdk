@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from typing import Any
+from urllib.parse import urlencode
 
 from ..types import (
     normalize_address,
@@ -9,8 +10,12 @@ from ..types import (
 )
 from ..types.requests import (
     BatchBalancesRequest,
-    DepositQuoteRequest,
-    IncludeDepositRequest,
+    DepositAddressRequest,
+    DepositCheckRequest,
+    HostedAuthAuthorizeUrlRequest,
+    HostedAuthTokenExchangeRequest,
+    JwtLogoutRequest,
+    JwtRefreshRequest,
     LockFundsRequest,
     ModifyLockRequest,
     TransferFundsRequest,
@@ -18,13 +23,17 @@ from ..types.requests import (
     UnlockAllExpiredRequest,
     UnlockFundsRequest,
     WithdrawalRequest,
+    WithdrawFromLockRequest,
 )
 from ..types.responses import (
     BalanceResponse,
     BatchBalancesResponse,
-    DepositQuoteResponse,
+    DepositAddressResponse,
+    DepositCheckResponse,
     ExpiredLocksResponse,
-    IncludeDepositResponse,
+    HostedAuthTokenExchangeResponse,
+    JwtLogoutResponse,
+    JwtRefreshResponse,
     LockedFundsResponse,
     LockInfo,
     LockNonceResponse,
@@ -36,8 +45,8 @@ from ..types.responses import (
     SiweNonceResponse,
     TokenBalance,
     TokenInfoResponse,
+    TokenListResponse,
     TotalLockedBalanceResponse,
-    TransactionData,
     TransactionSubmissionResponse,
     TransferLockedNonceResponse,
     TransferNonceResponse,
@@ -53,26 +62,6 @@ from .http_client import HttpClient
 
 PRIVATE_READ_TOKEN_HEADER = "X-SIWE-Token"
 MAX_BATCH_BALANCE_TOKEN_IDS = 100
-
-
-def _parse_transaction_data(data: dict[str, Any]) -> TransactionData:
-    return TransactionData(
-        to=data["to"],
-        value=data["value"],
-        data=data["data"],
-        chain_id=data["chain_id"],
-    )
-
-
-def _parse_deposit_quote(data: dict[str, Any]) -> DepositQuoteResponse:
-    return DepositQuoteResponse(
-        user_address=data["user_address"],
-        token_id=data["token_id"],
-        amount=data["amount"],
-        deposit_address=data["deposit_address"],
-        transaction=_parse_transaction_data(data["transaction"]),
-        instructions=data["instructions"],
-    )
 
 
 def _parse_lock_info(data: dict[str, Any]) -> LockInfo:
@@ -96,15 +85,31 @@ def _parse_token_balance(data: dict[str, Any]) -> TokenBalance:
     )
 
 
+def _parse_token_info(data: dict[str, Any]) -> TokenInfoResponse:
+    return TokenInfoResponse(
+        token_id=data["token_id"],
+        token_type=data["token_type"],
+        token_type_name=data["token_type_name"],
+        data=data["data"],
+        chain_id=data.get("chain_id"),
+        chain_name=data.get("chain_name"),
+        token_address=data.get("token_address"),
+        symbol=data.get("symbol"),
+        name=data.get("name"),
+        decimals=data.get("decimals"),
+    )
+
+
 def _parse_pending_withdrawal(data: dict[str, Any]) -> PendingWithdrawal:
     return PendingWithdrawal(
         index=data["index"],
         user_address=data["user_address"],
+        to_address=data["to_address"],
         token_id=data["token_id"],
         amount=data["amount"],
-        block_number=data.get("block_number", 0),
-        resolved=data.get("resolved", False),
-        tx_identifier=data.get("tx_identifier", ""),
+        block_number=data["block_number"],
+        resolved=data["resolved"],
+        tx_identifier=data["tx_identifier"],
     )
 
 
@@ -142,35 +147,52 @@ class FlexvaultsClient:
         if normalize_hex(token_id).lower() not in self._enabled_token_ids:
             raise ValidationError(f"Token {token_id} is not enabled on this client")
 
-    async def get_deposit_quote(self, request: DepositQuoteRequest) -> DepositQuoteResponse:
-        self._check_token(request.token_id)
+    async def get_deposit_address(
+        self, request: DepositAddressRequest | None = None
+    ) -> DepositAddressResponse:
+        req = request or DepositAddressRequest()
         data = await self._http.post(
-            "/v1/accounting/quote/deposit",
+            "/v1/accounting/deposits/address",
             {
-                "user_address": normalize_address(request.user_address),
-                "token_id": normalize_hex(request.token_id),
-                "amount": request.amount,
+                "chain_type": req.chain_type,
+                "version": req.version,
             },
         )
-        return _parse_deposit_quote(data)
+        return DepositAddressResponse(
+            deposit_address=data["deposit_address"],
+            chain_type=data["chain_type"],
+            version=data["version"],
+            min_deposit=data.get("min_deposit", {}),
+        )
 
-    async def include_deposit(self, request: IncludeDepositRequest) -> IncludeDepositResponse:
-        self._check_token(request.token_id)
-        body: dict[str, Any] = {
-            "user_address": normalize_address(request.user_address),
-            "token_id": normalize_hex(request.token_id),
-            "evm_transaction_data": normalize_hex(request.evm_transaction_data),
-        }
-        if request.rlp_block_header is not None:
-            body["rlp_block_header"] = normalize_hex(request.rlp_block_header)
-        if request.transaction_index_rlp is not None:
-            body["transaction_index_rlp"] = normalize_hex(request.transaction_index_rlp)
-        if request.transaction_proof_stack is not None:
-            body["transaction_proof_stack"] = normalize_hex(request.transaction_proof_stack)
-
-        data = await self._http.post("/v1/accounting/deposits", body)
-        return IncludeDepositResponse(
+    async def check_deposit(self, request: DepositCheckRequest) -> DepositCheckResponse:
+        data = await self._http.post(
+            "/v1/accounting/deposits/check",
+            {
+                "chain_type": request.chain_type,
+                "chain_id": request.chain_id,
+                "tx_hash": normalize_hex(request.tx_hash),
+                "amount": str(request.amount),
+                "log_index": request.log_index,
+                "version": request.version,
+            },
+        )
+        return DepositCheckResponse(
             status=data["status"],
+            deposit_id=data.get("deposit_id"),
+            amount=data.get("amount"),
+            token_address=data.get("token_address"),
+            detail=data.get("detail"),
+        )
+
+    async def get_deposit_status(self, deposit_id: str) -> DepositCheckResponse:
+        data = await self._http.get(f"/v1/accounting/deposits/status/{deposit_id}")
+        return DepositCheckResponse(
+            status=data["status"],
+            deposit_id=data.get("deposit_id"),
+            amount=data.get("amount"),
+            token_address=data.get("token_address"),
+            detail=data.get("detail"),
         )
 
     async def get_balance(self, token_id: str) -> BalanceResponse:
@@ -208,14 +230,12 @@ class FlexvaultsClient:
         self._check_token(token_id)
         token = normalize_hex(token_id)
         data = await self._http.get(f"/v1/accounting/tokens/{token}")
-        return TokenInfoResponse(
-            token_id=data["token_id"],
-            token_type=data["token_type"],
-            token_type_name=data["token_type_name"],
-            data=data["data"],
-            chain_id=data.get("chain_id"),
-            chain_name=data.get("chain_name"),
-            token_address=data.get("token_address"),
+        return _parse_token_info(data)
+
+    async def list_tokens(self) -> TokenListResponse:
+        data = await self._http.get("/v1/accounting/tokens")
+        return TokenListResponse(
+            tokens=[_parse_token_info(t) for t in data["tokens"]],
         )
 
     async def lock_funds(self, request: LockFundsRequest) -> TransactionSubmissionResponse:
@@ -372,6 +392,24 @@ class FlexvaultsClient:
             detail=data.get("detail"),
         )
 
+    async def withdraw_from_lock(
+        self, request: WithdrawFromLockRequest
+    ) -> TransactionSubmissionResponse:
+        data = await self._http.post(
+            "/v1/accounting/funds/withdraw-from-lock",
+            {
+                "to_address": normalize_address(request.to_address),
+                "lock_id": request.lock_id,
+                "amount": str(request.amount),
+                "nonce": str(request.nonce),
+                "signature": normalize_hex(request.signature),
+            },
+        )
+        return TransactionSubmissionResponse(
+            status=data["status"],
+            detail=data.get("detail"),
+        )
+
     async def request_withdrawal(self, request: WithdrawalRequest) -> TransactionSubmissionResponse:
         self._check_token(request.token_id)
         data = await self._http.post(
@@ -408,10 +446,9 @@ class FlexvaultsClient:
     async def get_pending_withdrawals(self, user_address: str) -> PendingWithdrawalsResponse:
         user = normalize_address(user_address)
         data = await self._http.get(f"/v1/accounting/withdraw/pending/{user}")
-        withdrawals = data.get("pending_withdrawals", data.get("withdrawals", []))
         return PendingWithdrawalsResponse(
             user_address=data["user_address"],
-            pending_withdrawals=[_parse_pending_withdrawal(w) for w in withdrawals],
+            pending_withdrawals=[_parse_pending_withdrawal(w) for w in data["pending_withdrawals"]],
         )
 
     async def get_withdrawal_info(self, index: int) -> WithdrawalInfoResponse:
@@ -419,11 +456,12 @@ class FlexvaultsClient:
         return WithdrawalInfoResponse(
             index=data["index"],
             user_address=data["user_address"],
+            to_address=data["to_address"],
             token_id=data["token_id"],
             amount=data["amount"],
-            block_number=data.get("block_number", 0),
-            resolved=data.get("resolved", False),
-            tx_identifier=data.get("tx_identifier", ""),
+            block_number=data["block_number"],
+            resolved=data["resolved"],
+            tx_identifier=data["tx_identifier"],
         )
 
     async def get_siwe_domain(self) -> SiweDomainResponse:
@@ -462,6 +500,71 @@ class FlexvaultsClient:
         login = await self.login_with_siwe(siwe_message, signature)
         self.set_private_read_token(login.siwe_token)
         return login
+
+    def get_hosted_auth_authorize_url(self, request: HostedAuthAuthorizeUrlRequest) -> str:
+        params = urlencode(
+            {
+                "client_id": request.client_id,
+                "redirect_uri": request.redirect_uri,
+                "code_challenge": request.code_challenge,
+                "state": request.state,
+                "chain_id": str(request.chain_id),
+                "response_mode": request.response_mode,
+                "code_challenge_method": request.code_challenge_method,
+            }
+        )
+        base = self._http.get_base_url().rstrip("/")
+        return f"{base}/v1/accounting/auth/authorize?{params}"
+
+    async def exchange_hosted_auth_code(
+        self, request: HostedAuthTokenExchangeRequest
+    ) -> HostedAuthTokenExchangeResponse:
+        data = await self._http.post(
+            "/v1/accounting/auth/token",
+            {
+                "grant_type": request.grant_type,
+                "code": request.code,
+                "code_verifier": request.code_verifier,
+                "client_id": request.client_id,
+                "redirect_uri": request.redirect_uri,
+            },
+        )
+        return HostedAuthTokenExchangeResponse(
+            access_token=data["access_token"],
+            id_token=data["id_token"],
+            refresh_token=data["refresh_token"],
+            token_type=data["token_type"],
+            expires_in=data["expires_in"],
+            refresh_expires_in=data["refresh_expires_in"],
+            address=data["address"],
+        )
+
+    async def refresh_jwt_session(self, request: JwtRefreshRequest) -> JwtRefreshResponse:
+        data = await self._http.post(
+            "/v1/accounting/auth/jwt/refresh",
+            {"refresh_token": request.refresh_token},
+        )
+        return JwtRefreshResponse(
+            token=data["token"],
+            refresh_token=data["refresh_token"],
+            expires_in=data["expires_in"],
+            refresh_expires_in=data["refresh_expires_in"],
+        )
+
+    async def logout_jwt_session(
+        self, request: JwtLogoutRequest | None = None
+    ) -> JwtLogoutResponse:
+        payload: dict[str, Any] = {}
+        if request is not None:
+            if request.refresh_token is not None:
+                payload["refresh_token"] = request.refresh_token
+            if request.revoke_all:
+                payload["revoke_all"] = True
+        data = await self._http.post("/v1/accounting/auth/jwt/logout", payload)
+        return JwtLogoutResponse(
+            message=data["message"],
+            revoked_tokens=data["revoked_tokens"],
+        )
 
     def set_private_read_token(self, token: str) -> None:
         self._http.remove_header("Authorization")

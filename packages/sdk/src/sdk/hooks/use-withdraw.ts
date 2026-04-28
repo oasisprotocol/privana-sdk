@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useAccount, useWalletClient, useReadContract } from 'wagmi'
+import { useQueryClient } from '@tanstack/react-query'
+import { useAccount, useWalletClient } from 'wagmi'
 import { useFlexvaultsContext } from '../context/flexvaults-provider'
 import { useEnsureCorrectChain } from './use-ensure-correct-chain'
 import { signWithdrawMessage } from '../signatures'
@@ -41,23 +41,6 @@ export interface UseWithdrawResult {
   reset: () => void
 }
 
-const ACCOUNTING_ABI = [
-  {
-    inputs: [{ name: 'user', type: 'address' }],
-    name: 'withdrawalNonces',
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [],
-    name: 'withdrawalCount',
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-] as const
-
 export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult {
   const { address } = useAccount()
   const { data: walletClient } = useWalletClient()
@@ -66,260 +49,238 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
   const { chainId, ensureCorrectChain } = useEnsureCorrectChain()
 
   const pollInterval = options.pollInterval ?? 3000
-  const pollTimeout = options.pollTimeout ?? 180000 // 3 minutes
+  const pollTimeout = options.pollTimeout ?? 180000
 
   const [currentStep, setCurrentStep] = useState<WithdrawStep>('idle')
   const [didTimeout, setDidTimeout] = useState(false)
+  const [isSuccess, setIsSuccess] = useState(false)
+  const [withdrawError, setWithdrawError] = useState<Error | null>(null)
 
-  // Refs for polling
-  const expectedIndexRef = useRef<number | null>(null)
-  const nextScanIndexRef = useRef<number | null>(null)
-  const withdrawalIndexRef = useRef<number | null>(null)
-  const withdrawParamsRef = useRef<{ tokenId: Bytes32; amount: bigint } | null>(null)
-  const pollStartTimeRef = useRef<number | null>(null)
+  const generationRef = useRef(0)
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const pollingCompletedRef = useRef(false)
 
-  // Refs for callbacks to avoid re-triggering effects
+  // Use refs for callbacks to avoid stale closures in the long-running withdraw flow
   const onSubmitSuccessRef = useRef(options.onSubmitSuccess)
   const onProcessingSuccessRef = useRef(options.onProcessingSuccess)
   const onProcessingTimeoutRef = useRef(options.onProcessingTimeout)
   const onSuccessRef = useRef(options.onSuccess)
+  const onErrorRef = useRef(options.onError)
 
   useEffect(() => {
     onSubmitSuccessRef.current = options.onSubmitSuccess
     onProcessingSuccessRef.current = options.onProcessingSuccess
     onProcessingTimeoutRef.current = options.onProcessingTimeout
     onSuccessRef.current = options.onSuccess
+    onErrorRef.current = options.onError
   }, [
     options.onSubmitSuccess,
     options.onProcessingSuccess,
     options.onProcessingTimeout,
     options.onSuccess,
+    options.onError,
   ])
 
-  const { accountingContract, chainId: signingChainId } = networkConfig
-
-  const { refetch: refetchNonce } = useReadContract({
-    address: accountingContract,
-    abi: ACCOUNTING_ABI,
-    functionName: 'withdrawalNonces',
-    args: address ? [address] : undefined,
-    chainId: signingChainId,
-    query: {
-      enabled: !!address,
-    },
-  })
-
-  const { refetch: refetchWithdrawalCount } = useReadContract({
-    address: accountingContract,
-    abi: ACCOUNTING_ABI,
-    functionName: 'withdrawalCount',
-    chainId: signingChainId,
-  })
+  const { chainId: signingChainId } = networkConfig
 
   // Cleanup polling on unmount
   useEffect(() => {
     return () => {
       if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current)
+        clearTimeout(pollIntervalRef.current)
       }
     }
   }, [])
 
-  const startPolling = useCallback(() => {
-    if (!address || pollingCompletedRef.current || expectedIndexRef.current === null) return
-
-    setCurrentStep('processing')
-    pollStartTimeRef.current = Date.now()
-
-    const handleSuccess = () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current)
-        pollIntervalRef.current = null
-      }
-      pollingCompletedRef.current = true
-      setCurrentStep('idle')
-      onProcessingSuccessRef.current?.()
-      queryClient.refetchQueries({ queryKey: ['accounting-balance'] })
-      queryClient.refetchQueries({ queryKey: ['accounting-pending-withdrawals'] })
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearTimeout(pollIntervalRef.current)
+      pollIntervalRef.current = null
     }
+  }, [])
 
-    const checkWithdrawalStatus = async () => {
+  const reset = useCallback(() => {
+    generationRef.current++
+    stopPolling()
+    setCurrentStep('idle')
+    setDidTimeout(false)
+    setIsSuccess(false)
+    setWithdrawError(null)
+  }, [stopPolling])
+
+  const withdraw = useCallback(
+    async (params: WithdrawParams): Promise<TransactionSubmissionResponse | undefined> => {
+      reset()
+      const generation = generationRef.current
+      const isStale = () => generation !== generationRef.current
+
       try {
-        const elapsed = Date.now() - (pollStartTimeRef.current ?? Date.now())
-        const params = withdrawParamsRef.current
-        const expectedIndex = expectedIndexRef.current
+        if (!address || !walletClient) throw new Error('Wallet not connected')
 
-        if (!params || expectedIndex === null) return
+        // Snapshot pending withdrawal indices so we can detect the new one after submission
+        const pendingResponse = await client.getPendingWithdrawals(address)
+        if (isStale()) return undefined
+        const knownIndices = new Set(pendingResponse.pending_withdrawals.map((w) => w.index))
 
-        // Check for timeout
-        if (elapsed > pollTimeout) {
-          if (pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current)
-            pollIntervalRef.current = null
-          }
-          pollingCompletedRef.current = true
+        // 1. Switch to signing chain
+        if (chainId !== signingChainId) {
+          setCurrentStep('switching-chain')
+        }
+        await ensureCorrectChain(signingChainId)
+        if (isStale()) return undefined
+
+        // 2. Fetch nonce from API (direct Sapphire contract reads revert without encrypted calldata)
+        const nonceResponse = await client.getWithdrawalNonce(address)
+        if (isStale()) return undefined
+        const nonce = BigInt(nonceResponse.nonce)
+
+        // 3. Sign EIP-712 message
+        setCurrentStep('signing')
+        const signature = await signWithdrawMessage({
+          walletClient,
+          chainId: signingChainId,
+          verifyingContract: networkConfig.accountingContract,
+          message: {
+            userAddress: address,
+            tokenId: params.tokenId,
+            amount: params.amount,
+            nonce,
+          },
+        })
+        if (isStale()) return undefined
+
+        // 4. Submit to API
+        setCurrentStep('submitting')
+        const submissionResponse = await client.requestWithdrawal({
+          user_address: address,
+          token_id: params.tokenId,
+          amount: params.amount.toString(),
+          nonce: String(nonce),
+          signature,
+        })
+        if (isStale()) return submissionResponse
+
+        onSubmitSuccessRef.current?.(submissionResponse)
+        onSuccessRef.current?.(submissionResponse)
+
+        // 5. Poll for withdrawal completion
+        setCurrentStep('processing')
+        const pollStartTime = Date.now()
+        let withdrawalIndex: number | null = null
+        let consecutiveFailures = 0
+
+        const handleSuccess = () => {
+          stopPolling()
+          setCurrentStep('idle')
+          setIsSuccess(true)
+          onProcessingSuccessRef.current?.()
+          queryClient.refetchQueries({ queryKey: ['accounting-balance'] })
+          queryClient.refetchQueries({ queryKey: ['accounting-pending-withdrawals'] })
+        }
+
+        const handleTimeout = () => {
+          stopPolling()
           setCurrentStep('idle')
           setDidTimeout(true)
           onProcessingTimeoutRef.current?.()
           queryClient.refetchQueries({ queryKey: ['accounting-balance'] })
           queryClient.refetchQueries({ queryKey: ['accounting-pending-withdrawals'] })
-          return
         }
 
-        // If we already found our withdrawal index, just poll for resolution
-        if (withdrawalIndexRef.current !== null) {
-          const info = await client.getWithdrawalInfo(withdrawalIndexRef.current)
-          if (info.resolved) {
-            handleSuccess()
+        const checkWithdrawalStatus = async (): Promise<boolean> => {
+          if (isStale()) return true
+
+          if (Date.now() - pollStartTime > pollTimeout) {
+            handleTimeout()
+            return true
           }
-          return
-        }
 
-        const { data: latestWithdrawalCount } = await refetchWithdrawalCount()
-        const scanStart = nextScanIndexRef.current ?? expectedIndex
-        const scanEnd =
-          latestWithdrawalCount === undefined ? scanStart : Number(latestWithdrawalCount)
-
-        if (scanEnd <= scanStart) {
-          return
-        }
-
-        // Find our withdrawal in the live range [expectedIndex, withdrawalCount).
-        for (let i = scanStart; i < scanEnd; i++) {
           try {
-            const info = await client.getWithdrawalInfo(i)
-            if (
-              info.user_address.toLowerCase() === address.toLowerCase() &&
-              info.token_id.toLowerCase() === params.tokenId.toLowerCase() &&
-              info.amount === String(params.amount)
-            ) {
-              withdrawalIndexRef.current = i
-              nextScanIndexRef.current = i + 1
+            if (withdrawalIndex !== null) {
+              const info = await client.getWithdrawalInfo(withdrawalIndex)
+              if (isStale()) return true
+              consecutiveFailures = 0
               if (info.resolved) {
                 handleSuccess()
+                return true
               }
-              return
+              return false
             }
-          } catch {
-            // Retry from the first unresolved index on the next poll.
-            nextScanIndexRef.current = i
-            return
+
+            // Find our new withdrawal in the pending list by matching against the
+            // pre-submission snapshot. This avoids sequential index scanning.
+            const pending = await client.getPendingWithdrawals(address)
+            if (isStale()) return true
+            consecutiveFailures = 0
+            const match = pending.pending_withdrawals.find(
+              (w) =>
+                !knownIndices.has(w.index) &&
+                w.user_address.toLowerCase() === address.toLowerCase() &&
+                w.token_id.toLowerCase() === params.tokenId.toLowerCase() &&
+                w.amount === String(params.amount)
+            )
+
+            if (match) {
+              withdrawalIndex = match.index
+              if (match.resolved) {
+                handleSuccess()
+                return true
+              }
+            }
+          } catch (err) {
+            if (isStale()) return true
+            consecutiveFailures++
+            console.warn('Error polling withdrawal status:', err)
+            if (consecutiveFailures >= 3) {
+              handleTimeout()
+              return true
+            }
           }
+          return false
         }
 
-        nextScanIndexRef.current = scanEnd
+        const pollLoop = async () => {
+          const done = await checkWithdrawalStatus()
+          if (!done && !isStale() && pollIntervalRef.current !== null) {
+            pollIntervalRef.current = setTimeout(pollLoop, pollInterval)
+          }
+        }
+        pollIntervalRef.current = setTimeout(pollLoop, 0)
+
+        return submissionResponse
       } catch (err) {
-        // Don't fail on polling errors, just keep trying
-        console.warn('Error polling withdrawal status:', err)
+        if (isStale()) return undefined
+        const error = err instanceof Error ? err : new Error('Withdrawal failed')
+        setCurrentStep('idle')
+        setWithdrawError(error)
+        onErrorRef.current?.(error)
+        return undefined
       }
-    }
-
-    // Start polling
-    pollIntervalRef.current = setInterval(checkWithdrawalStatus, pollInterval)
-    // Also check immediately
-    checkWithdrawalStatus()
-  }, [address, client, queryClient, pollInterval, pollTimeout, refetchWithdrawalCount])
-
-  const mutation = useMutation({
-    mutationFn: async (params: WithdrawParams) => {
-      if (!address || !walletClient) {
-        throw new Error('Wallet not connected')
-      }
-
-      // Reset polling state for new withdrawal
-      pollingCompletedRef.current = false
-      expectedIndexRef.current = null
-      nextScanIndexRef.current = null
-      withdrawalIndexRef.current = null
-      withdrawParamsRef.current = { tokenId: params.tokenId, amount: params.amount }
-      setDidTimeout(false)
-
-      if (chainId !== signingChainId) {
-        setCurrentStep('switching-chain')
-      }
-      await ensureCorrectChain(signingChainId)
-
-      // Get withdrawal count BEFORE submitting - our withdrawal will be at this index
-      const { data: withdrawalCount } = await refetchWithdrawalCount()
-      if (withdrawalCount === undefined) {
-        throw new Error('Failed to fetch withdrawal count')
-      }
-      expectedIndexRef.current = Number(withdrawalCount)
-      nextScanIndexRef.current = Number(withdrawalCount)
-
-      const { data: nonce } = await refetchNonce()
-      if (nonce === undefined) {
-        throw new Error('Failed to fetch withdrawal nonce')
-      }
-
-      setCurrentStep('signing')
-      const signature = await signWithdrawMessage({
-        walletClient,
-        chainId: signingChainId,
-        verifyingContract: accountingContract,
-        message: {
-          userAddress: address,
-          tokenId: params.tokenId,
-          amount: params.amount,
-          nonce,
-        },
-      })
-
-      setCurrentStep('submitting')
-      return client.requestWithdrawal({
-        user_address: address,
-        token_id: params.tokenId,
-        amount: params.amount.toString(),
-        nonce: String(nonce),
-        signature,
-      })
     },
-    onSuccess: (data) => {
-      onSubmitSuccessRef.current?.(data)
-      onSuccessRef.current?.(data)
-      // Start polling for withdrawal completion
-      startPolling()
-    },
-    onError: (error) => {
-      setCurrentStep('idle')
-      options.onError?.(error as Error)
-    },
-  })
-
-  const withdraw = useCallback(
-    async (params: WithdrawParams) => {
-      return mutation.mutateAsync(params)
-    },
-    [mutation]
+    [
+      address,
+      walletClient,
+      client,
+      chainId,
+      signingChainId,
+      networkConfig.accountingContract,
+      ensureCorrectChain,
+      pollInterval,
+      pollTimeout,
+      queryClient,
+      stopPolling,
+      reset,
+    ]
   )
 
-  const reset = useCallback(() => {
-    setCurrentStep('idle')
-    setDidTimeout(false)
-    expectedIndexRef.current = null
-    nextScanIndexRef.current = null
-    withdrawalIndexRef.current = null
-    withdrawParamsRef.current = null
-    pollStartTimeRef.current = null
-    pollingCompletedRef.current = false
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current)
-      pollIntervalRef.current = null
-    }
-    mutation.reset()
-  }, [mutation])
-
-  const isPending = mutation.isPending || currentStep !== 'idle'
+  const isPending = currentStep !== 'idle'
 
   return {
     withdraw,
     isPending,
-    isSuccess: mutation.isSuccess && pollingCompletedRef.current && !didTimeout,
+    isSuccess,
     currentStep,
     didTimeout,
-    error: mutation.error as Error | null,
+    error: withdrawError,
     reset,
   }
 }

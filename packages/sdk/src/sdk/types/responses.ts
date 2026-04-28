@@ -1,23 +1,23 @@
 import type { Address, Bytes32, HexString } from './common'
 
-export interface TransactionData {
-  to: Address
-  value: string
-  data: string
-  chain_id: number
+export interface MinDepositAmounts {
+  native: string
+  erc20: string
 }
 
-export interface DepositQuoteResponse {
-  user_address: Address
-  token_id: Bytes32
-  amount: string
+export interface DepositAddressResponse {
   deposit_address: Address
-  transaction: TransactionData
-  instructions: string
+  chain_type: string
+  version: number
+  min_deposit: Record<string, MinDepositAmounts>
 }
 
-export interface IncludeDepositResponse {
-  status: string
+export interface DepositCheckResponse {
+  status: 'credited' | 'pending' | 'error'
+  deposit_id?: string
+  amount?: string
+  token_address?: Address
+  detail?: string
 }
 
 export interface TransactionSubmissionResponse {
@@ -93,6 +93,7 @@ export interface TotalLockedBalanceResponse {
 export interface WithdrawalInfo {
   index: number
   user_address: Address
+  to_address: Address
   amount: string
   block_number: number
   token_id: Bytes32

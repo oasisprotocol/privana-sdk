@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useMemo, useEffect, useId } from 'react'
-import { useAccount, useReadContract } from 'wagmi'
-import { erc20Abi } from 'viem'
+import { useAccount, useBalance as useWagmiBalance, useReadContract } from 'wagmi'
+import { erc20Abi, zeroAddress } from 'viem'
 import {
   Dialog,
   DialogContent,
@@ -14,7 +14,6 @@ import { DepositForm } from './deposit-form'
 import { WithdrawForm } from './withdraw-form'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import { useFlexvaultsContext } from '@/sdk/context/flexvaults-provider'
-import { SUPPORTED_CHAINS } from '@/sdk/types/chains'
 import { useBalance, useLockedFunds, useUnlockFunds } from '@/sdk/hooks'
 import { formatTokenAmount, formatTimeRemaining, cn, shortenAddress } from '@/lib/utils'
 import { getTokenIcon, getChainIcon } from './token-icons'
@@ -403,8 +402,8 @@ function BalanceTokenRow({ token }: { token: TokenConfig }) {
 }
 
 function BalanceDetailsView({ onBack, onClose }: { onBack: () => void; onClose?: () => void }) {
-  const { enabledTokens } = useFlexvaultsContext()
-  const [selectedChainId, setSelectedChainId] = useState<number>(SUPPORTED_CHAINS[0]?.id ?? 84532)
+  const { enabledTokens, chains } = useFlexvaultsContext()
+  const [selectedChainId, setSelectedChainId] = useState<number>(chains[0]?.id ?? 84532)
 
   const chainTokens = useMemo(() => {
     return enabledTokens.filter((t) => t.chainId === selectedChainId)
@@ -438,7 +437,7 @@ function BalanceDetailsView({ onBack, onClose }: { onBack: () => void; onClose?:
             <span className="text-muted-foreground text-sm">Network</span>
           </div>
           <div className="mt-1 flex-1 overflow-y-auto">
-            {SUPPORTED_CHAINS.map((chain) => {
+            {chains.map((chain) => {
               const isSelected = selectedChainId === chain.id
 
               return (
@@ -485,16 +484,22 @@ function TokenRow({
   onClick: () => void
 }) {
   const { address } = useAccount()
+  const isNative = token.contract === zeroAddress
 
-  const { data: walletBalance } = useReadContract({
+  const { data: nativeBalanceData } = useWagmiBalance({
+    address,
+    chainId: token.chainId,
+    query: { enabled: !!address && isNative },
+  })
+  const { data: erc20Balance } = useReadContract({
     address: token.contract as `0x${string}`,
     abi: erc20Abi,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
-    query: {
-      enabled: !!address,
-    },
+    chainId: token.chainId,
+    query: { enabled: !!address && !isNative },
   })
+  const walletBalance = isNative ? nativeBalanceData?.value : erc20Balance
 
   const formattedBalance = walletBalance
     ? formatTokenAmount(walletBalance.toString(), token.decimals)
@@ -529,8 +534,8 @@ function TokenSelectorView({
   selectedTokenId?: string
 }) {
   const [tokenSearch, setTokenSearch] = useState('')
-  const [selectedChainId, setSelectedChainId] = useState<number>(SUPPORTED_CHAINS[0]?.id ?? 84532)
-  const { enabledTokens } = useFlexvaultsContext()
+  const { enabledTokens, chains } = useFlexvaultsContext()
+  const [selectedChainId, setSelectedChainId] = useState<number>(chains[0]?.id ?? 84532)
 
   const chainTokens = useMemo(() => {
     return enabledTokens.filter((t) => t.chainId === selectedChainId)
@@ -578,7 +583,7 @@ function TokenSelectorView({
             <span className="text-muted-foreground text-sm">Network</span>
           </div>
           <div className="mt-1 flex-1 overflow-y-auto">
-            {SUPPORTED_CHAINS.map((chain) => {
+            {chains.map((chain) => {
               const isSelected = selectedChainId === chain.id
 
               return (

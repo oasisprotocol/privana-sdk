@@ -1,31 +1,26 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Literal
 
 from .common import Address, Bytes32, HexString
 
 
 @dataclass
-class TransactionData:
-    to: Address
-    value: str
-    data: str
-    chain_id: int
-
-
-@dataclass
-class DepositQuoteResponse:
-    user_address: Address
-    token_id: Bytes32
-    amount: str
+class DepositAddressResponse:
     deposit_address: Address
-    transaction: TransactionData
-    instructions: str
+    chain_type: str
+    version: int
+    min_deposit: dict[str, dict[str, str]] = field(default_factory=dict)
 
 
 @dataclass
-class IncludeDepositResponse:
-    status: str
+class DepositCheckResponse:
+    status: Literal["credited", "pending", "error"]
+    deposit_id: str | None = None
+    amount: str | None = None
+    token_address: Address | None = None
+    detail: str | None = None
 
 
 @dataclass
@@ -66,6 +61,9 @@ class TokenInfoResponse:
     chain_id: int | None = None
     chain_name: str | None = None
     token_address: Address | None = None
+    symbol: str | None = None
+    name: str | None = None
+    decimals: int | None = None
 
 
 @dataclass
@@ -104,6 +102,7 @@ class TotalLockedBalanceResponse:
 class WithdrawalInfoResponse:
     index: int
     user_address: Address
+    to_address: Address
     token_id: Bytes32
     amount: str
     block_number: int
@@ -170,3 +169,33 @@ class SiweLoginResponse:
     address: Address
     jwt_expires_in: int
     jwt_refresh_expires_in: int
+
+
+@dataclass
+class TokenListResponse:
+    tokens: list[TokenInfoResponse] = field(default_factory=list)
+
+
+@dataclass
+class HostedAuthTokenExchangeResponse:
+    access_token: str
+    id_token: str
+    refresh_token: str
+    token_type: str
+    expires_in: int
+    refresh_expires_in: int
+    address: Address
+
+
+@dataclass
+class JwtRefreshResponse:
+    token: str
+    refresh_token: str
+    expires_in: int
+    refresh_expires_in: int
+
+
+@dataclass
+class JwtLogoutResponse:
+    message: str
+    revoked_tokens: int
