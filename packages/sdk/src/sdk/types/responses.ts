@@ -122,6 +122,11 @@ export interface LockNonceResponse {
   nonce: string
 }
 
+export interface ModifyLockNonceResponse {
+  user_address: Address
+  nonce: string
+}
+
 export interface TransferLockedNonceResponse {
   service_address: Address
   nonce: string
