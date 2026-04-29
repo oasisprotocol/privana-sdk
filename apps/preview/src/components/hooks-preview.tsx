@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useTokenInfo, useTokenList } from '@oasisprotocol/flexvaults-sdk'
-import { Skeleton } from '../../../../packages/sdk/src/components/ui/skeleton'
+import { Skeleton } from '@oasisprotocol/flexvaults-sdk'
 import { SectionLabel } from './preview-layout'
 
 export function HooksPreview() {
