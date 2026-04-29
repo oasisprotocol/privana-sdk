@@ -7,7 +7,7 @@ dist/
 out/
 build/
 *.compiled.css
-packages/sdk/src/compiled.css
+sdk/js/src/compiled.css
 
 # turbo
 .turbo/
