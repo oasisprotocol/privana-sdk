@@ -81,6 +81,11 @@ export interface BatchBalancesRequest {
   token_ids: Bytes32[]
 }
 
+export interface HistoryRequest {
+  offset?: number
+  limit?: number
+}
+
 export interface SiweLoginRequest {
   siwe_message: string
   signature: HexString

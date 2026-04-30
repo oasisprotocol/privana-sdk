@@ -213,6 +213,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
           setIsWaitingForProcessing(false)
           verificationContextRef.current = null
           queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
+          queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
           onCreditedRef.current?.(hash, triggerResult)
           return
         }
@@ -253,6 +254,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
               setIsWaitingForProcessing(false)
               verificationContextRef.current = null
               queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
+              queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
               onCreditedRef.current?.(hash, result)
               return true
             }

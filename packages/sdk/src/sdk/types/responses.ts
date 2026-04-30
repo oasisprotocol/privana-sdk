@@ -45,6 +45,29 @@ export interface BatchBalancesResponse {
   balances: TokenBalance[]
 }
 
+export type HistoryKind =
+  | 'deposit'
+  | 'withdraw'
+  | 'createLock'
+  | 'transferFromLock'
+  | 'transferBalance'
+  | 'unknown'
+
+export interface HistoryEntry {
+  kind: HistoryKind
+  timestamp: number
+  token_id?: Bytes32 | null
+  amount?: string | null
+  counterparty?: Address | null
+  deposit_id?: Bytes32 | null
+  chain_id?: number | null
+}
+
+export interface HistoryResponse {
+  history: HistoryEntry[]
+  total: number
+}
+
 export interface TokenInfoResponse {
   token_id: Bytes32
   token_type: number

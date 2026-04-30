@@ -35,8 +35,11 @@ asyncio.run(main())
 
 ## Direct SIWE Private Reads
 
-Private read endpoints such as balances and locked funds use the backend's direct SIWE flow.
+Private read endpoints such as balances, history, and locked funds use the backend's direct SIWE flow.
 The Python SDK exposes the raw helpers and token setters rather than a hosted auth-code wrapper.
+`get_history(offset=-1, limit=50)` returns one page; non-negative offsets count pages from the
+oldest entries, negative offsets count from the end, each page is oldest-to-newest, and `limit`
+must be between 0 and 100.
 
 ```python
 import asyncio
@@ -54,7 +57,8 @@ async def main():
         )
 
         balance = await client.get_balance("0xTokenId")
-        print(domain.domain, nonce.nonce, login.address, balance.balance)
+        history = await client.get_history()
+        print(domain.domain, nonce.nonce, login.address, balance.balance, history.total)
 
 asyncio.run(main())
 ```
@@ -100,6 +104,7 @@ signature = sign_lock_message(
   - `check_deposit(request)` - Verify a deposit and trigger credit
   - `get_balance(token_id)` - Get token balance for the authenticated user
   - `get_batch_balances(request)` - Get multiple token balances
+  - `get_history(offset=-1, limit=50)` - Get one authenticated history page
   - `get_token_info(token_id)` - Get token information
   - `lock_funds(request)` - Lock funds for a service
   - `get_lock_nonce(user_address)` - Get next create-lock nonce

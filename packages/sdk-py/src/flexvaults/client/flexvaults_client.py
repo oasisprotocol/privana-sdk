@@ -31,6 +31,8 @@ from ..types.responses import (
     DepositAddressResponse,
     DepositCheckResponse,
     ExpiredLocksResponse,
+    HistoryEntry,
+    HistoryResponse,
     HostedAuthTokenExchangeResponse,
     JwtLogoutResponse,
     JwtRefreshResponse,
@@ -62,6 +64,7 @@ from .http_client import HttpClient
 
 PRIVATE_READ_TOKEN_HEADER = "X-SIWE-Token"
 MAX_BATCH_BALANCE_TOKEN_IDS = 100
+MAX_HISTORY_PAGE_SIZE = 100
 
 
 def _parse_lock_info(data: dict[str, Any]) -> LockInfo:
@@ -82,6 +85,18 @@ def _parse_token_balance(data: dict[str, Any]) -> TokenBalance:
         balance=data["balance"],
         token_symbol=data["token_symbol"],
         chain_id=data["chain_id"],
+    )
+
+
+def _parse_history_entry(data: dict[str, Any]) -> HistoryEntry:
+    return HistoryEntry(
+        kind=data["kind"],
+        timestamp=data["timestamp"],
+        token_id=data.get("token_id"),
+        amount=data.get("amount"),
+        counterparty=data.get("counterparty"),
+        deposit_id=data.get("deposit_id"),
+        chain_id=data.get("chain_id"),
     )
 
 
@@ -224,6 +239,23 @@ class FlexvaultsClient:
         return BatchBalancesResponse(
             user_address=data["user_address"],
             balances=[_parse_token_balance(b) for b in data.get("balances", [])],
+        )
+
+    async def get_history(self, offset: int = -1, limit: int = 50) -> HistoryResponse:
+        if not isinstance(offset, int) or isinstance(offset, bool):
+            raise TypeError("History offset must be an integer")
+        if not isinstance(limit, int) or isinstance(limit, bool):
+            raise TypeError("History limit must be an integer")
+        if limit < 0 or limit > MAX_HISTORY_PAGE_SIZE:
+            raise ValueError(
+                f"History requests support between 0 and {MAX_HISTORY_PAGE_SIZE} entries"
+            )
+
+        params = urlencode({"offset": offset, "limit": limit})
+        data = await self._http.get(f"/v1/accounting/history?{params}")
+        return HistoryResponse(
+            history=[_parse_history_entry(entry) for entry in data.get("history", [])],
+            total=data["total"],
         )
 
     async def get_token_info(self, token_id: str) -> TokenInfoResponse:

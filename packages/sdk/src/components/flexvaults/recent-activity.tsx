@@ -1,11 +1,32 @@
 'use client'
 
-import { useAccount } from 'wagmi'
-import { usePendingWithdrawals } from '@/sdk/hooks'
-import { formatTokenAmount } from '@/lib/utils'
+import { formatRelativeTime, formatTokenAmount, shortenAddress } from '@/lib/utils'
 import { useFlexvaultsContext } from '@/sdk/context/flexvaults-provider'
-import { getExplorerAddressUrl } from '@/sdk/types/chains'
+import { useHistory, useSafeAccount } from '@/sdk/hooks'
+import type { HistoryEntry, HistoryKind } from '@/sdk/types'
 import { getTokenIcon } from './token-icons'
+
+const ACTIVITY_LABELS: Record<HistoryKind, string> = {
+  deposit: 'Deposit',
+  withdraw: 'Withdrawal',
+  createLock: 'Lock Created',
+  transferFromLock: 'Locked Transfer',
+  transferBalance: 'Transfer',
+  unknown: 'Activity',
+}
+
+const ACTIVITY_DOT_CLASS: Record<HistoryKind, string> = {
+  deposit: 'bg-emerald-400',
+  withdraw: 'bg-amber-400',
+  createLock: 'bg-blue-400',
+  transferFromLock: 'bg-violet-400',
+  transferBalance: 'bg-cyan-400',
+  unknown: 'bg-zinc-500',
+}
+
+function shortenHex(value: string): string {
+  return value.length > 18 ? `${value.slice(0, 10)}...${value.slice(-6)}` : value
+}
 
 function Skeleton() {
   return (
@@ -27,20 +48,63 @@ function Skeleton() {
   )
 }
 
-export function RecentActivity() {
-  const { address } = useAccount()
-  const { getTokenById, getChainById, chains } = useFlexvaultsContext()
-  const { withdrawals, isLoading } = usePendingWithdrawals()
+function formatEntryAmount(entry: HistoryEntry, tokenSymbol?: string, decimals?: number): string {
+  if (!entry.amount) {
+    return '-'
+  }
+  if (tokenSymbol && decimals !== undefined) {
+    return `${formatTokenAmount(String(entry.amount), decimals)} ${tokenSymbol}`
+  }
+  if (entry.token_id) {
+    return `${entry.amount} ${shortenHex(entry.token_id)}`
+  }
+  return entry.amount
+}
 
-  if (!address) {
-    return <span className="text-xs text-zinc-600">Connect wallet</span>
+function getCounterpartyText(entry: HistoryEntry): string | null {
+  if (!entry.counterparty) {
+    return null
+  }
+
+  const counterparty = shortenAddress(entry.counterparty)
+  if (entry.kind === 'createLock') return `Service ${counterparty}`
+  if (
+    entry.kind === 'withdraw' ||
+    entry.kind === 'transferFromLock' ||
+    entry.kind === 'transferBalance'
+  ) {
+    return `To ${counterparty}`
+  }
+  return counterparty
+}
+
+export function RecentActivity() {
+  const { address } = useSafeAccount()
+  const { getTokenById, getChainById, hostedAuthConfig, hostedAuthSession } = useFlexvaultsContext()
+  const { history, isError, isLoading } = useHistory({ offset: -1, limit: 5 })
+  const privateReadAddress = hostedAuthConfig ? hostedAuthSession?.address : address
+
+  if (!privateReadAddress) {
+    return (
+      <span className="text-xs text-zinc-600">
+        {hostedAuthConfig ? 'Sign in' : 'Connect wallet'}
+      </span>
+    )
   }
 
   if (isLoading) {
     return <Skeleton />
   }
 
-  if (withdrawals.length === 0) {
+  if (isError) {
+    return (
+      <div className="flex items-center justify-center rounded-lg border border-zinc-800 bg-zinc-800/50 px-3 py-2.5">
+        <span className="text-xs text-zinc-500">Activity unavailable</span>
+      </div>
+    )
+  }
+
+  if (history.length === 0) {
     return (
       <div className="flex items-center justify-center rounded-lg border border-zinc-800 bg-zinc-800/50 px-3 py-2.5">
         <span className="text-xs text-zinc-500">No activity</span>
@@ -50,69 +114,43 @@ export function RecentActivity() {
 
   return (
     <div className="space-y-2">
-      {withdrawals.map((withdrawal) => {
-        const token = getTokenById(withdrawal.token_id)
-        const chain = (token?.chainId ? getChainById(token.chainId) : undefined) ?? chains[0]
-        const explorerUrl = address && chain ? getExplorerAddressUrl(chain.id, address) : undefined
-        const formattedAmount = formatTokenAmount(String(withdrawal.amount), token?.decimals ?? 18)
-        // Pending withdrawals endpoint only returns unresolved withdrawals
-        const isPending = !withdrawal.resolved
+      {history
+        .slice()
+        .reverse()
+        .map((entry, index) => {
+          const token = entry.token_id ? getTokenById(entry.token_id) : undefined
+          const chainId = entry.chain_id ?? token?.chainId
+          const chain = chainId ? getChainById(chainId) : undefined
+          const amount = formatEntryAmount(entry, token?.symbol, token?.decimals)
+          const counterpartyText = getCounterpartyText(entry)
+          const detail = [counterpartyText, chain?.name].filter(Boolean).join(' / ')
 
-        return (
-          <div
-            key={withdrawal.index}
-            className="rounded-lg border border-zinc-800 bg-zinc-800/50 px-3 py-2.5"
-          >
-            <div className="mb-1.5 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    isPending ? 'animate-pulse bg-blue-400' : 'bg-emerald-400'
-                  }`}
-                />
-                <span className="text-xs text-zinc-400">Withdrawal</span>
-                {isPending ? (
-                  <span className="rounded bg-blue-500/20 px-1.5 py-0.5 text-[10px] text-blue-400">
-                    Processing
+          return (
+            <div
+              key={`${entry.kind}-${entry.timestamp}-${entry.token_id ?? ''}-${entry.deposit_id ?? ''}-${index}`}
+              className="rounded-lg border border-zinc-800 bg-zinc-800/50 px-3 py-2.5"
+            >
+              <div className="mb-1.5 flex items-center justify-between">
+                <div className="flex min-w-0 items-center gap-2">
+                  <div
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${ACTIVITY_DOT_CLASS[entry.kind]}`}
+                  />
+                  <span className="truncate text-xs text-zinc-400">
+                    {ACTIVITY_LABELS[entry.kind]}
                   </span>
-                ) : explorerUrl ? (
-                  <a
-                    href={explorerUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] text-emerald-400 transition-colors hover:bg-emerald-500/30"
-                  >
-                    Completed
-                    <svg width="8" height="8" viewBox="0 0 12 12" fill="none">
-                      <path
-                        d="M3.5 1.5h7v7M10.5 1.5L1.5 10.5"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </a>
-                ) : (
-                  <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] text-emerald-400">
-                    Completed
-                  </span>
-                )}
+                </div>
+                <div className="flex max-w-[55%] shrink-0 items-center gap-1.5">
+                  {token && getTokenIcon(token.symbol, 14)}
+                  <span className="truncate text-sm font-medium text-zinc-200">{amount}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                {token && getTokenIcon(token.symbol, 14)}
-                <span className="text-sm font-medium text-zinc-200">
-                  {formattedAmount} {token?.symbol ?? '?'}
-                </span>
+              <div className="flex items-center justify-between text-[10px] text-zinc-500">
+                <span className="min-w-0 truncate">{detail || 'Unknown Chain'}</span>
+                <span className="shrink-0 pl-2">{formatRelativeTime(entry.timestamp)}</span>
               </div>
             </div>
-            <div className="flex items-center justify-between text-[10px] text-zinc-500">
-              <span>{chain?.name ?? 'Unknown Chain'}</span>
-              <span>Block #{withdrawal.block_number}</span>
-            </div>
-          </div>
-        )
-      })}
+          )
+        })}
     </div>
   )
 }

@@ -74,6 +74,7 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
     onSuccess: (data) => {
       options.onSuccess?.(data)
       queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
+      queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
     },
     onError: (error) => {
       options.onError?.(error as Error)
@@ -120,6 +121,7 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
       queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
       queryClient.invalidateQueries({ queryKey: ['accounting-locked-funds'] })
       queryClient.invalidateQueries({ queryKey: ['accounting-total-locked-balance'] })
+      queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
     },
     onError: (error) => {
       options.onError?.(error as Error)
