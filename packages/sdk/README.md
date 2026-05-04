@@ -94,8 +94,12 @@ function CustomWallet() {
 
 ## Private Reads
 
-`useBalance`, `useBatchBalances`, `useLockedFunds`, `useExpiredLocks`, and `useTotalLockedBalance`
-support two auth modes:
+`useBalance`, `useBatchBalances`, `useHistory`, `useLockedFunds`, `useExpiredLocks`, and
+`useTotalLockedBalance` support two auth modes:
+
+`useHistory({ offset: -1, limit: 50 })` fetches one authenticated history page. Non-negative
+offsets count pages from the oldest entries, negative offsets count from the end, and each page is
+returned oldest-to-newest. `limit` must be between 0 and 100.
 
 ### Direct SIWE private reads
 
@@ -228,6 +232,7 @@ A customizable button that opens the wallet modal.
 | `useTransfer`           | Transfer tokens                        |
 | `useLockedFunds`        | Get list of locked funds               |
 | `useTotalLockedBalance` | Get total locked balance for one token |
+| `useHistory`            | Get authenticated account activity     |
 | `usePendingWithdrawals` | Get pending withdrawal requests        |
 | `useExpiredLocks`       | Get expired locks that can be claimed  |
 | `useTokenList`          | List all registered tokens             |

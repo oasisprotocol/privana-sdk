@@ -15,6 +15,7 @@ import type {
   JwtRefreshResponse,
   LockFundsRequest,
   ModifyLockRequest,
+  HistoryRequest,
   UnlockFundsRequest,
   UnlockAllExpiredRequest,
   TransferFundsRequest,
@@ -25,6 +26,7 @@ import type {
   TransactionSubmissionResponse,
   BalanceResponse,
   BatchBalancesResponse,
+  HistoryResponse,
   TokenInfoResponse,
   LockedFundsResponse,
   ExpiredLocksResponse,
@@ -47,6 +49,7 @@ import { normalizeAddress, normalizeHex } from '../types'
 export type FlexvaultsClientConfig = HttpClientConfig
 const PRIVATE_READ_TOKEN_HEADER = 'X-SIWE-Token'
 const MAX_BATCH_BALANCE_TOKEN_IDS = 100
+const MAX_HISTORY_PAGE_SIZE = 100
 
 export class FlexvaultsClient {
   private readonly http: HttpClient
@@ -96,6 +99,27 @@ export class FlexvaultsClient {
     return this.http.post<BatchBalancesResponse>('/v1/accounting/balances/batch', {
       token_ids: request.token_ids.map((id) => normalizeHex(id)),
     })
+  }
+
+  async getHistory(request: HistoryRequest = {}): Promise<HistoryResponse> {
+    const offset = request.offset ?? -1
+    const limit = request.limit ?? 50
+
+    if (!Number.isSafeInteger(offset)) {
+      throw new Error('History offset must be an integer')
+    }
+    if (!Number.isSafeInteger(limit)) {
+      throw new Error('History limit must be an integer')
+    }
+    if (limit < 0 || limit > MAX_HISTORY_PAGE_SIZE) {
+      throw new Error(`History requests support between 0 and ${MAX_HISTORY_PAGE_SIZE} entries`)
+    }
+
+    const params = new URLSearchParams({
+      offset: String(offset),
+      limit: String(limit),
+    })
+    return this.http.get<HistoryResponse>(`/v1/accounting/history?${params.toString()}`)
   }
 
   async listTokens(): Promise<TokenListResponse> {

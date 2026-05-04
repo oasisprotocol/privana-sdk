@@ -52,6 +52,33 @@ class BatchBalancesResponse:
     balances: list[TokenBalance] = field(default_factory=list)
 
 
+HistoryKind = Literal[
+    "deposit",
+    "withdraw",
+    "createLock",
+    "transferFromLock",
+    "transferBalance",
+    "unknown",
+]
+
+
+@dataclass
+class HistoryEntry:
+    kind: HistoryKind
+    timestamp: int
+    token_id: Bytes32 | None = None
+    amount: str | None = None
+    counterparty: Address | None = None
+    deposit_id: Bytes32 | None = None
+    chain_id: int | None = None
+
+
+@dataclass
+class HistoryResponse:
+    history: list[HistoryEntry] = field(default_factory=list)
+    total: int = 0
+
+
 @dataclass
 class TokenInfoResponse:
     token_id: Bytes32

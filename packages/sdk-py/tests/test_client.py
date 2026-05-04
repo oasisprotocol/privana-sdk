@@ -23,6 +23,8 @@ from flexvaults.types.requests import (
 )
 
 BASE_URL = "https://api.test.example.com"
+HISTORY_TOKEN_ID = "0x1111111111111111111111111111111111111111111111111111111111111111"
+HISTORY_DEPOSIT_ID = "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 
 
 @pytest.fixture
@@ -68,6 +70,73 @@ class TestGetBalance:
 
         result = await client.get_balance("0xTOKEN456")
         assert result.balance == "0"
+
+
+class TestGetHistory:
+    @respx.mock
+    async def test_get_history_defaults(self, client):
+        respx.get(f"{BASE_URL}/v1/accounting/history?offset=-1&limit=50").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "history": [
+                        {
+                            "kind": "deposit",
+                            "timestamp": 1710000000,
+                            "token_id": HISTORY_TOKEN_ID,
+                            "amount": "1000",
+                            "counterparty": None,
+                            "deposit_id": HISTORY_DEPOSIT_ID,
+                            "chain_id": 84532,
+                        },
+                        {
+                            "kind": "unknown",
+                            "timestamp": 1710000001,
+                            "token_id": None,
+                            "amount": None,
+                            "counterparty": None,
+                            "deposit_id": None,
+                            "chain_id": None,
+                        },
+                    ],
+                    "total": 2,
+                },
+            )
+        )
+
+        result = await client.get_history()
+        assert result.total == 2
+        assert result.history[0].kind == "deposit"
+        assert result.history[0].token_id == HISTORY_TOKEN_ID
+        assert result.history[0].deposit_id == HISTORY_DEPOSIT_ID
+        assert result.history[0].chain_id == 84532
+        assert result.history[1].kind == "unknown"
+        assert result.history[1].token_id is None
+
+    @respx.mock
+    async def test_get_history_uses_page_parameters_only(self, client):
+        def handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.params["offset"] == "2"
+            assert request.url.params["limit"] == "0"
+            assert "user_address" not in request.url.params
+            return httpx.Response(200, json={"history": [], "total": 0})
+
+        respx.get(f"{BASE_URL}/v1/accounting/history?offset=2&limit=0").mock(side_effect=handler)
+
+        result = await client.get_history(offset=2, limit=0)
+        assert result.history == []
+        assert result.total == 0
+
+    async def test_get_history_rejects_invalid_limit(self, client):
+        with pytest.raises(ValueError, match="between 0 and 100"):
+            await client.get_history(limit=101)
+
+    async def test_get_history_rejects_non_integer_pagination(self, client):
+        with pytest.raises(TypeError, match="offset"):
+            await client.get_history(offset="2&user_address=0xabc")  # type: ignore[arg-type]
+
+        with pytest.raises(TypeError, match="limit"):
+            await client.get_history(limit=1.5)  # type: ignore[arg-type]
 
 
 class TestGetDepositAddress:

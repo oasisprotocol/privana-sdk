@@ -161,6 +161,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
 
         onSubmitSuccessRef.current?.(submissionResponse)
         onSuccessRef.current?.(submissionResponse)
+        queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
 
         // 5. Poll for withdrawal completion
         setCurrentStep('processing')
