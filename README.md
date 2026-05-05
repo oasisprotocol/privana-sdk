@@ -43,8 +43,9 @@ bun run format
 ```
 ├── apps/
 │   └── preview/              # Next.js preview app
-├── packages/
-│   └── sdk/                  # Publishable SDK package
+├── sdk/
+│   ├── js/                   # JS/TS SDK package
+│   └── py/                   # Python SDK package
 ├── turbo.json                # Turborepo config
 └── package.json              # Workspace root
 ```

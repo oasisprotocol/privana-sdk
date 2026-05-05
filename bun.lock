@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "encumbered-accounting",
@@ -45,9 +46,9 @@
         "typescript": "^5",
       },
     },
-    "packages/sdk": {
+    "sdk/js": {
       "name": "@oasisprotocol/flexvaults-sdk",
-      "version": "0.1.0",
+      "version": "0.1.13",
       "dependencies": {
         "@radix-ui/react-dialog": "^1.1.15",
         "@radix-ui/react-dropdown-menu": "^2.1.16",
@@ -355,7 +356,7 @@
 
     "@nolyfill/is-core-module": ["@nolyfill/is-core-module@1.0.39", "", {}, "sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA=="],
 
-    "@oasisprotocol/flexvaults-sdk": ["@oasisprotocol/flexvaults-sdk@workspace:packages/sdk"],
+    "@oasisprotocol/flexvaults-sdk": ["@oasisprotocol/flexvaults-sdk@workspace:sdk/js"],
 
     "@paulmillr/qr": ["@paulmillr/qr@0.2.1", "", {}, "sha512-IHnV6A+zxU7XwmKFinmYjUcwlyK9+xkG3/s9KcQhI9BjQKycrJ1JRO+FbNYPwZiPKW3je/DR0k7w8/gLa5eaxQ=="],
 

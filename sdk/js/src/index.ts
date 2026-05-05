@@ -11,4 +11,6 @@ export { FlexvaultsModal, FlexvaultsInlineModal } from './components/flexvaults/
 
 export { Button, buttonVariants } from './components/ui/button'
 
+export { Skeleton } from './components/ui/skeleton'
+
 export { getTokenIcon, getChainIcon } from './components/flexvaults/token-icons'
