@@ -54,7 +54,6 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
         chainId: networkConfig.chainId,
         verifyingContract: networkConfig.accountingContract,
         message: {
-          userAddress: address,
           toAddress: params.toAddress,
           tokenId: params.tokenId,
           amount: params.amount,
@@ -63,7 +62,6 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
       })
 
       return client.transferFunds({
-        user_address: address,
         to_address: params.toAddress,
         token_id: params.tokenId,
         amount: params.amount.toString(),

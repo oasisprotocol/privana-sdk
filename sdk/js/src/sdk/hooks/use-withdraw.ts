@@ -140,7 +140,6 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
           chainId: signingChainId,
           verifyingContract: networkConfig.accountingContract,
           message: {
-            userAddress: address,
             tokenId: params.tokenId,
             amount: params.amount,
             nonce,
@@ -151,7 +150,6 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
         // 4. Submit to API
         setCurrentStep('submitting')
         const submissionResponse = await client.requestWithdrawal({
-          user_address: address,
           token_id: params.tokenId,
           amount: params.amount.toString(),
           nonce: String(nonce),

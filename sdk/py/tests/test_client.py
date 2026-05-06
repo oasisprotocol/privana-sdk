@@ -226,18 +226,23 @@ class TestGetDepositStatus:
 class TestLockFunds:
     @respx.mock
     async def test_lock_funds(self, client):
-        respx.post(f"{BASE_URL}/v1/accounting/funds/lock").mock(
-            return_value=httpx.Response(
-                200,
-                json={
-                    "status": "submitted",
-                },
-            )
-        )
+        def handler(request: httpx.Request) -> httpx.Response:
+            body = json.loads(request.content.decode())
+            assert body == {
+                "service_address": "0xservice",
+                "token_id": "0xtoken",
+                "amount": "1000",
+                "expiry": "9999999999",
+                "nonce": "0",
+                "signature": "0xsig",
+            }
+            assert "user_address" not in body
+            return httpx.Response(200, json={"status": "submitted"})
+
+        respx.post(f"{BASE_URL}/v1/accounting/funds/lock").mock(side_effect=handler)
 
         result = await client.lock_funds(
             LockFundsRequest(
-                user_address="0xuser",
                 service_address="0xservice",
                 token_id="0xtoken",
                 amount=1000,
@@ -252,18 +257,22 @@ class TestLockFunds:
 class TestModifyLock:
     @respx.mock
     async def test_modify_lock(self, client):
-        respx.post(f"{BASE_URL}/v1/accounting/funds/modify-lock").mock(
-            return_value=httpx.Response(
-                200,
-                json={
-                    "status": "submitted",
-                },
-            )
-        )
+        def handler(request: httpx.Request) -> httpx.Response:
+            body = json.loads(request.content.decode())
+            assert body == {
+                "lock_id": 1,
+                "amount": "500",
+                "new_expiry": "9999999999",
+                "nonce": "1",
+                "signature": "0xsig",
+            }
+            assert "user_address" not in body
+            return httpx.Response(200, json={"status": "submitted"})
+
+        respx.post(f"{BASE_URL}/v1/accounting/funds/modify-lock").mock(side_effect=handler)
 
         result = await client.modify_lock(
             ModifyLockRequest(
-                user_address="0xuser",
                 lock_id=1,
                 amount=500,
                 new_expiry=9999999999,
@@ -354,18 +363,22 @@ class TestLockedFunds:
 class TestTransfer:
     @respx.mock
     async def test_transfer_funds(self, client):
-        respx.post(f"{BASE_URL}/v1/accounting/funds/transfer").mock(
-            return_value=httpx.Response(
-                200,
-                json={
-                    "status": "submitted",
-                },
-            )
-        )
+        def handler(request: httpx.Request) -> httpx.Response:
+            body = json.loads(request.content.decode())
+            assert body == {
+                "to_address": "0xto",
+                "token_id": "0xtoken",
+                "amount": "100",
+                "nonce": "1",
+                "signature": "0xsig",
+            }
+            assert "user_address" not in body
+            return httpx.Response(200, json={"status": "submitted"})
+
+        respx.post(f"{BASE_URL}/v1/accounting/funds/transfer").mock(side_effect=handler)
 
         result = await client.transfer_funds(
             TransferFundsRequest(
-                user_address="0xfrom",
                 to_address="0xto",
                 token_id="0xtoken",
                 amount=100,
@@ -403,18 +416,21 @@ class TestTransfer:
 class TestWithdrawal:
     @respx.mock
     async def test_request_withdrawal(self, client):
-        respx.post(f"{BASE_URL}/v1/accounting/withdraw").mock(
-            return_value=httpx.Response(
-                200,
-                json={
-                    "status": "submitted",
-                },
-            )
-        )
+        def handler(request: httpx.Request) -> httpx.Response:
+            body = json.loads(request.content.decode())
+            assert body == {
+                "token_id": "0xtoken",
+                "amount": "100",
+                "nonce": "0",
+                "signature": "0xsig",
+            }
+            assert "user_address" not in body
+            return httpx.Response(200, json={"status": "submitted"})
+
+        respx.post(f"{BASE_URL}/v1/accounting/withdraw").mock(side_effect=handler)
 
         result = await client.request_withdrawal(
             WithdrawalRequest(
-                user_address="0xuser",
                 token_id="0xtoken",
                 amount=100,
                 nonce=0,

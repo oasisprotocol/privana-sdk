@@ -70,7 +70,6 @@ class TestSignLockMessage:
                 network="testnet",
                 verifying_contract=CONTRACT_ADDRESS,
                 message=LockMessage(
-                    user_address=TEST_ADDRESS,
                     service_address=SERVICE_ADDRESS,
                     token_id=TOKEN_ID,
                     amount=1000000,
@@ -88,7 +87,6 @@ class TestSignLockMessage:
             network="testnet",
             verifying_contract=CONTRACT_ADDRESS,
             message=LockMessage(
-                user_address=TEST_ADDRESS,
                 service_address=SERVICE_ADDRESS,
                 token_id=TOKEN_ID,
                 amount=1000000,
@@ -109,7 +107,6 @@ class TestSignModifyLockMessage:
                 network="testnet",
                 verifying_contract=CONTRACT_ADDRESS,
                 message=ModifyLockMessage(
-                    user_address=TEST_ADDRESS,
                     lock_id=1,
                     amount=500000,
                     new_expiry=9999999999,
@@ -129,7 +126,6 @@ class TestSignTransferMessage:
                 network="testnet",
                 verifying_contract=CONTRACT_ADDRESS,
                 message=TransferMessage(
-                    user_address=TEST_ADDRESS,
                     to_address=SERVICE_ADDRESS,
                     token_id=TOKEN_ID,
                     amount=500000,
@@ -170,7 +166,6 @@ class TestSignWithdrawMessage:
                 network="testnet",
                 verifying_contract=CONTRACT_ADDRESS,
                 message=WithdrawMessage(
-                    user_address=TEST_ADDRESS,
                     token_id=TOKEN_ID,
                     amount=100000,
                     nonce=0,
@@ -190,7 +185,6 @@ class TestSignWithdrawMessage:
             SignWithdrawParams(
                 **base_params,
                 message=WithdrawMessage(
-                    user_address=TEST_ADDRESS,
                     token_id=TOKEN_ID,
                     amount=100000,
                     nonce=0,
@@ -201,7 +195,6 @@ class TestSignWithdrawMessage:
             SignWithdrawParams(
                 **base_params,
                 message=WithdrawMessage(
-                    user_address=TEST_ADDRESS,
                     token_id=TOKEN_ID,
                     amount=100000,
                     nonce=1,
@@ -214,20 +207,47 @@ class TestSignWithdrawMessage:
 class TestEIP712Types:
     def test_lock_types_structure(self):
         assert "Lock" in LOCK_TYPES
-        assert len(LOCK_TYPES["Lock"]) == 6
+        assert [field["name"] for field in LOCK_TYPES["Lock"]] == [
+            "serviceAddress",
+            "tokenId",
+            "amount",
+            "expiry",
+            "nonce",
+        ]
 
     def test_modify_lock_types_structure(self):
         assert "ModifyLock" in MODIFY_LOCK_TYPES
-        assert len(MODIFY_LOCK_TYPES["ModifyLock"]) == 5
+        assert [field["name"] for field in MODIFY_LOCK_TYPES["ModifyLock"]] == [
+            "lockId",
+            "amount",
+            "newExpiry",
+            "nonce",
+        ]
 
     def test_transfer_types_structure(self):
         assert "Transfer" in TRANSFER_TYPES
-        assert len(TRANSFER_TYPES["Transfer"]) == 5
+        assert [field["name"] for field in TRANSFER_TYPES["Transfer"]] == [
+            "toAddress",
+            "tokenId",
+            "amount",
+            "nonce",
+        ]
 
     def test_transfer_locked_types_structure(self):
         assert "TransferLocked" in TRANSFER_LOCKED_TYPES
-        assert len(TRANSFER_LOCKED_TYPES["TransferLocked"]) == 6
+        assert [field["name"] for field in TRANSFER_LOCKED_TYPES["TransferLocked"]] == [
+            "userAddress",
+            "toAddress",
+            "lockId",
+            "amount",
+            "nonce",
+            "serviceAddress",
+        ]
 
     def test_withdraw_types_structure(self):
         assert "Withdraw" in WITHDRAW_TYPES
-        assert len(WITHDRAW_TYPES["Withdraw"]) == 4
+        assert [field["name"] for field in WITHDRAW_TYPES["Withdraw"]] == [
+            "tokenId",
+            "amount",
+            "nonce",
+        ]

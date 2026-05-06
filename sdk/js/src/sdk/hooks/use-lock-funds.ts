@@ -48,7 +48,6 @@ export function useLockFunds(options: UseLockFundsOptions = {}): UseLockFundsRes
         chainId: networkConfig.chainId,
         verifyingContract: networkConfig.accountingContract,
         message: {
-          userAddress: address,
           serviceAddress,
           tokenId: params.tokenId,
           amount: params.amount,
@@ -58,7 +57,6 @@ export function useLockFunds(options: UseLockFundsOptions = {}): UseLockFundsRes
       })
 
       return client.lockFunds({
-        user_address: address,
         service_address: serviceAddress,
         token_id: params.tokenId,
         amount: params.amount.toString(),

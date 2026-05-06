@@ -21,7 +21,6 @@ def sign_modify_lock_message(params: SignModifyLockParams) -> HexString:
     domain = create_domain(params.network, params.verifying_contract)
 
     message_data = {
-        "userAddress": params.message.user_address,
         "lockId": params.message.lock_id,
         "amount": params.message.amount,
         "newExpiry": params.message.new_expiry,

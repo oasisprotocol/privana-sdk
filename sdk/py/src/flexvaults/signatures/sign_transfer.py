@@ -21,7 +21,6 @@ def sign_transfer_message(params: SignTransferParams) -> HexString:
     domain = create_domain(params.network, params.verifying_contract)
 
     message_data = {
-        "userAddress": params.message.user_address,
         "toAddress": params.message.to_address,
         "tokenId": hex_to_bytes(params.message.token_id),
         "amount": params.message.amount,

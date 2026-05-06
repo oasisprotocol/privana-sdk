@@ -18,7 +18,6 @@ export function createDomain(chainId: number, verifyingContract: Address): EIP71
 
 export const LOCK_TYPES = {
   Lock: [
-    { name: 'userAddress', type: 'address' },
     { name: 'serviceAddress', type: 'address' },
     { name: 'tokenId', type: 'bytes32' },
     { name: 'amount', type: 'uint256' },
@@ -29,7 +28,6 @@ export const LOCK_TYPES = {
 
 export const TRANSFER_TYPES = {
   Transfer: [
-    { name: 'userAddress', type: 'address' },
     { name: 'toAddress', type: 'address' },
     { name: 'tokenId', type: 'bytes32' },
     { name: 'amount', type: 'uint256' },
@@ -50,7 +48,6 @@ export const TRANSFER_LOCKED_TYPES = {
 
 export const WITHDRAW_TYPES = {
   Withdraw: [
-    { name: 'userAddress', type: 'address' },
     { name: 'tokenId', type: 'bytes32' },
     { name: 'amount', type: 'uint256' },
     { name: 'nonce', type: 'uint256' },
@@ -59,7 +56,6 @@ export const WITHDRAW_TYPES = {
 
 export const MODIFY_LOCK_TYPES = {
   ModifyLock: [
-    { name: 'userAddress', type: 'address' },
     { name: 'lockId', type: 'uint256' },
     { name: 'amount', type: 'uint256' },
     { name: 'newExpiry', type: 'uint256' },
@@ -78,7 +74,6 @@ export const WITHDRAW_FROM_LOCK_TYPES = {
 } as const
 
 export interface LockMessage {
-  userAddress: Address
   serviceAddress: Address
   tokenId: Bytes32
   amount: bigint
@@ -87,7 +82,6 @@ export interface LockMessage {
 }
 
 export interface TransferMessage {
-  userAddress: Address
   toAddress: Address
   tokenId: Bytes32
   amount: bigint
@@ -104,14 +98,12 @@ export interface TransferLockedMessage {
 }
 
 export interface WithdrawMessage {
-  userAddress: Address
   tokenId: Bytes32
   amount: bigint
   nonce: bigint
 }
 
 export interface ModifyLockMessage {
-  userAddress: Address
   lockId: bigint
   amount: bigint
   newExpiry: bigint

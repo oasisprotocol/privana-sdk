@@ -45,7 +45,6 @@ export function useModifyLock(options: UseModifyLockOptions = {}): UseModifyLock
         chainId: networkConfig.chainId,
         verifyingContract: networkConfig.accountingContract,
         message: {
-          userAddress: address,
           lockId: BigInt(params.lockId),
           amount: params.amount,
           newExpiry: params.newExpiry,
@@ -54,7 +53,6 @@ export function useModifyLock(options: UseModifyLockOptions = {}): UseModifyLock
       })
 
       return client.modifyLock({
-        user_address: address,
         lock_id: params.lockId,
         amount: params.amount.toString(),
         new_expiry: params.newExpiry.toString(),

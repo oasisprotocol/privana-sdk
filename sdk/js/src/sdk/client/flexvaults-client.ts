@@ -133,7 +133,6 @@ export class FlexvaultsClient {
 
   async lockFunds(request: LockFundsRequest): Promise<TransactionSubmissionResponse> {
     return this.http.post<TransactionSubmissionResponse>('/v1/accounting/funds/lock', {
-      user_address: normalizeAddress(request.user_address),
       service_address: normalizeAddress(request.service_address),
       token_id: normalizeHex(request.token_id),
       amount: String(request.amount),
@@ -145,7 +144,6 @@ export class FlexvaultsClient {
 
   async modifyLock(request: ModifyLockRequest): Promise<TransactionSubmissionResponse> {
     return this.http.post<TransactionSubmissionResponse>('/v1/accounting/funds/modify-lock', {
-      user_address: normalizeAddress(request.user_address),
       lock_id: request.lock_id,
       amount: String(request.amount),
       new_expiry: String(request.new_expiry),
@@ -186,7 +184,6 @@ export class FlexvaultsClient {
 
   async transferFunds(request: TransferFundsRequest): Promise<TransactionSubmissionResponse> {
     return this.http.post<TransactionSubmissionResponse>('/v1/accounting/funds/transfer', {
-      user_address: normalizeAddress(request.user_address),
       to_address: normalizeAddress(request.to_address),
       token_id: normalizeHex(request.token_id),
       amount: String(request.amount),
@@ -239,7 +236,6 @@ export class FlexvaultsClient {
 
   async requestWithdrawal(request: WithdrawalRequest): Promise<TransactionSubmissionResponse> {
     return this.http.post<TransactionSubmissionResponse>('/v1/accounting/withdraw', {
-      user_address: normalizeAddress(request.user_address),
       token_id: normalizeHex(request.token_id),
       amount: String(request.amount),
       nonce: String(request.nonce),

@@ -275,7 +275,6 @@ class FlexvaultsClient:
         data = await self._http.post(
             "/v1/accounting/funds/lock",
             {
-                "user_address": normalize_address(request.user_address),
                 "service_address": normalize_address(request.service_address),
                 "token_id": normalize_hex(request.token_id),
                 "amount": str(request.amount),
@@ -293,7 +292,6 @@ class FlexvaultsClient:
         data = await self._http.post(
             "/v1/accounting/funds/modify-lock",
             {
-                "user_address": normalize_address(request.user_address),
                 "lock_id": request.lock_id,
                 "amount": str(request.amount),
                 "new_expiry": str(request.new_expiry),
@@ -367,7 +365,6 @@ class FlexvaultsClient:
         data = await self._http.post(
             "/v1/accounting/funds/transfer",
             {
-                "user_address": normalize_address(request.user_address),
                 "to_address": normalize_address(request.to_address),
                 "token_id": normalize_hex(request.token_id),
                 "amount": str(request.amount),
@@ -447,7 +444,6 @@ class FlexvaultsClient:
         data = await self._http.post(
             "/v1/accounting/withdraw",
             {
-                "user_address": normalize_address(request.user_address),
                 "token_id": normalize_hex(request.token_id),
                 "amount": str(request.amount),
                 "nonce": str(request.nonce),
