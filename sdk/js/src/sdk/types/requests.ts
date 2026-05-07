@@ -15,7 +15,6 @@ export interface DepositCheckRequest {
 }
 
 export interface LockFundsRequest {
-  user_address: Address
   service_address: Address
   token_id: Bytes32
   amount: IntegerLike
@@ -25,7 +24,6 @@ export interface LockFundsRequest {
 }
 
 export interface ModifyLockRequest {
-  user_address: Address
   lock_id: number
   amount: IntegerLike
   new_expiry: IntegerLike
@@ -43,7 +41,6 @@ export interface UnlockAllExpiredRequest {
 }
 
 export interface TransferFundsRequest {
-  user_address: Address
   to_address: Address
   token_id: Bytes32
   amount: IntegerLike
@@ -62,7 +59,6 @@ export interface TransferLockedFundsRequest {
 }
 
 export interface WithdrawalRequest {
-  user_address: Address
   token_id: Bytes32
   amount: IntegerLike
   nonce: IntegerLike

@@ -24,7 +24,6 @@ def create_domain(network: Network, verifying_contract: Address) -> EIP712Domain
 
 LOCK_TYPES = {
     "Lock": [
-        {"name": "userAddress", "type": "address"},
         {"name": "serviceAddress", "type": "address"},
         {"name": "tokenId", "type": "bytes32"},
         {"name": "amount", "type": "uint256"},
@@ -35,7 +34,6 @@ LOCK_TYPES = {
 
 TRANSFER_TYPES = {
     "Transfer": [
-        {"name": "userAddress", "type": "address"},
         {"name": "toAddress", "type": "address"},
         {"name": "tokenId", "type": "bytes32"},
         {"name": "amount", "type": "uint256"},
@@ -56,7 +54,6 @@ TRANSFER_LOCKED_TYPES = {
 
 MODIFY_LOCK_TYPES = {
     "ModifyLock": [
-        {"name": "userAddress", "type": "address"},
         {"name": "lockId", "type": "uint256"},
         {"name": "amount", "type": "uint256"},
         {"name": "newExpiry", "type": "uint256"},
@@ -66,7 +63,6 @@ MODIFY_LOCK_TYPES = {
 
 WITHDRAW_TYPES = {
     "Withdraw": [
-        {"name": "userAddress", "type": "address"},
         {"name": "tokenId", "type": "bytes32"},
         {"name": "amount", "type": "uint256"},
         {"name": "nonce", "type": "uint256"},
@@ -86,7 +82,6 @@ WITHDRAW_FROM_LOCK_TYPES = {
 
 @dataclass
 class LockMessage:
-    user_address: Address
     service_address: Address
     token_id: Bytes32
     amount: int
@@ -96,7 +91,6 @@ class LockMessage:
 
 @dataclass
 class TransferMessage:
-    user_address: Address
     to_address: Address
     token_id: Bytes32
     amount: int
@@ -105,7 +99,6 @@ class TransferMessage:
 
 @dataclass
 class ModifyLockMessage:
-    user_address: Address
     lock_id: int
     amount: int
     new_expiry: int
@@ -124,7 +117,6 @@ class TransferLockedMessage:
 
 @dataclass
 class WithdrawMessage:
-    user_address: Address
     token_id: Bytes32
     amount: int
     nonce: int

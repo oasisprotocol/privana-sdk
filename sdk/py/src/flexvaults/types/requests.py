@@ -26,7 +26,6 @@ class DepositCheckRequest:
 
 @dataclass
 class LockFundsRequest:
-    user_address: Address
     service_address: Address
     token_id: Bytes32
     amount: int | str
@@ -37,7 +36,6 @@ class LockFundsRequest:
 
 @dataclass
 class ModifyLockRequest:
-    user_address: Address
     lock_id: int
     amount: int | str
     new_expiry: int | str
@@ -58,7 +56,6 @@ class UnlockAllExpiredRequest:
 
 @dataclass
 class TransferFundsRequest:
-    user_address: Address
     to_address: Address
     token_id: Bytes32
     amount: int | str
@@ -79,7 +76,6 @@ class TransferLockedFundsRequest:
 
 @dataclass
 class WithdrawalRequest:
-    user_address: Address
     token_id: Bytes32
     amount: int | str
     nonce: int | str

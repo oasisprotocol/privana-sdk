@@ -84,7 +84,6 @@ signature = sign_lock_message(
         network="testnet",
         verifying_contract=get_accounting_contract("testnet"),
         message=LockMessage(
-            user_address=account.address,
             service_address="0xServiceAddress",
             token_id="0xTokenId",
             amount=1000000,
