@@ -1,3 +1,5 @@
+> **⚠️ Deprecated**: This package has been renamed to [@oasisprotocol/privana-sdk](https://www.npmjs.com/package/@oasisprotocol/privana-sdk). Please update your dependencies.
+
 # @oasisprotocol/flexvaults-sdk
 
 React SDK for Flexvaults - manage deposits, withdrawals, locks, and transfers with ease.

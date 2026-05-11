@@ -1,5 +1,6 @@
 {
   "name": "@oasisprotocol/flexvaults-sdk",
+  "deprecated": "This package has been renamed to @oasisprotocol/privana-sdk. Please install @oasisprotocol/privana-sdk instead.",
   "version": "0.1.16",
   "description": "React SDK for Flexvaults - manage deposits, withdrawals, locks, and transfers",
   "author": "Oasis Protocol Foundation <security@oasisprotocol.org>",
