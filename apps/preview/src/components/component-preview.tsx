@@ -7,7 +7,7 @@ import {
   FlexvaultsInlineModal,
   useFlexvaultsContext,
   useHostedRedirectAuth,
-} from '@oasisprotocol/flexvaults-sdk'
+} from '@oasisprotocol/privana-sdk'
 import { PreviewLayout, SectionLabel } from './preview-layout'
 
 export function ComponentPreview() {

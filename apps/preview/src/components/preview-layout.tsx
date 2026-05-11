@@ -18,7 +18,7 @@ export function PreviewLayout({ children }: { children: ReactNode }) {
       <div className="border-border flex shrink-0 items-center justify-between border-b px-6 py-3">
         <div className="flex items-center gap-6">
           <span className="text-muted-foreground text-sm">
-            @oasisprotocol/flexvaults-sdk{' '}
+            @oasisprotocol/privana-sdk{' '}
             <span className="text-foreground font-semibold">Preview</span>
           </span>
           <nav className="flex items-center gap-4 text-sm">

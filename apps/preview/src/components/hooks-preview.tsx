@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useTokenInfo, useTokenList } from '@oasisprotocol/flexvaults-sdk'
-import { Skeleton } from '@oasisprotocol/flexvaults-sdk'
+import { useTokenInfo, useTokenList } from '@oasisprotocol/privana-sdk'
+import { Skeleton } from '@oasisprotocol/privana-sdk'
 import { SectionLabel } from './preview-layout'
 
 export function HooksPreview() {

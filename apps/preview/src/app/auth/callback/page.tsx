@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { useHostedRedirectAuth } from '@oasisprotocol/flexvaults-sdk'
+import { useHostedRedirectAuth } from '@oasisprotocol/privana-sdk'
 
 export default function HostedAuthCallbackPage() {
   const router = useRouter()

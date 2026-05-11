@@ -1,15 +1,13 @@
-> **⚠️ Deprecated**: This package has been renamed to [@oasisprotocol/privana-sdk](https://www.npmjs.com/package/@oasisprotocol/privana-sdk). Please update your dependencies.
-
-# @oasisprotocol/flexvaults-sdk
+# @oasisprotocol/privana-sdk
 
 React SDK for Flexvaults - manage deposits, withdrawals, locks, and transfers with ease.
 
 ## Installation
 
 ```bash
-npm install @oasisprotocol/flexvaults-sdk
+npm install @oasisprotocol/privana-sdk
 # or
-bun add @oasisprotocol/flexvaults-sdk
+bun add @oasisprotocol/privana-sdk
 ```
 
 ## Peer Dependencies
@@ -25,7 +23,7 @@ npm install react react-dom wagmi viem @tanstack/react-query
 ### 1. Wrap your app with the FlexvaultsProvider
 
 ```tsx
-import { FlexvaultsProvider } from '@oasisprotocol/flexvaults-sdk'
+import { FlexvaultsProvider } from '@oasisprotocol/privana-sdk'
 import { WagmiProvider } from 'wagmi'
 import { QueryClientProvider } from '@tanstack/react-query'
 
@@ -59,7 +57,7 @@ environment as `apiUrl`.
 ### 2. Use the FlexvaultsButton
 
 ```tsx
-import { FlexvaultsButton } from '@oasisprotocol/flexvaults-sdk'
+import { FlexvaultsButton } from '@oasisprotocol/privana-sdk'
 
 function MyComponent() {
   return <FlexvaultsButton />
@@ -74,7 +72,7 @@ import {
   useDeposit,
   useTotalLockedBalance,
   useWithdraw,
-} from '@oasisprotocol/flexvaults-sdk'
+} from '@oasisprotocol/privana-sdk'
 
 function CustomWallet() {
   const { balanceFormatted } = useBalance()
@@ -121,11 +119,7 @@ For widget or cross-domain frontends, configure `hostedAuth` on `FlexvaultsProvi
 `useHostedRedirectAuth()` to start the hosted sign-in and complete it on your callback route:
 
 ```tsx
-import {
-  FlexvaultsProvider,
-  useBalance,
-  useHostedRedirectAuth,
-} from '@oasisprotocol/flexvaults-sdk'
+import { FlexvaultsProvider, useBalance, useHostedRedirectAuth } from '@oasisprotocol/privana-sdk'
 
 function HostedAuthButton() {
   const { login, logout, refresh, isAuthenticated, isLoading, error, session } =
@@ -150,7 +144,7 @@ function HostedAuthButton() {
 ```tsx
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useHostedRedirectAuth } from '@oasisprotocol/flexvaults-sdk'
+import { useHostedRedirectAuth } from '@oasisprotocol/privana-sdk'
 
 function HostedAuthCallbackPage() {
   const router = useRouter()
