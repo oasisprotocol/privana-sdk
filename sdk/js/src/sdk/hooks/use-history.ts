@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { useFlexvaultsContext } from '../context/flexvaults-provider'
+import { usePrivanaContext } from '../context/privana-provider'
 import type { HistoryEntry, HistoryResponse } from '../types'
 import { usePrivateReadRequest } from './use-private-read-request'
 
@@ -21,7 +21,7 @@ export interface UseHistoryResult {
 }
 
 export function useHistory(options: UseHistoryOptions = {}): UseHistoryResult {
-  const { client, pollingInterval } = useFlexvaultsContext()
+  const { client, pollingInterval } = usePrivanaContext()
   const { executePrivateRead, privateReadAddress, privateReadQueryScope, privateReadReady } =
     usePrivateReadRequest()
 

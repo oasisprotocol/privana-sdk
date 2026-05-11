@@ -1,7 +1,7 @@
 'use client'
 
 import { formatRelativeTime, formatTokenAmount, shortenAddress } from '@/lib/utils'
-import { useFlexvaultsContext } from '@/sdk/context/flexvaults-provider'
+import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useHistory, useSafeAccount } from '@/sdk/hooks'
 import type { HistoryEntry, HistoryKind } from '@/sdk/types'
 import { getTokenIcon } from './token-icons'
@@ -80,7 +80,7 @@ function getCounterpartyText(entry: HistoryEntry): string | null {
 
 export function RecentActivity() {
   const { address } = useSafeAccount()
-  const { getTokenById, getChainById, hostedAuthConfig, hostedAuthSession } = useFlexvaultsContext()
+  const { getTokenById, getChainById, hostedAuthConfig, hostedAuthSession } = usePrivanaContext()
   const { history, isError, isLoading } = useHistory({ offset: -1, limit: 5 })
   const privateReadAddress = hostedAuthConfig ? hostedAuthSession?.address : address
 

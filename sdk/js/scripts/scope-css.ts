@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
 
-const SCOPE = '[data-flexvaults]'
+const SCOPE = '[data-privana]'
 const CSS_VAR_PREFIX = '--fv-'
 
 const SDK_VARS = [
@@ -33,9 +33,9 @@ const SDK_VARS = [
 
 const SCOPED_BASE = `@layer base{${SCOPE},${SCOPE} *,${SCOPE} ::before,${SCOPE} ::after{box-sizing:border-box;border-width:0;border-style:solid;border-color:var(--fv-border,currentColor)}}`
 
-// Prefix all utility selectors to scope them to [data-flexvaults]
+// Prefix all utility selectors to scope them to [data-privana]
 // Uses :is() to match both the element with the attribute AND its descendants
-// Pattern: :is([data-flexvaults],[data-flexvaults] *).class
+// Pattern: :is([data-privana],[data-privana] *).class
 function scopeUtilityClasses(css: string): string {
   const SCOPE_PATTERN = `:is(${SCOPE},${SCOPE} *)`
 
@@ -52,9 +52,9 @@ function scopeUtilityClasses(css: string): string {
       i + 1 < css.length &&
       /[a-zA-Z_@\\-]/.test(css[i + 1])
     ) {
-      // Check if already scoped (look backwards for [data-flexvaults])
+      // Check if already scoped (look backwards for [data-privana])
       const lookback = css.slice(Math.max(0, i - 50), i)
-      if (lookback.includes('[data-flexvaults]')) {
+      if (lookback.includes('[data-privana]')) {
         result += css[i]
         i++
         continue
@@ -130,7 +130,7 @@ for (const v of SDK_VARS) {
   css = css.replaceAll(`--${v}:`, `${CSS_VAR_PREFIX}${v}:`)
 }
 
-// Scope utility class selectors to [data-flexvaults]
+// Scope utility class selectors to [data-privana]
 css = scopeUtilityClasses(css)
 
 writeFileSync(filePath, css)

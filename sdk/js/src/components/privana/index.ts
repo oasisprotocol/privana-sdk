@@ -1,5 +1,5 @@
-export * from './flexvaults-button'
-export * from './flexvaults-modal'
+export * from './privana-button'
+export * from './privana-modal'
 export * from './token-selector-modal'
 export * from './deposit-form'
 export * from './withdraw-form'

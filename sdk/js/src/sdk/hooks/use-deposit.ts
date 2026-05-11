@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAccount, useWalletClient, useWriteContract, useSendTransaction, useConfig } from 'wagmi'
 import { waitForTransactionReceipt } from '@wagmi/core'
 import { erc20Abi, zeroAddress } from 'viem'
-import { useFlexvaultsContext } from '../context/flexvaults-provider'
+import { usePrivanaContext } from '../context/privana-provider'
 import { useEnsureCorrectChain } from './use-ensure-correct-chain'
 import { usePrivateReadRequest } from './use-private-read-request'
 import type { Bytes32, DepositAddressResponse, DepositCheckResponse } from '../types'
@@ -65,7 +65,7 @@ interface VerificationContext {
 
 export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   const { address } = useAccount()
-  const { client, enabledTokens, getChainById } = useFlexvaultsContext()
+  const { client, enabledTokens, getChainById } = usePrivanaContext()
   const { data: walletClient } = useWalletClient()
   const queryClient = useQueryClient()
   const config = useConfig()

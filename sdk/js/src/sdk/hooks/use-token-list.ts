@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { useFlexvaultsContext } from '../context/flexvaults-provider'
+import { usePrivanaContext } from '../context/privana-provider'
 import type { TokenInfoResponse, TokenListResponse } from '../types'
 
 export interface UseTokenListOptions {
@@ -17,7 +17,7 @@ export interface UseTokenListResult {
 }
 
 export function useTokenList(options: UseTokenListOptions = {}): UseTokenListResult {
-  const { client } = useFlexvaultsContext()
+  const { client } = usePrivanaContext()
 
   const query = useQuery<TokenListResponse, Error>({
     queryKey: ['accounting-token-list'],

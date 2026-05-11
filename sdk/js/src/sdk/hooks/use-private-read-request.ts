@@ -6,8 +6,8 @@ import { WagmiContext } from 'wagmi'
 import { getWalletClient } from 'wagmi/actions'
 import { isHostedAuthSessionActive } from '../auth'
 import { AccountingApiError, HostedAuthRequiredError } from '../client'
-import type { FlexvaultsClient } from '../client'
-import { useFlexvaultsContext } from '../context'
+import type { PrivanaClient } from '../client'
+import { usePrivanaContext } from '../context'
 import type { Address, HostedAuthSession } from '../types'
 import { useSafeAccount } from './use-safe-account'
 
@@ -15,7 +15,7 @@ const AUTH_CLOCK_SKEW_MS = 30_000
 const INITIAL_AUTH_BACKOFF_MS = 5_000
 const MAX_AUTH_BACKOFF_MS = 60_000
 const DEFAULT_SIWE_AUTH_VALIDITY_MS = 24 * 60 * 60 * 1000
-const PRIVATE_READ_STATEMENT = 'Sign in to Flexvaults to access private account data.'
+const PRIVATE_READ_STATEMENT = 'Sign in to Privana to access private account data.'
 
 interface PrivateReadTokenEntry {
   expiresAt: number
@@ -37,7 +37,7 @@ export async function executeHostedAuthPrivateReadRequest<T>({
   refreshHostedAuthSession,
   request,
 }: {
-  client: Pick<FlexvaultsClient, 'clearPrivateReadToken' | 'setBearerToken'>
+  client: Pick<PrivanaClient, 'clearPrivateReadToken' | 'setBearerToken'>
   hostedAuthSession: HostedAuthSession | null
   refreshHostedAuthSession: () => Promise<HostedAuthSession>
   request: () => Promise<T>
@@ -87,7 +87,7 @@ function getCachedPrivateReadToken(scopeKey: string): string | null {
   return cached.token
 }
 
-function clearPrivateReadScope(scopeKey: string, client: FlexvaultsClient): void {
+function clearPrivateReadScope(scopeKey: string, client: PrivanaClient): void {
   privateReadTokenCache.delete(scopeKey)
   privateReadFailureCache.delete(scopeKey)
   client.clearPrivateReadToken()
@@ -129,7 +129,7 @@ export function usePrivateReadRequest(): {
 } {
   const wagmiContext = useContext(WagmiContext)
   const { client, networkConfig, hostedAuthConfig, hostedAuthSession, refreshHostedAuthSession } =
-    useFlexvaultsContext()
+    usePrivanaContext()
   const { address: walletAddress } = useSafeAccount()
   const privateReadAddress = hostedAuthConfig
     ? (hostedAuthSession?.address ?? null)

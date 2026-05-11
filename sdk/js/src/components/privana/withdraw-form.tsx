@@ -14,7 +14,7 @@ import {
   TransactionWarningView,
   type Step,
 } from './transaction-steps'
-import { useFlexvaultsContext } from '@/sdk/context/flexvaults-provider'
+import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { getExplorerAddressUrl } from '@/sdk/types/chains'
 
 interface WithdrawFormProps {
@@ -25,7 +25,7 @@ interface WithdrawFormProps {
 
 export function WithdrawForm({ selectedToken, onTokenSelect, onPendingChange }: WithdrawFormProps) {
   const { isConnected, address } = useAccount()
-  const { chains, getChainById } = useFlexvaultsContext()
+  const { chains, getChainById } = usePrivanaContext()
   const [amount, setAmount] = useState('')
   const [showSuccess, setShowSuccess] = useState(false)
   const [showTimeout, setShowTimeout] = useState(false)

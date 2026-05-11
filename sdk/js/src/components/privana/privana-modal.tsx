@@ -13,7 +13,7 @@ import {
 import { DepositForm } from './deposit-form'
 import { WithdrawForm } from './withdraw-form'
 import type { TokenConfig } from '@/sdk/types/tokens'
-import { useFlexvaultsContext } from '@/sdk/context/flexvaults-provider'
+import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useBalance, useLockedFunds, useUnlockFunds } from '@/sdk/hooks'
 import { formatTokenAmount, formatTimeRemaining, cn, shortenAddress } from '@/lib/utils'
 import { getTokenIcon, getChainIcon } from './token-icons'
@@ -234,7 +234,7 @@ interface LockedFundsSection {
 }
 
 function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: () => void }) {
-  const { getTokenById } = useFlexvaultsContext()
+  const { getTokenById } = usePrivanaContext()
   const { locks, isLoading } = useLockedFunds()
   const { unlockFunds, unlockAllExpired, isPending } = useUnlockFunds()
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
@@ -402,7 +402,7 @@ function BalanceTokenRow({ token }: { token: TokenConfig }) {
 }
 
 function BalanceDetailsView({ onBack, onClose }: { onBack: () => void; onClose?: () => void }) {
-  const { enabledTokens, chains } = useFlexvaultsContext()
+  const { enabledTokens, chains } = usePrivanaContext()
   const [selectedChainId, setSelectedChainId] = useState<number>(chains[0]?.id ?? 84532)
 
   const chainTokens = useMemo(() => {
@@ -534,7 +534,7 @@ function TokenSelectorView({
   selectedTokenId?: string
 }) {
   const [tokenSearch, setTokenSearch] = useState('')
-  const { enabledTokens, chains } = useFlexvaultsContext()
+  const { enabledTokens, chains } = usePrivanaContext()
   const [selectedChainId, setSelectedChainId] = useState<number>(chains[0]?.id ?? 84532)
 
   const chainTokens = useMemo(() => {
@@ -658,7 +658,7 @@ function ModalBody({
   defaultTab = 'deposit',
   onDepositSuccess,
 }: ModalBodyProps) {
-  const { defaultToken, tokensStatus } = useFlexvaultsContext()
+  const { defaultToken, tokensStatus } = usePrivanaContext()
   const [selectedToken, setSelectedToken] = useState<TokenConfig | undefined>(defaultToken)
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>(defaultTab)
   const [currentView, setCurrentView] = useState<ModalView>('main')
@@ -752,7 +752,7 @@ function ModalBody({
   )
 }
 
-interface FlexvaultsModalProps {
+interface PrivanaModalProps {
   open: boolean
   onClose: () => void
   showLockedFunds?: boolean
@@ -760,13 +760,13 @@ interface FlexvaultsModalProps {
   onDepositSuccess?: () => void
 }
 
-export function FlexvaultsModal({
+export function PrivanaModal({
   open,
   onClose,
   showLockedFunds,
   defaultTab,
   onDepositSuccess,
-}: FlexvaultsModalProps) {
+}: PrivanaModalProps) {
   const [isTransactionPending, setIsTransactionPending] = useState(false)
   const titleId = useId()
   const descId = useId()
@@ -784,7 +784,7 @@ export function FlexvaultsModal({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        data-flexvaults
+        data-privana
         showCloseButton={false}
         className="bg-card flex w-[560px] max-w-[95vw] flex-col gap-2 overflow-hidden rounded-2xl border-0 p-2"
         overlayClassName={isTransactionPending ? 'cursor-not-allowed' : undefined}
@@ -793,13 +793,13 @@ export function FlexvaultsModal({
       >
         <DialogHeader>
           <DialogTitle id={titleId} className="sr-only">
-            Flexvaults
+            Privana
           </DialogTitle>
           <DialogDescription id={descId} className="sr-only">
             Deposit or withdraw tokens from your Flexvault
           </DialogDescription>
           <div className="flex items-center justify-between px-5 py-4">
-            <span className="text-foreground text-xl leading-6 font-medium">Flexvaults</span>
+            <span className="text-foreground text-xl leading-6 font-medium">Privana</span>
             {onClose && (
               <button
                 onClick={onClose}
@@ -822,7 +822,7 @@ export function FlexvaultsModal({
   )
 }
 
-export function FlexvaultsInlineModal({
+export function PrivanaInlineModal({
   className,
   showLockedFunds,
   defaultTab,
@@ -835,7 +835,7 @@ export function FlexvaultsInlineModal({
 }) {
   return (
     <div
-      data-flexvaults
+      data-privana
       className={cn(
         'bg-card flex w-[560px] max-w-full flex-col gap-2 overflow-hidden rounded-2xl p-2 shadow-lg',
         className

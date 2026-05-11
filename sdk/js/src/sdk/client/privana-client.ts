@@ -46,15 +46,15 @@ import type {
 } from '../types'
 import { normalizeAddress, normalizeHex } from '../types'
 
-export type FlexvaultsClientConfig = HttpClientConfig
+export type PrivanaClientConfig = HttpClientConfig
 const PRIVATE_READ_TOKEN_HEADER = 'X-SIWE-Token'
 const MAX_BATCH_BALANCE_TOKEN_IDS = 100
 const MAX_HISTORY_PAGE_SIZE = 100
 
-export class FlexvaultsClient {
+export class PrivanaClient {
   private readonly http: HttpClient
 
-  constructor(config: FlexvaultsClientConfig) {
+  constructor(config: PrivanaClientConfig) {
     this.http = new HttpClient(config)
   }
 

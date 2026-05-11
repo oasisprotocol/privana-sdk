@@ -3,13 +3,13 @@
 import { useState, type ReactNode, type ComponentProps, type ReactElement } from 'react'
 import { useAccount } from 'wagmi'
 import { Button, type buttonVariants } from '@/components/ui/button'
-import { FlexvaultsModal } from './flexvaults-modal'
+import { PrivanaModal } from './privana-modal'
 import { cn } from '@/lib/utils'
 import type { VariantProps } from 'class-variance-authority'
 
 type ButtonVariantProps = VariantProps<typeof buttonVariants>
 
-export interface FlexvaultsButtonProps extends Omit<ComponentProps<'button'>, 'children'> {
+export interface PrivanaButtonProps extends Omit<ComponentProps<'button'>, 'children'> {
   children?: ReactNode
   variant?: ButtonVariantProps['variant']
   size?: ButtonVariantProps['size']
@@ -21,7 +21,7 @@ export interface FlexvaultsButtonProps extends Omit<ComponentProps<'button'>, 'c
   onDepositSuccess?: () => void
 }
 
-export function FlexvaultsButton({
+export function PrivanaButton({
   children,
   className,
   variant = 'outline',
@@ -33,7 +33,7 @@ export function FlexvaultsButton({
   defaultTab,
   onDepositSuccess,
   ...buttonProps
-}: FlexvaultsButtonProps) {
+}: PrivanaButtonProps) {
   const [modalOpen, setModalOpen] = useState(false)
   const { isConnected } = useAccount()
 
@@ -55,14 +55,14 @@ export function FlexvaultsButton({
       disabled={!isConnected}
       {...buttonProps}
     >
-      {children ?? 'Flexvaults'}
+      {children ?? 'Privana'}
     </Button>
   )
 
   return (
-    <span data-flexvaults className="contents">
+    <span data-privana className="contents">
       {buttonElement}
-      <FlexvaultsModal
+      <PrivanaModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         showLockedFunds={showLockedFunds}

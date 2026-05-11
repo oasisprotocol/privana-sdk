@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAccount, useWalletClient } from 'wagmi'
-import { useFlexvaultsContext } from '../context/flexvaults-provider'
+import { usePrivanaContext } from '../context/privana-provider'
 import { useEnsureCorrectChain } from './use-ensure-correct-chain'
 import { signWithdrawMessage } from '../signatures'
 import type { Bytes32, TransactionSubmissionResponse } from '../types'
@@ -44,7 +44,7 @@ export interface UseWithdrawResult {
 export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult {
   const { address } = useAccount()
   const { data: walletClient } = useWalletClient()
-  const { client, networkConfig } = useFlexvaultsContext()
+  const { client, networkConfig } = usePrivanaContext()
   const queryClient = useQueryClient()
   const { chainId, ensureCorrectChain } = useEnsureCorrectChain()
 

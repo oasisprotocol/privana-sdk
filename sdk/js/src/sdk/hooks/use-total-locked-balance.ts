@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { useFlexvaultsContext } from '../context/flexvaults-provider'
+import { usePrivanaContext } from '../context/privana-provider'
 import type { Bytes32, TotalLockedBalanceResponse } from '../types'
 import { usePrivateReadRequest } from './use-private-read-request'
 
@@ -21,7 +21,7 @@ export interface UseTotalLockedBalanceResult {
 export function useTotalLockedBalance(
   options: UseTotalLockedBalanceOptions = {}
 ): UseTotalLockedBalanceResult {
-  const { client, pollingInterval, defaultToken } = useFlexvaultsContext()
+  const { client, pollingInterval, defaultToken } = usePrivanaContext()
   const { executePrivateRead, privateReadAddress, privateReadQueryScope, privateReadReady } =
     usePrivateReadRequest()
 

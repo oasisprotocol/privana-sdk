@@ -50,7 +50,7 @@ export function createHostedAuthState(length = DEFAULT_RANDOM_LENGTH): string {
 export function createHostedAuthStorageKey(apiUrl: string, config: HostedAuthConfig): string {
   const normalizedApiUrl = apiUrl.replace(/\/$/, '')
   return [
-    'flexvaults',
+    'privana',
     'hosted-auth',
     normalizedApiUrl,
     config.clientId.trim(),

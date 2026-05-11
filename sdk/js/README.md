@@ -1,6 +1,6 @@
 # @oasisprotocol/privana-sdk
 
-React SDK for Flexvaults - manage deposits, withdrawals, locks, and transfers with ease.
+React SDK for Privana - manage deposits, withdrawals, locks, and transfers with ease.
 
 ## Installation
 
@@ -20,10 +20,10 @@ npm install react react-dom wagmi viem @tanstack/react-query
 
 ## Quick Start
 
-### 1. Wrap your app with the FlexvaultsProvider
+### 1. Wrap your app with the PrivanaProvider
 
 ```tsx
-import { FlexvaultsProvider } from '@oasisprotocol/privana-sdk'
+import { PrivanaProvider } from '@oasisprotocol/privana-sdk'
 import { WagmiProvider } from 'wagmi'
 import { QueryClientProvider } from '@tanstack/react-query'
 
@@ -31,11 +31,11 @@ function App() {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <FlexvaultsProvider
+        <PrivanaProvider
           networkConfig={{
             name: 'Sapphire Testnet',
             chainId: 23295,
-            apiUrl: 'https://flexvaults-staging.rofl.build',
+            apiUrl: 'https://privana-staging.rofl.build',
             accountingContract: '0xYourContractAddress',
           }}
           hostedAuth={{
@@ -44,23 +44,23 @@ function App() {
           }}
         >
           <YourApp />
-        </FlexvaultsProvider>
+        </PrivanaProvider>
       </QueryClientProvider>
     </WagmiProvider>
   )
 }
 ```
 
-`accountingContract` must be the deployed Flexvaults accounting contract address for the same
+`accountingContract` must be the deployed Privana accounting contract address for the same
 environment as `apiUrl`.
 
-### 2. Use the FlexvaultsButton
+### 2. Use the PrivanaButton
 
 ```tsx
-import { FlexvaultsButton } from '@oasisprotocol/privana-sdk'
+import { PrivanaButton } from '@oasisprotocol/privana-sdk'
 
 function MyComponent() {
-  return <FlexvaultsButton />
+  return <PrivanaButton />
 }
 ```
 
@@ -103,7 +103,7 @@ returned oldest-to-newest. `limit` must be between 0 and 100.
 
 ### Direct SIWE private reads
 
-Default mode for same-origin Flexvaults browser integrations:
+Default mode for same-origin Privana browser integrations:
 
 - `GET /v1/accounting/auth/domain`
 - `GET /v1/accounting/auth/nonce?address=0x...`
@@ -115,11 +115,11 @@ through the same shared in-flight auth request.
 
 ### Hosted redirect auth for cross-domain apps
 
-For widget or cross-domain frontends, configure `hostedAuth` on `FlexvaultsProvider` and use
+For widget or cross-domain frontends, configure `hostedAuth` on `PrivanaProvider` and use
 `useHostedRedirectAuth()` to start the hosted sign-in and complete it on your callback route:
 
 ```tsx
-import { FlexvaultsProvider, useBalance, useHostedRedirectAuth } from '@oasisprotocol/privana-sdk'
+import { PrivanaProvider, useBalance, useHostedRedirectAuth } from '@oasisprotocol/privana-sdk'
 
 function HostedAuthButton() {
   const { login, logout, refresh, isAuthenticated, isLoading, error, session } =
@@ -129,7 +129,7 @@ function HostedAuthButton() {
   return (
     <div>
       <button onClick={() => void login()} disabled={isLoading || isAuthenticated}>
-        Sign in with Flexvaults
+        Sign in with Privana
       </button>
       {isAuthenticated ? <button onClick={() => void refresh()}>Refresh Session</button> : null}
       {isAuthenticated ? <button onClick={() => void logout()}>Logout</button> : null}
@@ -172,7 +172,7 @@ function HostedAuthCallbackPage() {
 
 In hosted-auth mode:
 
-- the SDK stores PKCE and `state` in `sessionStorage`, then redirects the browser to the hosted `/auth/authorize` page on the Flexvaults auth origin
+- the SDK stores PKCE and `state` in `sessionStorage`, then redirects the browser to the hosted `/auth/authorize` page on the Privana auth origin
 - the hosted auth page signs on the current wallet chain if it is supported, otherwise it switches to the provider `networkConfig.chainId`
 - the hosted auth page redirects back to your registered callback URL with `code` / `state` or `error`
 - your callback route calls `completeLogin()` to exchange the code at `/auth/token`
@@ -181,7 +181,7 @@ In hosted-auth mode:
 
 Notes:
 
-- low-level `FlexvaultsClient.getHostedAuthAuthorizeUrl()` still mirrors backend authorize URL support and can build either response mode explicitly.
+- low-level `PrivanaClient.getHostedAuthAuthorizeUrl()` still mirrors backend authorize URL support and can build either response mode explicitly.
 - consumer apps must implement a callback route at the exact registered `redirect_uri`.
 - `client_id` and exact `redirect_uri` values must be registered in backend `AUTH_CLIENTS`.
 - staging end-to-end verification requires that registration on the staging deployment.
@@ -189,29 +189,29 @@ Notes:
 
 ## Components
 
-### FlexvaultsButton
+### PrivanaButton
 
 A customizable button that opens the wallet modal.
 
 ```tsx
 // Basic usage
-<FlexvaultsButton />
+<PrivanaButton />
 
 // Custom text
-<FlexvaultsButton>Open Wallet</FlexvaultsButton>
+<PrivanaButton>Open Wallet</PrivanaButton>
 
 // Custom styling
-<FlexvaultsButton variant="default" size="lg" className="my-class" />
+<PrivanaButton variant="default" size="lg" className="my-class" />
 
 // Full control with render prop
-<FlexvaultsButton
+<PrivanaButton
   renderButton={({ onClick, isOpen }) => (
     <MyButton onClick={onClick}>Custom Button</MyButton>
   )}
 />
 
 // Show when wallet disconnected (disabled state)
-<FlexvaultsButton hideWhenDisconnected={false} />
+<PrivanaButton hideWhenDisconnected={false} />
 ```
 
 ## Hooks

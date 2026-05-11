@@ -2,7 +2,7 @@
 
 import { useContext } from 'react'
 import { useQuery, QueryClientContext } from '@tanstack/react-query'
-import { useSafeFlexvaultsContext } from '../context/flexvaults-provider'
+import { useSafePrivanaContext } from '../context/privana-provider'
 import type { Bytes32, BalanceResponse } from '../types'
 import { formatTokenAmount } from '@/lib/utils'
 import { usePrivateReadRequest } from './use-private-read-request'
@@ -26,7 +26,7 @@ export interface UseBalanceResult {
 
 export function useBalance(options: UseBalanceOptions = {}): UseBalanceResult {
   const queryClient = useContext(QueryClientContext)
-  const accountingContext = useSafeFlexvaultsContext()
+  const accountingContext = useSafePrivanaContext()
 
   const hasProviders = !!queryClient && !!accountingContext
   const client = accountingContext?.client

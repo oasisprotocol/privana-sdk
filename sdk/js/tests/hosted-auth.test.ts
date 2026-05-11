@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { AccountingApiError, FlexvaultsClient, HttpClient } from '../src/sdk/client'
+import { AccountingApiError, PrivanaClient, HttpClient } from '../src/sdk/client'
 import {
   buildHostedAuthSession,
   clearHostedAuthPendingTransaction,
@@ -14,7 +14,7 @@ import {
 import {
   readStoredHostedAuthSession,
   syncHostedAuthSessionToClient,
-} from '../src/sdk/context/flexvaults-provider'
+} from '../src/sdk/context/privana-provider'
 import { executeHostedAuthPrivateReadRequest } from '../src/sdk/hooks/use-private-read-request'
 
 function createStorageMock(): Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> {
@@ -95,7 +95,7 @@ describe('hosted auth helpers', () => {
 
   it('persists and clears a pending hosted auth transaction', () => {
     const storage = createStorageMock()
-    const key = createHostedAuthPendingStorageKey('https://flexvaults.example.com/', {
+    const key = createHostedAuthPendingStorageKey('https://privana.example.com/', {
       clientId: 'honoroll-web',
       redirectUri: 'https://honoroll.test/auth/callback',
     })
@@ -252,9 +252,9 @@ describe('hosted auth helpers', () => {
   })
 })
 
-describe('FlexvaultsClient hosted auth methods', () => {
+describe('PrivanaClient hosted auth methods', () => {
   it('setting a private-read token clears bearer auth', () => {
-    const client = new FlexvaultsClient({ baseUrl: 'https://flexvaults.example.com/' })
+    const client = new PrivanaClient({ baseUrl: 'https://privana.example.com/' })
 
     client.setBearerToken('access-token')
     client.setPrivateReadToken('0xsiwe-token')
@@ -265,7 +265,7 @@ describe('FlexvaultsClient hosted auth methods', () => {
   })
 
   it('setting bearer auth clears the private-read token', () => {
-    const client = new FlexvaultsClient({ baseUrl: 'https://flexvaults.example.com/' })
+    const client = new PrivanaClient({ baseUrl: 'https://privana.example.com/' })
 
     client.setPrivateReadToken('0xsiwe-token')
     client.setBearerToken('access-token')
@@ -276,7 +276,7 @@ describe('FlexvaultsClient hosted auth methods', () => {
   })
 
   it('builds the hosted auth authorize url with exact query params', () => {
-    const client = new FlexvaultsClient({ baseUrl: 'https://flexvaults.example.com/' })
+    const client = new PrivanaClient({ baseUrl: 'https://privana.example.com/' })
     const url = new URL(
       client.getHostedAuthAuthorizeUrl({
         client_id: 'honoroll-web',
@@ -287,7 +287,7 @@ describe('FlexvaultsClient hosted auth methods', () => {
       })
     )
 
-    expect(url.origin).toBe('https://flexvaults.example.com')
+    expect(url.origin).toBe('https://privana.example.com')
     expect(url.pathname).toBe('/v1/accounting/auth/authorize')
     expect(url.searchParams.get('client_id')).toBe('honoroll-web')
     expect(url.searchParams.get('redirect_uri')).toBe('https://honoroll.test/auth/callback')
@@ -299,7 +299,7 @@ describe('FlexvaultsClient hosted auth methods', () => {
   })
 
   it('preserves an explicit hosted auth response mode for low-level callers', () => {
-    const client = new FlexvaultsClient({ baseUrl: 'https://flexvaults.example.com/' })
+    const client = new PrivanaClient({ baseUrl: 'https://privana.example.com/' })
     const url = new URL(
       client.getHostedAuthAuthorizeUrl({
         client_id: 'honoroll-web',
@@ -315,7 +315,7 @@ describe('FlexvaultsClient hosted auth methods', () => {
   })
 
   it('preserves a baseUrl path prefix when building the hosted auth authorize url', () => {
-    const client = new FlexvaultsClient({ baseUrl: 'https://flexvaults.example.com/api' })
+    const client = new PrivanaClient({ baseUrl: 'https://privana.example.com/api' })
     const url = new URL(
       client.getHostedAuthAuthorizeUrl({
         client_id: 'honoroll-web',
@@ -348,7 +348,7 @@ describe('FlexvaultsClient hosted auth methods', () => {
     }
 
     try {
-      const client = new FlexvaultsClient({ baseUrl: 'https://flexvaults.example.com' })
+      const client = new PrivanaClient({ baseUrl: 'https://privana.example.com' })
       client.setBearerToken('access-token')
       const response = await client.logoutJwtSession({
         refresh_token: 'refresh-token',
@@ -382,7 +382,7 @@ describe('HttpClient auth error handling', () => {
       )
 
     try {
-      const client = new HttpClient({ baseUrl: 'https://flexvaults.example.com' })
+      const client = new HttpClient({ baseUrl: 'https://privana.example.com' })
       await expect(client.post('/v1/accounting/auth/token', {})).rejects.toMatchObject({
         name: AccountingApiError.name,
         detail: 'PKCE verification failed',
