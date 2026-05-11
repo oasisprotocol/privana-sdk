@@ -434,7 +434,7 @@ export function ThemeEditor() {
 
   const applyTheme = useCallback(
     (newColors: Record<string, string>, newRadius: number) => {
-      const targets = document.querySelectorAll<HTMLElement>('[data-flexvaults]')
+      const targets = document.querySelectorAll<HTMLElement>('[data-privana]')
       targets.forEach((el) => applyThemeToElement(el, newColors, newRadius))
     },
     [applyThemeToElement]
@@ -449,10 +449,10 @@ export function ThemeEditor() {
       for (const mutation of mutations) {
         for (const node of mutation.addedNodes) {
           if (node instanceof HTMLElement) {
-            if (node.hasAttribute('data-flexvaults')) {
+            if (node.hasAttribute('data-privana')) {
               applyThemeToElement(node, colors, radius)
             }
-            const nested = node.querySelectorAll<HTMLElement>('[data-flexvaults]')
+            const nested = node.querySelectorAll<HTMLElement>('[data-privana]')
             nested.forEach((el) => applyThemeToElement(el, colors, radius))
           }
         }
@@ -491,7 +491,7 @@ export function ThemeEditor() {
     setRadius(0.625)
     localStorage.removeItem('theme-editor-colors')
     localStorage.removeItem('theme-editor-radius')
-    const targets = document.querySelectorAll<HTMLElement>('[data-flexvaults]')
+    const targets = document.querySelectorAll<HTMLElement>('[data-privana]')
     targets.forEach((el) => {
       for (const group of THEME_GROUPS) {
         for (const color of group.colors) {
@@ -512,9 +512,7 @@ export function ThemeEditor() {
   }
 
   const generateCSS = () => {
-    const selector = isDark
-      ? '[data-flexvaults].dark, .dark [data-flexvaults]'
-      : '[data-flexvaults]'
+    const selector = isDark ? '[data-privana].dark, .dark [data-privana]' : '[data-privana]'
     const lines = [`${selector} {`, `  --fv-radius: ${radius}rem;`]
     for (const group of THEME_GROUPS) {
       for (const color of group.colors) {

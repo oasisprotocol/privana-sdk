@@ -5,7 +5,7 @@ import { WagmiProvider } from 'wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RainbowKitProvider, darkTheme, lightTheme } from '@rainbow-me/rainbowkit'
 import { wagmiConfig } from './wagmi-config'
-import { FlexvaultsProvider, NETWORK_CONFIG, type Network } from '@oasisprotocol/privana-sdk'
+import { PrivanaProvider, NETWORK_CONFIG, type Network } from '@oasisprotocol/privana-sdk'
 import { ThemeProvider, useTheme } from './theme-provider'
 import '@rainbow-me/rainbowkit/styles.css'
 
@@ -63,7 +63,7 @@ export function Providers({ children, network = 'testnet' }: ProvidersProps) {
       <WagmiProvider config={wagmiConfig}>
         <QueryClientProvider client={queryClient}>
           <RainbowKitWrapper>
-            <FlexvaultsProvider
+            <PrivanaProvider
               networkConfig={{ ...NETWORK_CONFIG[network], apiUrl }}
               hostedAuth={
                 hostedAuthClientId && hostedAuthRedirectUri
@@ -75,7 +75,7 @@ export function Providers({ children, network = 'testnet' }: ProvidersProps) {
               }
             >
               {children}
-            </FlexvaultsProvider>
+            </PrivanaProvider>
           </RainbowKitWrapper>
         </QueryClientProvider>
       </WagmiProvider>

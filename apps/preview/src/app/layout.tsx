@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Flexvaults SDK - Theme Editor & Component Preview',
+  title: 'Privana SDK - Theme Editor & Component Preview',
   description:
     'Interactive theme editor for the @oasisprotocol/privana-sdk. Customize colors, border radius, and preview components in real time.',
 }

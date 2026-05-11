@@ -8,7 +8,7 @@ import { useHostedRedirectAuth } from '@oasisprotocol/privana-sdk'
 export default function HostedAuthCallbackPage() {
   const router = useRouter()
   const { completeLogin } = useHostedRedirectAuth()
-  const [status, setStatus] = useState('Completing Flexvaults sign-in...')
+  const [status, setStatus] = useState('Completing Privana sign-in...')
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
