@@ -11,7 +11,7 @@
       "chainId": 23295,
       "name": "Sapphire Testnet",
       "accountingContract": "0xaF8e5de153A584528B57DD4B9B0195956BBDF571",
-      "apiUrl": "https://flexvaults-staging.rofl.build"
+      "apiUrl": "https://privana-staging.rofl.build"
     },
     "mainnet": {
       "chainId": 23294,
