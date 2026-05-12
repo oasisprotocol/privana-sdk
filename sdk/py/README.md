@@ -1,3 +1,5 @@
+> **⚠️ Deprecated**: This package has been renamed to [oasis-privana](https://pypi.org/project/oasis-privana/). Please update your dependencies.
+
 # flexvaults-sdk
 
 Python SDK for Flexvaults - manage deposits, withdrawals, locks, and transfers on the accounting module.
