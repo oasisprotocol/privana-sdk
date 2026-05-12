@@ -4,8 +4,8 @@ import httpx
 import pytest
 import respx
 
-from flexvaults.client import AccountingApiError, FlexvaultsClient, NetworkError
-from flexvaults.types.requests import (
+from privana.client import AccountingApiError, NetworkError, PrivanaClient
+from privana.types.requests import (
     BatchBalancesRequest,
     DepositCheckRequest,
     HostedAuthAuthorizeUrlRequest,
@@ -29,7 +29,7 @@ HISTORY_DEPOSIT_ID = "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 
 @pytest.fixture
 def client():
-    return FlexvaultsClient(base_url=BASE_URL)
+    return PrivanaClient(base_url=BASE_URL)
 
 
 class TestGetBalance:
@@ -665,11 +665,11 @@ class TestAuthHelpers:
     @respx.mock
     async def test_get_siwe_domain(self, client):
         respx.get(f"{BASE_URL}/v1/accounting/auth/domain").mock(
-            return_value=httpx.Response(200, json={"domain": "flexvaults.example.com"})
+            return_value=httpx.Response(200, json={"domain": "privana.example.com"}),
         )
 
         result = await client.get_siwe_domain()
-        assert result.domain == "flexvaults.example.com"
+        assert result.domain == "privana.example.com"
 
     @respx.mock
     async def test_get_siwe_nonce(self, client):

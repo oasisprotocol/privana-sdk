@@ -1,8 +1,8 @@
 from .client import (
     AccountingApiError,
-    FlexvaultsClient,
     HttpClient,
     NetworkError,
+    PrivanaClient,
     ValidationError,
 )
 from .signatures import (
@@ -112,7 +112,7 @@ from .utils import (
     shorten_address,
 )
 
-__version__ = "0.1.6"
+__version__ = "0.2.0"
 
 __all__ = [
     "__version__",
@@ -182,7 +182,7 @@ __all__ = [
     "SiweDomainResponse",
     "SiweNonceResponse",
     "SiweLoginResponse",
-    "FlexvaultsClient",
+    "PrivanaClient",
     "HttpClient",
     "AccountingApiError",
     "NetworkError",

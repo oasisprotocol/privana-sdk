@@ -1,13 +1,13 @@
-# Flexvaults SDK
+# Privana SDK
 
-Monorepo for the Flexvaults SDK and preview application.
+Monorepo for the Privana SDK and preview application.
 
 ## Packages
 
 | Package                                | Description                            |
 | -------------------------------------- | -------------------------------------- |
-| [@oasisprotocol/privana-sdk](./sdk/js) | React SDK for Flexvaults               |
-| [flexvaults-preview](./apps/preview)   | Preview application showcasing the SDK |
+| [@oasisprotocol/privana-sdk](./sdk/js) | React SDK for Privana                  |
+| [privana-preview](./apps/preview)      | Preview application showcasing the SDK |
 
 ## Development
 

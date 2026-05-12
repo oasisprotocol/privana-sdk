@@ -1,4 +1,4 @@
-from flexvaults.client.errors import AccountingApiError, NetworkError, ValidationError
+from privana.client.errors import AccountingApiError, NetworkError, ValidationError
 
 
 class TestAccountingApiError:
