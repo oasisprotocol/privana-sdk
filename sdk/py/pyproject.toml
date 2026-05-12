@@ -42,12 +42,12 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/oasisprotocol/flexvaults-sdk"
-Repository = "https://github.com/oasisprotocol/flexvaults-sdk"
-Issues = "https://github.com/oasisprotocol/flexvaults-sdk/issues"
+Homepage = "https://github.com/oasisprotocol/privana-sdk"
+Repository = "https://github.com/oasisprotocol/privana-sdk"
+Issues = "https://github.com/oasisprotocol/privana-sdk/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/flexvaults"]
+packages = ["src/privana"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

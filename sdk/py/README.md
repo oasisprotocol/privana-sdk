@@ -1,21 +1,21 @@
-# flexvaults-sdk
+# privana-sdk
 
-Python SDK for Flexvaults - manage deposits, withdrawals, locks, and transfers on the accounting module.
+Python SDK for Privana - manage deposits, withdrawals, locks, and transfers on the accounting module.
 
 ## Installation
 
 ```bash
-pip install flexvaults-sdk
+pip install privana-sdk
 ```
 
 ## Quick Start
 
 ```python
 import asyncio
-from flexvaults import FlexvaultsClient, DepositCheckRequest
+from privana import PrivanaClient, DepositCheckRequest
 
 async def main():
-    async with FlexvaultsClient(base_url="https://api.example.com") as client:
+    async with PrivanaClient(base_url="https://api.example.com") as client:
         # Get per-user deposit address
         addr = await client.get_deposit_address()
         print(f"Deposit to: {addr.deposit_address}")
@@ -43,10 +43,10 @@ must be between 0 and 100.
 
 ```python
 import asyncio
-from flexvaults import FlexvaultsClient
+from privana import PrivanaClient
 
 async def main():
-    async with FlexvaultsClient(base_url="https://api.example.com") as client:
+    async with PrivanaClient(base_url="https://api.example.com") as client:
         domain = await client.get_siwe_domain()
         nonce = await client.get_siwe_nonce("0xYourAddress")
 
@@ -67,7 +67,7 @@ asyncio.run(main())
 
 ```python
 from eth_account import Account
-from flexvaults import (
+from privana import (
     sign_lock_message,
     LockNonceResponse,
     SignLockParams,
@@ -98,7 +98,7 @@ signature = sign_lock_message(
 
 ### Client
 
-- `FlexvaultsClient(base_url, timeout=30.0, headers=None)` - Main API client
+- `PrivanaClient(base_url, timeout=30.0, headers=None)` - Main API client
   - `get_deposit_address(request=None)` - Get per-user deposit address
   - `check_deposit(request)` - Verify a deposit and trigger credit
   - `get_balance(token_id)` - Get token balance for the authenticated user

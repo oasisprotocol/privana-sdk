@@ -514,7 +514,7 @@ wheels = [
 ]
 
 [[package]]
-name = "flexvaults-sdk"
+name = "oasis-privana"
 version = "0.1.12"
 source = { editable = "." }
 dependencies = [
