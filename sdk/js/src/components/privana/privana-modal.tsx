@@ -796,7 +796,7 @@ export function PrivanaModal({
             Privana
           </DialogTitle>
           <DialogDescription id={descId} className="sr-only">
-            Deposit or withdraw tokens from your Flexvault
+            Deposit or withdraw tokens from your Privana
           </DialogDescription>
           <div className="flex items-center justify-between px-5 py-4">
             <span className="text-foreground text-xl leading-6 font-medium">Privana</span>
