@@ -1,4 +1,4 @@
-from flexvaults.types import (
+from privana.types import (
     NETWORK_CONFIG,
     SUPPORTED_CHAINS,
     SUPPORTED_TOKENS,

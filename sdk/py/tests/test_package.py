@@ -1,61 +1,61 @@
-import flexvaults
+import privana
 
 
 class TestPackageExports:
     def test_version(self):
-        assert flexvaults.__version__ == "0.1.6"
+        assert privana.__version__ == "0.1.6"
 
     def test_client_exports(self):
-        assert hasattr(flexvaults, "FlexvaultsClient")
-        assert hasattr(flexvaults, "HttpClient")
-        assert hasattr(flexvaults, "AccountingApiError")
-        assert hasattr(flexvaults, "NetworkError")
-        assert hasattr(flexvaults, "ValidationError")
+        assert hasattr(privana, "PrivanaClient")
+        assert hasattr(privana, "HttpClient")
+        assert hasattr(privana, "AccountingApiError")
+        assert hasattr(privana, "NetworkError")
+        assert hasattr(privana, "ValidationError")
 
     def test_type_exports(self):
-        assert hasattr(flexvaults, "NETWORK_CONFIG")
-        assert hasattr(flexvaults, "SUPPORTED_TOKENS")
-        assert hasattr(flexvaults, "SUPPORTED_CHAINS")
-        assert hasattr(flexvaults, "normalize_hex")
-        assert hasattr(flexvaults, "normalize_address")
+        assert hasattr(privana, "NETWORK_CONFIG")
+        assert hasattr(privana, "SUPPORTED_TOKENS")
+        assert hasattr(privana, "SUPPORTED_CHAINS")
+        assert hasattr(privana, "normalize_hex")
+        assert hasattr(privana, "normalize_address")
 
     def test_signature_exports(self):
-        assert hasattr(flexvaults, "sign_lock_message")
-        assert hasattr(flexvaults, "sign_transfer_message")
-        assert hasattr(flexvaults, "sign_transfer_locked_message")
-        assert hasattr(flexvaults, "sign_withdraw_message")
-        assert hasattr(flexvaults, "create_lock_expiry")
-        assert hasattr(flexvaults, "create_domain")
+        assert hasattr(privana, "sign_lock_message")
+        assert hasattr(privana, "sign_transfer_message")
+        assert hasattr(privana, "sign_transfer_locked_message")
+        assert hasattr(privana, "sign_withdraw_message")
+        assert hasattr(privana, "create_lock_expiry")
+        assert hasattr(privana, "create_domain")
 
     def test_util_exports(self):
-        assert hasattr(flexvaults, "format_token_amount")
-        assert hasattr(flexvaults, "parse_token_amount")
-        assert hasattr(flexvaults, "shorten_address")
-        assert hasattr(flexvaults, "format_timestamp")
-        assert hasattr(flexvaults, "is_expired")
-        assert hasattr(flexvaults, "format_time_remaining")
-        assert hasattr(flexvaults, "format_relative_time")
+        assert hasattr(privana, "format_token_amount")
+        assert hasattr(privana, "parse_token_amount")
+        assert hasattr(privana, "shorten_address")
+        assert hasattr(privana, "format_timestamp")
+        assert hasattr(privana, "is_expired")
+        assert hasattr(privana, "format_time_remaining")
+        assert hasattr(privana, "format_relative_time")
 
     def test_request_types(self):
-        assert hasattr(flexvaults, "DepositAddressRequest")
-        assert hasattr(flexvaults, "DepositCheckRequest")
-        assert hasattr(flexvaults, "LockFundsRequest")
-        assert hasattr(flexvaults, "UnlockFundsRequest")
-        assert hasattr(flexvaults, "TransferFundsRequest")
-        assert hasattr(flexvaults, "WithdrawalRequest")
-        assert hasattr(flexvaults, "BatchBalancesRequest")
+        assert hasattr(privana, "DepositAddressRequest")
+        assert hasattr(privana, "DepositCheckRequest")
+        assert hasattr(privana, "LockFundsRequest")
+        assert hasattr(privana, "UnlockFundsRequest")
+        assert hasattr(privana, "TransferFundsRequest")
+        assert hasattr(privana, "WithdrawalRequest")
+        assert hasattr(privana, "BatchBalancesRequest")
 
     def test_response_types(self):
-        assert hasattr(flexvaults, "DepositAddressResponse")
-        assert hasattr(flexvaults, "DepositCheckResponse")
-        assert hasattr(flexvaults, "TransactionSubmissionResponse")
-        assert hasattr(flexvaults, "BalanceResponse")
-        assert hasattr(flexvaults, "BatchBalancesResponse")
-        assert hasattr(flexvaults, "HistoryKind")
-        assert hasattr(flexvaults, "HistoryEntry")
-        assert hasattr(flexvaults, "HistoryResponse")
-        assert hasattr(flexvaults, "TokenInfoResponse")
-        assert hasattr(flexvaults, "LockedFundsResponse")
-        assert hasattr(flexvaults, "ExpiredLocksResponse")
-        assert hasattr(flexvaults, "PendingWithdrawalsResponse")
-        assert hasattr(flexvaults, "WithdrawalInfoResponse")
+        assert hasattr(privana, "DepositAddressResponse")
+        assert hasattr(privana, "DepositCheckResponse")
+        assert hasattr(privana, "TransactionSubmissionResponse")
+        assert hasattr(privana, "BalanceResponse")
+        assert hasattr(privana, "BatchBalancesResponse")
+        assert hasattr(privana, "HistoryKind")
+        assert hasattr(privana, "HistoryEntry")
+        assert hasattr(privana, "HistoryResponse")
+        assert hasattr(privana, "TokenInfoResponse")
+        assert hasattr(privana, "LockedFundsResponse")
+        assert hasattr(privana, "ExpiredLocksResponse")
+        assert hasattr(privana, "PendingWithdrawalsResponse")
+        assert hasattr(privana, "WithdrawalInfoResponse")

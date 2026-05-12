@@ -1,6 +1,6 @@
 from eth_account import Account
 
-from flexvaults.signatures import (
+from privana.signatures import (
     LOCK_TYPES,
     MODIFY_LOCK_TYPES,
     TRANSFER_LOCKED_TYPES,

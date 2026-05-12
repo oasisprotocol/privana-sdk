@@ -1,7 +1,7 @@
 import math
 import time
 
-from flexvaults.utils import (
+from privana.utils import (
     format_relative_time,
     format_time_remaining,
     format_token_amount,
