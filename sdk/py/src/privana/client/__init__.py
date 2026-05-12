@@ -1,11 +1,11 @@
 from .errors import AccountingApiError, NetworkError, ValidationError
-from .flexvaults_client import FlexvaultsClient
 from .http_client import HttpClient
+from .privana_client import PrivanaClient
 
 __all__ = [
     "AccountingApiError",
     "NetworkError",
     "ValidationError",
     "HttpClient",
-    "FlexvaultsClient",
+    "PrivanaClient",
 ]

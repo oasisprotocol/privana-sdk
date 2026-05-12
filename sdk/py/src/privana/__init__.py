@@ -1,6 +1,6 @@
 from .client import (
     AccountingApiError,
-    FlexvaultsClient,
+    PrivanaClient,
     HttpClient,
     NetworkError,
     ValidationError,
@@ -182,7 +182,7 @@ __all__ = [
     "SiweDomainResponse",
     "SiweNonceResponse",
     "SiweLoginResponse",
-    "FlexvaultsClient",
+    "PrivanaClient",
     "HttpClient",
     "AccountingApiError",
     "NetworkError",

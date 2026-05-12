@@ -128,7 +128,7 @@ def _parse_pending_withdrawal(data: dict[str, Any]) -> PendingWithdrawal:
     )
 
 
-class FlexvaultsClient:
+class PrivanaClient:
     def __init__(
         self,
         base_url: str,
@@ -614,7 +614,7 @@ class FlexvaultsClient:
     async def close(self) -> None:
         await self._http.close()
 
-    async def __aenter__(self) -> FlexvaultsClient:
+    async def __aenter__(self) -> PrivanaClient:
         return self
 
     async def __aexit__(self, *args: Any) -> None:
