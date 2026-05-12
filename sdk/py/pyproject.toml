@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "flexvaults-sdk"
-version = "0.1.16"
+version = "0.1.17"
 description = "Python SDK for Privana - manage deposits, withdrawals, locks, and transfers"
 readme = "README.md"
 license = "Apache-2.0"
@@ -14,7 +14,6 @@ authors = [
 ]
 classifiers = [
     "Development Status :: 7 - Inactive",
-    "Framework :: Deprecated",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
