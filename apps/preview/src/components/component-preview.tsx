@@ -3,11 +3,11 @@
 import { useEffect, useState } from 'react'
 import { useAccount } from 'wagmi'
 import {
-  FlexvaultsButton,
-  FlexvaultsInlineModal,
-  useFlexvaultsContext,
+  PrivanaButton,
+  PrivanaInlineModal,
+  usePrivanaContext,
   useHostedRedirectAuth,
-} from '@oasisprotocol/flexvaults-sdk'
+} from '@oasisprotocol/privana-sdk'
 import { PreviewLayout, SectionLabel } from './preview-layout'
 
 export function ComponentPreview() {
@@ -19,7 +19,7 @@ export function ComponentPreview() {
         <div>
           <SectionLabel>Live SDK Button</SectionLabel>
           <div className="flex items-center justify-center">
-            <FlexvaultsButton />
+            <PrivanaButton />
           </div>
         </div>
       )}
@@ -29,7 +29,7 @@ export function ComponentPreview() {
       <div>
         <SectionLabel>Live SDK Modal</SectionLabel>
         <div className="flex justify-center">
-          <FlexvaultsInlineModal />
+          <PrivanaInlineModal />
         </div>
       </div>
     </PreviewLayout>
@@ -37,7 +37,7 @@ export function ComponentPreview() {
 }
 
 function HostedAuthPreview() {
-  const { client, hostedAuthConfig } = useFlexvaultsContext()
+  const { client, hostedAuthConfig } = usePrivanaContext()
   const { session, login, logout, refresh, isAuthenticated, isLoading, error } =
     useHostedRedirectAuth()
   const [jwtMeAddress, setJwtMeAddress] = useState<string | null>(null)
@@ -95,7 +95,7 @@ function HostedAuthPreview() {
             onClick={() => void login()}
             disabled={isLoading || isAuthenticated}
           >
-            Sign in with Flexvaults
+            Sign in with Privana
           </button>
           <button
             className="rounded border px-3 py-2 text-sm"

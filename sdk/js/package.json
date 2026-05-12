@@ -1,17 +1,16 @@
 {
-  "name": "@oasisprotocol/flexvaults-sdk",
-  "deprecated": "This package has been renamed to @oasisprotocol/privana-sdk. Please install @oasisprotocol/privana-sdk instead.",
-  "version": "0.1.17",
-  "description": "React SDK for Flexvaults - manage deposits, withdrawals, locks, and transfers",
+  "name": "@oasisprotocol/privana-sdk",
+  "version": "0.2.0",
+  "description": "React SDK for Privana - manage deposits, withdrawals, locks, and transfers",
   "author": "Oasis Protocol Foundation <security@oasisprotocol.org>",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/oasisprotocol/flexvaults-sdk#readme",
+  "homepage": "https://github.com/oasisprotocol/privana-sdk#readme",
   "bugs": {
-    "url": "https://github.com/oasisprotocol/flexvaults-sdk/issues"
+    "url": "https://github.com/oasisprotocol/privana-sdk/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/oasisprotocol/flexvaults-sdk.git",
+    "url": "git+https://github.com/oasisprotocol/privana-sdk.git",
     "directory": "sdk/js"
   },
   "publishConfig": {

@@ -3,7 +3,7 @@
 import { toast } from 'sonner'
 import { useLockedFunds, useUnlockFunds } from '@/sdk/hooks'
 import { formatTokenAmount, formatTimeRemaining, shortenAddress } from '@/lib/utils'
-import { useFlexvaultsContext } from '@/sdk/context/flexvaults-provider'
+import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { getTokenIcon } from './token-icons'
 
 function Skeleton() {
@@ -27,7 +27,7 @@ function Skeleton() {
 }
 
 export function LockedFundsList() {
-  const { getTokenById, getChainById, chains } = useFlexvaultsContext()
+  const { getTokenById, getChainById, chains } = usePrivanaContext()
   const { locks, isLoading } = useLockedFunds()
   const { unlockFunds, unlockAllExpired, isPending } = useUnlockFunds()
 

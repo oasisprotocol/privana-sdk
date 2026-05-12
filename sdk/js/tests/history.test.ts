@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'bun:test'
-import { FlexvaultsClient } from '../src/sdk/client'
+import { PrivanaClient } from '../src/sdk/client'
 
-const BASE_URL = 'https://flexvaults.example.com'
+const BASE_URL = 'https://privana.example.com'
 const HISTORY_TOKEN_ID = '0x1111111111111111111111111111111111111111111111111111111111111111'
 const HISTORY_DEPOSIT_ID = '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'
 
-describe('FlexvaultsClient history methods', () => {
+describe('PrivanaClient history methods', () => {
   it('getHistory requests the latest page by default', async () => {
     const originalFetch = globalThis.fetch
     let requestUrl: string | undefined
@@ -44,7 +44,7 @@ describe('FlexvaultsClient history methods', () => {
     }
 
     try {
-      const client = new FlexvaultsClient({ baseUrl: BASE_URL })
+      const client = new PrivanaClient({ baseUrl: BASE_URL })
       const result = await client.getHistory()
 
       expect(requestUrl).toBe(`${BASE_URL}/v1/accounting/history?offset=-1&limit=50`)
@@ -72,7 +72,7 @@ describe('FlexvaultsClient history methods', () => {
     }
 
     try {
-      const client = new FlexvaultsClient({ baseUrl: BASE_URL })
+      const client = new PrivanaClient({ baseUrl: BASE_URL })
       await client.getHistory({ offset: 2, limit: 0 })
 
       const url = new URL(requestUrl ?? '')
@@ -95,7 +95,7 @@ describe('FlexvaultsClient history methods', () => {
     }
 
     try {
-      const client = new FlexvaultsClient({ baseUrl: BASE_URL })
+      const client = new PrivanaClient({ baseUrl: BASE_URL })
       let error: unknown
 
       try {

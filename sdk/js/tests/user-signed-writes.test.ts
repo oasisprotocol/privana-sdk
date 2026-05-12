@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'bun:test'
-import { FlexvaultsClient } from '../src/sdk/client'
+import { PrivanaClient } from '../src/sdk/client'
 
-const BASE_URL = 'https://flexvaults.example.com'
+const BASE_URL = 'https://privana.example.com'
 
-describe('FlexvaultsClient user-signed write methods', () => {
+describe('PrivanaClient user-signed write methods', () => {
   it('getModifyLockNonce calls the modify-lock nonce endpoint', async () => {
     const originalFetch = globalThis.fetch
     let requestUrl: string | undefined
@@ -22,7 +22,7 @@ describe('FlexvaultsClient user-signed write methods', () => {
     }
 
     try {
-      const client = new FlexvaultsClient({ baseUrl: BASE_URL })
+      const client = new PrivanaClient({ baseUrl: BASE_URL })
       const result = await client.getModifyLockNonce('0x000000000000000000000000000000000000dEaD')
 
       expect(result.user_address).toBe('0x000000000000000000000000000000000000dEaD')
@@ -51,7 +51,7 @@ describe('FlexvaultsClient user-signed write methods', () => {
     }
 
     try {
-      const client = new FlexvaultsClient({ baseUrl: BASE_URL })
+      const client = new PrivanaClient({ baseUrl: BASE_URL })
       await client.getLockNonce('0x000000000000000000000000000000000000dEaD')
       await client.getModifyLockNonce('0x000000000000000000000000000000000000dEaD')
 
@@ -77,7 +77,7 @@ describe('FlexvaultsClient user-signed write methods', () => {
     }
 
     try {
-      const client = new FlexvaultsClient({ baseUrl: BASE_URL })
+      const client = new PrivanaClient({ baseUrl: BASE_URL })
       const result = await client.modifyLock({
         lock_id: 42,
         amount: '1000',
@@ -112,7 +112,7 @@ describe('FlexvaultsClient user-signed write methods', () => {
     }
 
     try {
-      const client = new FlexvaultsClient({ baseUrl: BASE_URL })
+      const client = new PrivanaClient({ baseUrl: BASE_URL })
       await client.lockFunds({
         service_address: '0x000000000000000000000000000000000000dEaD',
         token_id: '0x' + '11'.repeat(32),
@@ -148,7 +148,7 @@ describe('FlexvaultsClient user-signed write methods', () => {
     }
 
     try {
-      const client = new FlexvaultsClient({ baseUrl: BASE_URL })
+      const client = new PrivanaClient({ baseUrl: BASE_URL })
       await client.transferFunds({
         to_address: '0x000000000000000000000000000000000000dEaD',
         token_id: '0x' + '22'.repeat(32),
@@ -182,7 +182,7 @@ describe('FlexvaultsClient user-signed write methods', () => {
     }
 
     try {
-      const client = new FlexvaultsClient({ baseUrl: BASE_URL })
+      const client = new PrivanaClient({ baseUrl: BASE_URL })
       await client.requestWithdrawal({
         token_id: '0x' + '33'.repeat(32),
         amount: '1000',

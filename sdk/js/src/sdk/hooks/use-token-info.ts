@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { useFlexvaultsContext } from '../context/flexvaults-provider'
+import { usePrivanaContext } from '../context/privana-provider'
 import type { Bytes32, TokenInfoResponse } from '../types'
 
 export interface UseTokenInfoOptions {
@@ -18,7 +18,7 @@ export interface UseTokenInfoResult {
 }
 
 export function useTokenInfo(options: UseTokenInfoOptions = {}): UseTokenInfoResult {
-  const { client } = useFlexvaultsContext()
+  const { client } = usePrivanaContext()
   const { tokenId } = options
 
   const query = useQuery<TokenInfoResponse, Error>({

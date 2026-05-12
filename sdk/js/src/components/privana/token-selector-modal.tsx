@@ -9,7 +9,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import type { TokenConfig } from '@/sdk/types/tokens'
-import { useFlexvaultsContext } from '@/sdk/context/flexvaults-provider'
+import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { cn } from '@/lib/utils'
 import { getTokenIcon } from './token-icons'
 
@@ -29,7 +29,7 @@ export function TokenSelectorModal({
   const [tokenSearch, setTokenSearch] = useState('')
   const titleId = useId()
   const descId = useId()
-  const { enabledTokens } = useFlexvaultsContext()
+  const { enabledTokens } = usePrivanaContext()
 
   const filteredTokens = useMemo(() => {
     const tokens = enabledTokens.map((token) => ({

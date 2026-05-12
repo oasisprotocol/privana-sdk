@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { useFlexvaultsContext } from '../context/flexvaults-provider'
+import { usePrivanaContext } from '../context/privana-provider'
 import type { Bytes32, BatchBalancesResponse, TokenBalance } from '../types'
 import { usePrivateReadRequest } from './use-private-read-request'
 
@@ -19,7 +19,7 @@ export interface UseBatchBalancesResult {
 }
 
 export function useBatchBalances(options: UseBatchBalancesOptions): UseBatchBalancesResult {
-  const { client, pollingInterval } = useFlexvaultsContext()
+  const { client, pollingInterval } = usePrivanaContext()
   const { executePrivateRead, privateReadAddress, privateReadQueryScope, privateReadReady } =
     usePrivateReadRequest()
 

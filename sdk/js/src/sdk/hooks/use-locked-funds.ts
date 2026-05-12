@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { useFlexvaultsContext } from '../context/flexvaults-provider'
+import { usePrivanaContext } from '../context/privana-provider'
 import type { LockInfo, LockedFundsResponse } from '../types'
 import { usePrivateReadRequest } from './use-private-read-request'
 
@@ -19,7 +19,7 @@ export interface UseLockedFundsResult {
 }
 
 export function useLockedFunds(options: UseLockedFundsOptions = {}): UseLockedFundsResult {
-  const { client, pollingInterval, serviceAddress } = useFlexvaultsContext()
+  const { client, pollingInterval, serviceAddress } = usePrivanaContext()
   const { executePrivateRead, privateReadAddress, privateReadQueryScope, privateReadReady } =
     usePrivateReadRequest()
 

@@ -11,7 +11,7 @@ import {
   type ReactNode,
 } from 'react'
 import { zeroAddress } from 'viem'
-import { FlexvaultsClient } from '../client'
+import { PrivanaClient } from '../client'
 import {
   applyRefreshResponse,
   createHostedAuthStorageKey,
@@ -25,8 +25,8 @@ import { SUPPORTED_CHAINS, type ChainConfig } from '../types/chains'
 
 export type TokensStatus = 'loading' | 'ready' | 'error'
 
-export interface FlexvaultsContextValue {
-  client: FlexvaultsClient
+export interface PrivanaContextValue {
+  client: PrivanaClient
   networkConfig: NetworkConfig
   enabledTokens: TokenConfig[]
   defaultToken: TokenConfig | undefined
@@ -44,7 +44,7 @@ export interface FlexvaultsContextValue {
   refreshHostedAuthSession: () => Promise<HostedAuthSession>
 }
 
-const FlexvaultsContext = createContext<FlexvaultsContextValue | null>(null)
+const PrivanaContext = createContext<PrivanaContextValue | null>(null)
 
 export function readStoredHostedAuthSession(
   storage: Pick<Storage, 'getItem' | 'removeItem'>,
@@ -70,7 +70,7 @@ export function readStoredHostedAuthSession(
 }
 
 export function syncHostedAuthSessionToClient(
-  client: Pick<FlexvaultsClient, 'clearBearerToken' | 'clearPrivateReadToken' | 'setBearerToken'>,
+  client: Pick<PrivanaClient, 'clearBearerToken' | 'clearPrivateReadToken' | 'setBearerToken'>,
   hostedAuthConfig: HostedAuthConfig | null,
   hostedAuthSession: HostedAuthSession | null
 ): void {
@@ -95,7 +95,7 @@ export function syncHostedAuthSessionToClient(
  */
 const DEFAULT_NETWORK_CONFIG = NETWORK_CONFIG.testnet
 
-export interface FlexvaultsProviderProps {
+export interface PrivanaProviderProps {
   children: ReactNode
   /**
    * Network configuration including chainId, accountingContract, apiUrl, and name.
@@ -124,7 +124,7 @@ export interface FlexvaultsProviderProps {
   hostedAuth?: HostedAuthConfig
 }
 
-export function FlexvaultsProvider({
+export function PrivanaProvider({
   children,
   networkConfig: networkConfigOverride,
   tokens,
@@ -132,7 +132,7 @@ export function FlexvaultsProvider({
   pollingInterval = 10000,
   serviceAddress,
   hostedAuth,
-}: FlexvaultsProviderProps) {
+}: PrivanaProviderProps) {
   const networkConfig = useMemo<NetworkConfig>(() => {
     const config: NetworkConfig = {
       ...DEFAULT_NETWORK_CONFIG,
@@ -141,15 +141,13 @@ export function FlexvaultsProvider({
 
     // Validate that critical fields are present and valid
     if (!config.chainId || config.chainId <= 0) {
-      throw new Error('FlexvaultsProvider: networkConfig.chainId must be a positive number')
+      throw new Error('PrivanaProvider: networkConfig.chainId must be a positive number')
     }
     if (!config.accountingContract || !config.accountingContract.startsWith('0x')) {
-      throw new Error(
-        'FlexvaultsProvider: networkConfig.accountingContract must be a valid address'
-      )
+      throw new Error('PrivanaProvider: networkConfig.accountingContract must be a valid address')
     }
     if (!config.apiUrl) {
-      throw new Error('FlexvaultsProvider: networkConfig.apiUrl must be provided')
+      throw new Error('PrivanaProvider: networkConfig.apiUrl must be provided')
     }
 
     return config
@@ -167,7 +165,7 @@ export function FlexvaultsProvider({
   }, [chains])
 
   const client = useMemo(
-    () => new FlexvaultsClient({ baseUrl: networkConfig.apiUrl }),
+    () => new PrivanaClient({ baseUrl: networkConfig.apiUrl }),
     [networkConfig.apiUrl]
   )
 
@@ -228,12 +226,12 @@ export function FlexvaultsProvider({
     const redirectUri = hostedAuth.redirectUri.trim()
     if (!clientId) {
       throw new Error(
-        'FlexvaultsProvider: hostedAuth.clientId must be provided when hostedAuth is enabled'
+        'PrivanaProvider: hostedAuth.clientId must be provided when hostedAuth is enabled'
       )
     }
     if (!redirectUri) {
       throw new Error(
-        'FlexvaultsProvider: hostedAuth.redirectUri must be provided when hostedAuth is enabled'
+        'PrivanaProvider: hostedAuth.redirectUri must be provided when hostedAuth is enabled'
       )
     }
 
@@ -369,7 +367,7 @@ export function FlexvaultsProvider({
     syncHostedAuthSessionToClient(client, hostedAuthConfig, hostedAuthSession)
   }, [client, hostedAuthConfig, hostedAuthSession])
 
-  const value = useMemo<FlexvaultsContextValue>(
+  const value = useMemo<PrivanaContextValue>(
     () => ({
       client,
       networkConfig,
@@ -407,17 +405,17 @@ export function FlexvaultsProvider({
     ]
   )
 
-  return <FlexvaultsContext.Provider value={value}>{children}</FlexvaultsContext.Provider>
+  return <PrivanaContext.Provider value={value}>{children}</PrivanaContext.Provider>
 }
 
-export function useFlexvaultsContext(): FlexvaultsContextValue {
-  const context = useContext(FlexvaultsContext)
+export function usePrivanaContext(): PrivanaContextValue {
+  const context = useContext(PrivanaContext)
   if (!context) {
-    throw new Error('useFlexvaultsContext must be used within a FlexvaultsProvider')
+    throw new Error('usePrivanaContext must be used within a PrivanaProvider')
   }
   return context
 }
 
-export function useSafeFlexvaultsContext(): FlexvaultsContextValue | null {
-  return useContext(FlexvaultsContext)
+export function useSafePrivanaContext(): PrivanaContextValue | null {
+  return useContext(PrivanaContext)
 }

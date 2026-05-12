@@ -1,1 +1,1 @@
-export * from './flexvaults-provider'
+export * from './privana-provider'

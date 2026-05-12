@@ -15,7 +15,7 @@ import {
   type Step,
 } from './transaction-steps'
 import { erc20Abi, zeroAddress } from 'viem'
-import { useFlexvaultsContext } from '@/sdk/context/flexvaults-provider'
+import { usePrivanaContext } from '@/sdk/context/privana-provider'
 
 interface DepositFormProps {
   selectedToken: TokenConfig
@@ -31,7 +31,7 @@ export function DepositForm({
   onSuccess,
 }: DepositFormProps) {
   const { isConnected, address } = useAccount()
-  const { chains, getChainById } = useFlexvaultsContext()
+  const { chains, getChainById } = usePrivanaContext()
   const [amount, setAmount] = useState('')
   const [showSuccess, setShowSuccess] = useState(false)
   const [showTimeout, setShowTimeout] = useState(false)

@@ -24,7 +24,7 @@ const sapphireTestnet = {
 const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || 'demo-project-id'
 
 export const wagmiConfig = getDefaultConfig({
-  appName: 'Flexvaults SDK',
+  appName: 'Privana SDK',
   projectId,
   chains: [baseSepolia, sapphireTestnet],
   transports: {

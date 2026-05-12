@@ -3,7 +3,7 @@
 import { useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAccount } from 'wagmi'
-import { useFlexvaultsContext } from '../context/flexvaults-provider'
+import { usePrivanaContext } from '../context/privana-provider'
 import type { TransactionSubmissionResponse } from '../types'
 
 export interface UseUnlockFundsOptions {
@@ -26,7 +26,7 @@ export interface UseUnlockFundsResult {
 
 export function useUnlockFunds(options: UseUnlockFundsOptions = {}): UseUnlockFundsResult {
   const { address } = useAccount()
-  const { client } = useFlexvaultsContext()
+  const { client } = usePrivanaContext()
   const queryClient = useQueryClient()
 
   const unlockMutation = useMutation({

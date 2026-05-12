@@ -19,7 +19,7 @@ import {
   HostedAuthRequiredError,
   HostedAuthStateMismatchError,
 } from '../client'
-import { useFlexvaultsContext } from '../context'
+import { usePrivanaContext } from '../context'
 import type { HostedAuthSession } from '../types'
 
 const hostedAuthExchangeInflight = new Map<string, Promise<HostedAuthSession>>()
@@ -54,7 +54,7 @@ export function useHostedRedirectAuth(): UseHostedRedirectAuthResult {
     setHostedAuthSession,
     clearHostedAuthSession,
     refreshHostedAuthSession,
-  } = useFlexvaultsContext()
+  } = usePrivanaContext()
   const [error, setError] = useState<Error | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const loginInflight = useRef<Promise<void> | null>(null)

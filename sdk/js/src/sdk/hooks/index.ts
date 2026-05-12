@@ -1,4 +1,4 @@
-export * from './use-flexvaults-client'
+export * from './use-privana-client'
 export * from './use-hosted-redirect-auth'
 export * from './use-balance'
 export * from './use-batch-balances'

@@ -2,12 +2,12 @@
 
 @source "./";
 
-/* Scope base styles to flexvaults elements only */
+/* Scope base styles to privana elements only */
 @layer base {
-  [data-flexvaults],
-  [data-flexvaults] *,
-  [data-flexvaults] ::before,
-  [data-flexvaults] ::after {
+  [data-privana],
+  [data-privana] *,
+  [data-privana] ::before,
+  [data-privana] ::after {
     box-sizing: border-box;
     border-width: 0;
     border-style: solid;
@@ -38,7 +38,7 @@
   --color-card: var(--fv-card);
 }
 
-[data-flexvaults] {
+[data-privana] {
   --fv-radius: 0.625rem;
   --fv-radius-sm: calc(var(--fv-radius) - 4px);
   --fv-radius-md: calc(var(--fv-radius) - 2px);
@@ -64,8 +64,8 @@
   --fv-ring: oklch(0.708 0 0);
 }
 
-[data-flexvaults].dark,
-.dark [data-flexvaults] {
+[data-privana].dark,
+.dark [data-privana] {
   --fv-background: oklch(0.07 0 0);
   --fv-foreground: oklch(1 0 0);
   --fv-card: oklch(0.07 0 0);
