@@ -1,8 +1,8 @@
 from .client import (
     AccountingApiError,
-    PrivanaClient,
     HttpClient,
     NetworkError,
+    PrivanaClient,
     ValidationError,
 )
 from .signatures import (
@@ -112,7 +112,7 @@ from .utils import (
     shorten_address,
 )
 
-__version__ = "0.1.6"
+__version__ = "0.2.0"
 
 __all__ = [
     "__version__",

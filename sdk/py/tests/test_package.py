@@ -3,7 +3,7 @@ import privana
 
 class TestPackageExports:
     def test_version(self):
-        assert privana.__version__ == "0.1.6"
+        assert privana.__version__ == "0.2.0"
 
     def test_client_exports(self):
         assert hasattr(privana, "PrivanaClient")
