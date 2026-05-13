@@ -1,18 +1,18 @@
-# privana-sdk
+# oasis-privana
 
 Python SDK for Privana - manage deposits, withdrawals, locks, and transfers on the accounting module.
 
 ## Installation
 
 ```bash
-pip install privana-sdk
+pip install oasis-privana
 ```
 
 ## Quick Start
 
 ```python
 import asyncio
-from privana import PrivanaClient, DepositCheckRequest
+from oasis_privana import PrivanaClient, DepositCheckRequest
 
 async def main():
     async with PrivanaClient(base_url="https://api.example.com") as client:
@@ -43,7 +43,7 @@ must be between 0 and 100.
 
 ```python
 import asyncio
-from privana import PrivanaClient
+from oasis_privana import PrivanaClient
 
 async def main():
     async with PrivanaClient(base_url="https://api.example.com") as client:
@@ -67,7 +67,7 @@ asyncio.run(main())
 
 ```python
 from eth_account import Account
-from privana import (
+from oasis_privana import (
     sign_lock_message,
     LockNonceResponse,
     SignLockParams,
