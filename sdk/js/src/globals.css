@@ -85,3 +85,76 @@
   --fv-input: oklch(0 0 0 / 50%);
   --fv-ring: oklch(1 0 0 / 20%);
 }
+
+[data-privana-content] {
+  view-transition-name: privana-modal;
+}
+
+::view-transition-group(privana-modal) {
+  overflow: hidden;
+}
+
+@keyframes privana-slide-out-left {
+  to {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+@keyframes privana-slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes privana-slide-out-right {
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes privana-slide-in-left {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+html[data-fv-dir='forward']::view-transition-old(privana-modal) {
+  animation: privana-slide-out-left 0.3s ease both;
+}
+
+html[data-fv-dir='forward']::view-transition-new(privana-modal) {
+  animation: privana-slide-in-right 0.3s ease both;
+}
+
+html[data-fv-dir='back']::view-transition-old(privana-modal) {
+  animation: privana-slide-out-right 0.3s ease both;
+}
+
+html[data-fv-dir='back']::view-transition-new(privana-modal) {
+  animation: privana-slide-in-left 0.3s ease both;
+}
+
+[data-privana-footer] {
+  position: absolute;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  width: 116px;
+  height: 12px;
+  background-image: url('./powered_by_privana.svg');
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-position: center;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+  z-index: 10;
+}
+
+[data-privana-footer]:hover,
+[data-privana-footer]:focus-visible {
+  opacity: 1;
+}

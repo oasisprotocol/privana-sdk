@@ -34,10 +34,6 @@ function CloseIcon() {
   )
 }
 
-function SearchIcon() {
-  return <div className="h-3 w-3 rounded-full border-[1.5px] border-current" />
-}
-
 function ChevronRight() {
   return (
     <svg width="10" height="5" viewBox="0 0 12 6" className="-rotate-90">
@@ -109,7 +105,7 @@ function BalanceCards({
   const formattedBalance = formatTokenAmount(balanceWei, selectedToken.decimals)
   const formattedLocked = showLockedFunds
     ? formatTokenAmount(String(totalLocked), selectedToken.decimals)
-    : '0'
+    : '0.00'
 
   return (
     <div className={cn('flex gap-2', disabled && 'opacity-50')}>
@@ -192,7 +188,7 @@ function Tabs({
     >
       <div
         className={cn(
-          'bg-input absolute top-1 bottom-1 left-1 w-[calc(50%-4px)] rounded-md transition-transform duration-200',
+          'bg-input absolute top-1 bottom-1 left-1 w-[calc(50%-8px)] rounded-md transition-transform duration-200',
           activeTab === 'withdraw' && 'translate-x-[calc(100%+8px)]'
         )}
       />
@@ -233,7 +229,7 @@ interface LockedFundsSection {
   }[]
 }
 
-function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: () => void }) {
+function LockedFundsView({ onBack }: { onBack: () => void }) {
   const { getTokenById } = usePrivanaContext()
   const { locks, isLoading } = useLockedFunds()
   const { unlockFunds, unlockAllExpired, isPending } = useUnlockFunds()
@@ -274,23 +270,15 @@ function LockedFundsView({ onBack, onClose }: { onBack: () => void; onClose?: ()
   return (
     <>
       <div className="flex items-center justify-between px-5 py-4">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <button
             onClick={onBack}
-            className="text-muted-foreground hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
+            className="text-muted-foreground hover:text-foreground -ml-2 flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
           >
             <ChevronLeft />
           </button>
           <span className="text-foreground text-xl leading-6 font-medium">Locked Funds</span>
         </div>
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
-          >
-            <CloseIcon />
-          </button>
-        )}
       </div>
 
       <div className="bg-muted flex min-h-0 flex-1 flex-col rounded-[10px] p-2">
@@ -401,7 +389,7 @@ function BalanceTokenRow({ token }: { token: TokenConfig }) {
   )
 }
 
-function BalanceDetailsView({ onBack, onClose }: { onBack: () => void; onClose?: () => void }) {
+function BalanceDetailsView({ onBack }: { onBack: () => void }) {
   const { enabledTokens, chains } = usePrivanaContext()
   const [selectedChainId, setSelectedChainId] = useState<number>(chains[0]?.id ?? 84532)
 
@@ -412,23 +400,15 @@ function BalanceDetailsView({ onBack, onClose }: { onBack: () => void; onClose?:
   return (
     <>
       <div className="flex items-center justify-between px-5 py-4">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <button
             onClick={onBack}
-            className="text-muted-foreground hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
+            className="text-muted-foreground hover:text-foreground -ml-2 flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
           >
             <ChevronLeft />
           </button>
           <span className="text-foreground text-xl leading-6 font-medium">Token Balances</span>
         </div>
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
-          >
-            <CloseIcon />
-          </button>
-        )}
       </div>
 
       <div className="flex min-h-0 flex-1 gap-2">
@@ -524,31 +504,19 @@ function TokenRow({
 
 function TokenSelectorView({
   onBack,
-  onClose,
   onSelect,
   selectedTokenId,
 }: {
   onBack: () => void
-  onClose?: () => void
   onSelect: (token: TokenConfig) => void
   selectedTokenId?: string
 }) {
-  const [tokenSearch, setTokenSearch] = useState('')
   const { enabledTokens, chains } = usePrivanaContext()
   const [selectedChainId, setSelectedChainId] = useState<number>(chains[0]?.id ?? 84532)
 
   const chainTokens = useMemo(() => {
     return enabledTokens.filter((t) => t.chainId === selectedChainId)
   }, [enabledTokens, selectedChainId])
-
-  const filteredTokens = useMemo(() => {
-    if (!tokenSearch) return chainTokens
-    return chainTokens.filter(
-      (t) =>
-        t.symbol.toLowerCase().includes(tokenSearch.toLowerCase()) ||
-        t.name.toLowerCase().includes(tokenSearch.toLowerCase())
-    )
-  }, [tokenSearch, chainTokens])
 
   const handleTokenSelect = (token: TokenConfig) => {
     onSelect(token)
@@ -558,23 +526,15 @@ function TokenSelectorView({
   return (
     <>
       <div className="flex items-center justify-between px-5 py-4">
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <button
             onClick={onBack}
-            className="text-muted-foreground hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
+            className="text-muted-foreground hover:text-foreground -ml-2 flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
           >
             <ChevronLeft />
           </button>
           <span className="text-foreground text-xl leading-6 font-medium">Select Token</span>
         </div>
-        {onClose && (
-          <button
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
-          >
-            <CloseIcon />
-          </button>
-        )}
       </div>
 
       <div className="flex min-h-0 flex-1 gap-2">
@@ -606,27 +566,11 @@ function TokenSelectorView({
         </div>
 
         <div className="bg-muted flex flex-[2] flex-col overflow-hidden rounded-[10px] p-2">
-          <div className="flex flex-col gap-1">
-            <div className="px-4 pt-4 pb-2">
-              <span className="text-muted-foreground text-sm">Token</span>
-            </div>
-            <div className="px-3">
-              <div className="border-border bg-input flex items-center gap-2.5 rounded-lg border px-3 py-2.5">
-                <span className="text-muted-foreground">
-                  <SearchIcon />
-                </span>
-                <input
-                  type="text"
-                  placeholder="Search"
-                  value={tokenSearch}
-                  onChange={(e) => setTokenSearch(e.target.value)}
-                  className="text-foreground placeholder:text-muted-foreground flex-1 bg-transparent text-sm outline-none"
-                />
-              </div>
-            </div>
+          <div className="px-4 pt-4 pb-2">
+            <span className="text-muted-foreground text-sm">Token</span>
           </div>
           <div className="mt-2 flex-1 overflow-y-auto">
-            {filteredTokens.map((token) => (
+            {chainTokens.map((token) => (
               <TokenRow
                 key={token.id}
                 token={token}
@@ -642,7 +586,6 @@ function TokenSelectorView({
 }
 
 interface ModalBodyProps {
-  onClose?: () => void
   onViewChange?: (view: ModalView) => void
   onTransactionPendingChange?: (isPending: boolean) => void
   showLockedFunds?: boolean
@@ -651,7 +594,6 @@ interface ModalBodyProps {
 }
 
 function ModalBody({
-  onClose,
   onViewChange,
   onTransactionPendingChange,
   showLockedFunds = true,
@@ -677,8 +619,16 @@ function ModalBody({
   }
 
   const handleViewChange = (view: ModalView) => {
-    setCurrentView(view)
-    onViewChange?.(view)
+    const update = () => {
+      setCurrentView(view)
+      onViewChange?.(view)
+    }
+    if (typeof document !== 'undefined' && typeof document.startViewTransition === 'function') {
+      document.documentElement.dataset.fvDir = view === 'main' ? 'back' : 'forward'
+      document.startViewTransition(update)
+    } else {
+      update()
+    }
   }
 
   const handleTokenSelect = (token: TokenConfig) => {
@@ -687,7 +637,7 @@ function ModalBody({
 
   if (tokensStatus === 'loading' || !selectedToken) {
     return (
-      <div className="flex flex-col gap-2 pb-4">
+      <div className="flex flex-col gap-2">
         <div className="bg-secondary h-25 animate-pulse rounded-[10px]" />
         <div className="bg-secondary h-11 animate-pulse rounded-[10px]" />
         <div className="bg-secondary h-50 animate-pulse rounded-[10px]" />
@@ -696,18 +646,17 @@ function ModalBody({
   }
 
   if (currentView === 'locked-funds') {
-    return <LockedFundsView onBack={() => handleViewChange('main')} onClose={onClose} />
+    return <LockedFundsView onBack={() => handleViewChange('main')} />
   }
 
   if (currentView === 'balance-details') {
-    return <BalanceDetailsView onBack={() => handleViewChange('main')} onClose={onClose} />
+    return <BalanceDetailsView onBack={() => handleViewChange('main')} />
   }
 
   if (currentView === 'select-token') {
     return (
       <TokenSelectorView
         onBack={() => handleViewChange('main')}
-        onClose={onClose}
         onSelect={handleTokenSelect}
         selectedTokenId={selectedToken.id}
       />
@@ -716,7 +665,7 @@ function ModalBody({
 
   return (
     <>
-      <div className="flex flex-col gap-2 pb-4">
+      <div className="flex flex-col gap-2">
         <div className={cn(isTransactionPending && 'pointer-events-none')}>
           <BalanceCards
             selectedToken={selectedToken}
@@ -768,11 +717,11 @@ export function PrivanaModal({
   onDepositSuccess,
 }: PrivanaModalProps) {
   const [isTransactionPending, setIsTransactionPending] = useState(false)
+  const [currentView, setCurrentView] = useState<ModalView>('main')
   const titleId = useId()
   const descId = useId()
 
   const handleOpenChange = (isOpen: boolean) => {
-    // Block closing if a transaction is pending
     if (!isOpen && isTransactionPending) {
       return
     }
@@ -785,37 +734,55 @@ export function PrivanaModal({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
         data-privana
+        data-view={currentView}
         showCloseButton={false}
-        className="bg-card flex w-[560px] max-w-[95vw] flex-col gap-2 overflow-hidden rounded-2xl border-0 p-2"
+        className="bg-card flex h-[596px] max-h-[596px] min-h-[596px] w-[560px] max-w-[95vw] flex-col gap-2 overflow-hidden rounded-2xl border-0 p-2 pb-[2.75rem]"
         overlayClassName={isTransactionPending ? 'cursor-not-allowed' : undefined}
         aria-labelledby={titleId}
         aria-describedby={descId}
       >
-        <DialogHeader>
-          <DialogTitle id={titleId} className="sr-only">
-            Privana
-          </DialogTitle>
-          <DialogDescription id={descId} className="sr-only">
-            Deposit or withdraw tokens from your Privana
-          </DialogDescription>
-          <div className="flex items-center justify-between px-5 py-4">
-            <span className="text-foreground text-xl leading-6 font-medium">Privana</span>
-            {onClose && (
-              <button
-                onClick={onClose}
-                className="text-muted-foreground hover:text-foreground flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
-              >
-                <CloseIcon />
-              </button>
-            )}
-          </div>
-        </DialogHeader>
-        <ModalBody
-          onClose={isTransactionPending ? undefined : onClose}
-          onTransactionPendingChange={setIsTransactionPending}
-          showLockedFunds={showLockedFunds}
-          defaultTab={defaultTab}
-          onDepositSuccess={onDepositSuccess}
+        {onClose && (
+          <button
+            data-privana-close
+            onClick={onClose}
+            aria-label="Close"
+            className="text-muted-foreground hover:text-foreground absolute top-6 right-5 z-20 flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
+          >
+            <CloseIcon />
+          </button>
+        )}
+        <div
+          data-privana-content
+          data-view={currentView}
+          className="flex min-h-0 flex-1 flex-col gap-2"
+        >
+          {currentView === 'main' && (
+            <DialogHeader>
+              <DialogTitle id={titleId} className="sr-only">
+                Privana
+              </DialogTitle>
+              <DialogDescription id={descId} className="sr-only">
+                Deposit or withdraw tokens from your Privana
+              </DialogDescription>
+              <div className="flex items-center px-5 py-4">
+                <span className="text-foreground text-xl leading-6 font-medium">Privana</span>
+              </div>
+            </DialogHeader>
+          )}
+          <ModalBody
+            onTransactionPendingChange={setIsTransactionPending}
+            onViewChange={setCurrentView}
+            showLockedFunds={showLockedFunds}
+            defaultTab={defaultTab}
+            onDepositSuccess={onDepositSuccess}
+          />
+        </div>
+        <a
+          data-privana-footer
+          href="https://privana.finance"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Powered by Privana"
         />
       </DialogContent>
     </Dialog>
