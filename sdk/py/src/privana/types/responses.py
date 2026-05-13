@@ -25,6 +25,7 @@ class DepositCheckResponse:
 
 @dataclass
 class TransactionSubmissionResponse:
+    submission_id: str
     status: str
     detail: str | None = None
 

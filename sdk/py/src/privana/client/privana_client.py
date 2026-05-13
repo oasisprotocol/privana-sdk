@@ -284,6 +284,7 @@ class PrivanaClient:
             },
         )
         return TransactionSubmissionResponse(
+            submission_id=data["submission_id"],
             status=data["status"],
             detail=data.get("detail"),
         )
@@ -300,6 +301,7 @@ class PrivanaClient:
             },
         )
         return TransactionSubmissionResponse(
+            submission_id=data["submission_id"],
             status=data["status"],
             detail=data.get("detail"),
         )
@@ -313,6 +315,7 @@ class PrivanaClient:
             },
         )
         return TransactionSubmissionResponse(
+            submission_id=data["submission_id"],
             status=data["status"],
             detail=data.get("detail"),
         )
@@ -327,6 +330,7 @@ class PrivanaClient:
             },
         )
         return TransactionSubmissionResponse(
+            submission_id=data["submission_id"],
             status=data["status"],
             detail=data.get("detail"),
         )
@@ -373,6 +377,7 @@ class PrivanaClient:
             },
         )
         return TransactionSubmissionResponse(
+            submission_id=data["submission_id"],
             status=data["status"],
             detail=data.get("detail"),
         )
@@ -417,6 +422,7 @@ class PrivanaClient:
             },
         )
         return TransactionSubmissionResponse(
+            submission_id=data["submission_id"],
             status=data["status"],
             detail=data.get("detail"),
         )
@@ -435,6 +441,7 @@ class PrivanaClient:
             },
         )
         return TransactionSubmissionResponse(
+            submission_id=data["submission_id"],
             status=data["status"],
             detail=data.get("detail"),
         )
@@ -451,6 +458,7 @@ class PrivanaClient:
             },
         )
         return TransactionSubmissionResponse(
+            submission_id=data["submission_id"],
             status=data["status"],
             detail=data.get("detail"),
         )
