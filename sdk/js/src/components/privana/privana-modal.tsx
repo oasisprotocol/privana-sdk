@@ -719,28 +719,22 @@ export function PrivanaModal({
   defaultTab,
   onDepositSuccess,
 }: PrivanaModalProps) {
-  const [isTransactionPending, setIsTransactionPending] = useState(false)
   const [currentView, setCurrentView] = useState<ModalView>('main')
   const titleId = useId()
   const descId = useId()
 
-  const handleOpenChange = (isOpen: boolean) => {
-    if (!isOpen && isTransactionPending) {
-      return
-    }
-    if (!isOpen) {
-      onClose()
-    }
-  }
-
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) onClose()
+      }}
+    >
       <DialogContent
         data-privana
         data-view={currentView}
         showCloseButton={false}
         className="bg-card flex h-[596px] max-h-[95dvh] w-[560px] max-w-[95vw] flex-col gap-2 overflow-hidden rounded-2xl border-0 p-2 pb-[2.75rem]"
-        overlayClassName={isTransactionPending ? 'cursor-not-allowed' : undefined}
         aria-labelledby={titleId}
         aria-describedby={descId}
       >
@@ -773,7 +767,6 @@ export function PrivanaModal({
             </DialogHeader>
           )}
           <ModalBody
-            onTransactionPendingChange={setIsTransactionPending}
             onViewChange={setCurrentView}
             showLockedFunds={showLockedFunds}
             defaultTab={defaultTab}
