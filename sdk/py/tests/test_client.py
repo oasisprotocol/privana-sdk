@@ -237,7 +237,7 @@ class TestLockFunds:
                 "signature": "0xsig",
             }
             assert "user_address" not in body
-            return httpx.Response(200, json={"status": "submitted"})
+            return httpx.Response(200, json={"submission_id": "sub-1", "status": "submitted"})
 
         respx.post(f"{BASE_URL}/v1/accounting/funds/lock").mock(side_effect=handler)
 
@@ -267,7 +267,7 @@ class TestModifyLock:
                 "signature": "0xsig",
             }
             assert "user_address" not in body
-            return httpx.Response(200, json={"status": "submitted"})
+            return httpx.Response(200, json={"submission_id": "sub-1", "status": "submitted"})
 
         respx.post(f"{BASE_URL}/v1/accounting/funds/modify-lock").mock(side_effect=handler)
 
@@ -290,6 +290,7 @@ class TestUnlockFunds:
             return_value=httpx.Response(
                 200,
                 json={
+                    "submission_id": "sub-1",
                     "status": "submitted",
                 },
             )
@@ -304,6 +305,7 @@ class TestUnlockFunds:
             return_value=httpx.Response(
                 200,
                 json={
+                    "submission_id": "sub-1",
                     "status": "submitted",
                 },
             )
@@ -373,7 +375,7 @@ class TestTransfer:
                 "signature": "0xsig",
             }
             assert "user_address" not in body
-            return httpx.Response(200, json={"status": "submitted"})
+            return httpx.Response(200, json={"submission_id": "sub-1", "status": "submitted"})
 
         respx.post(f"{BASE_URL}/v1/accounting/funds/transfer").mock(side_effect=handler)
 
@@ -394,6 +396,7 @@ class TestTransfer:
             return_value=httpx.Response(
                 200,
                 json={
+                    "submission_id": "sub-1",
                     "status": "submitted",
                 },
             )
@@ -425,7 +428,7 @@ class TestWithdrawal:
                 "signature": "0xsig",
             }
             assert "user_address" not in body
-            return httpx.Response(200, json={"status": "submitted"})
+            return httpx.Response(200, json={"submission_id": "sub-1", "status": "submitted"})
 
         respx.post(f"{BASE_URL}/v1/accounting/withdraw").mock(side_effect=handler)
 
@@ -738,7 +741,11 @@ class TestWithdrawFromLock:
             assert "user_address" not in body
             return httpx.Response(
                 200,
-                json={"status": "submitted", "detail": "chain_id=1; token_address=0xtoken"},
+                json={
+                    "submission_id": "sub-1",
+                    "status": "submitted",
+                    "detail": "chain_id=1; token_address=0xtoken",
+                },
             )
 
         respx.post(f"{BASE_URL}/v1/accounting/funds/withdraw-from-lock").mock(side_effect=handler)

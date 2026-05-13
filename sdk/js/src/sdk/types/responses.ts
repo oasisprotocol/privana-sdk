@@ -21,6 +21,7 @@ export interface DepositCheckResponse {
 }
 
 export interface TransactionSubmissionResponse {
+  submission_id: string
   status: string
   detail?: string
 }

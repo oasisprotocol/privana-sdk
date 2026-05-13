@@ -1,12 +1,13 @@
 # Privana SDK
 
-Monorepo for the Privana SDK and preview application.
+Monorepo for the Privana SDK and a preview application.
 
 ## Packages
 
 | Package                                | Description                            |
 | -------------------------------------- | -------------------------------------- |
-| [@oasisprotocol/privana-sdk](./sdk/js) | React SDK for Privana                  |
+| [@oasisprotocol/privana-sdk](./sdk/js) | React/Javascript SDK for Privana       |
+| [oasis-privana](./sdk/py)              | Python SDK for Privana                 |
 | [privana-preview](./apps/preview)      | Preview application showcasing the SDK |
 
 ## Development
