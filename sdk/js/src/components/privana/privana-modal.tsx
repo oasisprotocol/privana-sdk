@@ -750,22 +750,20 @@ export function PrivanaModal({
         aria-labelledby={titleId}
         aria-describedby={descId}
       >
-        {onClose && (
-          <button
-            data-privana-close
-            onClick={handleClose}
-            disabled={isCloseBlocked}
-            aria-label="Close"
-            className={cn(
-              'absolute top-6 right-5 z-20 flex h-6 w-6 items-center justify-center transition-colors',
-              isCloseBlocked
-                ? 'text-muted-foreground/40 cursor-not-allowed'
-                : 'text-muted-foreground hover:text-foreground cursor-pointer'
-            )}
-          >
-            <CloseIcon />
-          </button>
-        )}
+        <button
+          data-privana-close
+          onClick={handleClose}
+          disabled={isCloseBlocked}
+          aria-label="Close"
+          className={cn(
+            'absolute top-6 right-5 z-20 flex h-6 w-6 items-center justify-center transition-colors',
+            isCloseBlocked
+              ? 'text-muted-foreground/40 cursor-not-allowed'
+              : 'text-muted-foreground hover:text-foreground cursor-pointer'
+          )}
+        >
+          <CloseIcon />
+        </button>
         <div
           data-privana-content
           data-view={currentView}
