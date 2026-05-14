@@ -21,6 +21,7 @@ interface DepositFormProps {
   selectedToken: TokenConfig
   onTokenSelect: () => void
   onPendingChange?: (isPending: boolean) => void
+  onUnsafeToCloseChange?: (isUnsafe: boolean) => void
   onSuccess?: () => void
 }
 
@@ -28,6 +29,7 @@ export function DepositForm({
   selectedToken,
   onTokenSelect,
   onPendingChange,
+  onUnsafeToCloseChange,
   onSuccess,
 }: DepositFormProps) {
   const { isConnected, address } = useAccount()
@@ -165,6 +167,10 @@ export function DepositForm({
   useEffect(() => {
     onPendingChange?.(isPending && !cancelled)
   }, [isPending, cancelled, onPendingChange])
+
+  useEffect(() => {
+    onUnsafeToCloseChange?.((isGettingAddress || isSendingTransaction) && !cancelled)
+  }, [isGettingAddress, isSendingTransaction, cancelled, onUnsafeToCloseChange])
 
   const handleCancel = () => {
     setCancelled(true)

@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAccount, useWalletClient, useWriteContract, useSendTransaction, useConfig } from 'wagmi'
-import { waitForTransactionReceipt } from '@wagmi/core'
+import { getTransactionReceipt, waitForTransactionReceipt } from '@wagmi/core'
 import { erc20Abi, zeroAddress } from 'viem'
 import { usePrivanaContext } from '../context/privana-provider'
 import { useEnsureCorrectChain } from './use-ensure-correct-chain'
@@ -61,6 +61,51 @@ interface VerificationContext {
   hash: `0x${string}`
   chainId: number
   amount: bigint
+}
+
+interface PersistedDeposit {
+  txHash: string
+  chainId: number
+  amount: string
+  depositAddress: DepositAddressResponse
+  savedAt: number
+}
+
+const STALE_MS = 30 * 60 * 1000
+
+function storageKey(address: string): string {
+  return `privana:pending-deposit:${address.toLowerCase()}`
+}
+
+function savePendingDeposit(address: string, data: PersistedDeposit): void {
+  try {
+    sessionStorage.setItem(storageKey(address), JSON.stringify(data))
+  } catch {
+    // sessionStorage may be unavailable (incognito quota, etc.)
+  }
+}
+
+function loadPendingDeposit(address: string): PersistedDeposit | null {
+  try {
+    const raw = sessionStorage.getItem(storageKey(address))
+    if (!raw) return null
+    const data: PersistedDeposit = JSON.parse(raw)
+    if (Date.now() - data.savedAt > STALE_MS) {
+      clearPendingDeposit(address)
+      return null
+    }
+    return data
+  } catch {
+    return null
+  }
+}
+
+function clearPendingDeposit(address: string): void {
+  try {
+    sessionStorage.removeItem(storageKey(address))
+  } catch {
+    // ignore
+  }
 }
 
 export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
@@ -143,14 +188,22 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
 
   const { ensureCorrectChain } = useEnsureCorrectChain()
 
-  // Cleanup polling on unmount
+  const invalidateGeneration = useCallback(() => {
+    generationRef.current++
+  }, [])
+
+  // Cleanup polling on unmount and invalidate in-flight async work.
   useEffect(() => {
     return () => {
+      invalidateGeneration()
       if (pollIntervalRef.current) {
         clearTimeout(pollIntervalRef.current)
+        pollIntervalRef.current = null
       }
     }
-  }, [])
+  }, [invalidateGeneration])
+
+  const resumedAddressRef = useRef<string | undefined>(undefined)
 
   const stopPolling = useCallback(() => {
     if (pollIntervalRef.current) {
@@ -162,6 +215,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   const reset = useCallback(() => {
     generationRef.current++
     stopPolling()
+    if (address) clearPendingDeposit(address)
     verificationContextRef.current = null
     setDepositAddress(null)
     setTxHash(undefined)
@@ -174,7 +228,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     addressMutation.reset()
     resetWriteContract()
     resetSendTransaction()
-  }, [addressMutation, resetWriteContract, resetSendTransaction, stopPolling])
+  }, [address, addressMutation, resetWriteContract, resetSendTransaction, stopPolling])
 
   // Verification = Phase 1 (POST checkDeposit) + Phase 2 (poll getDepositStatus).
   // Shared by deposit() and retryVerification(). Callers must set the
@@ -212,6 +266,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
         if (triggerResult.status === 'credited') {
           setIsWaitingForProcessing(false)
           verificationContextRef.current = null
+          if (address) clearPendingDeposit(address)
           queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
           queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
           onCreditedRef.current?.(hash, triggerResult)
@@ -253,6 +308,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
               stopPolling()
               setIsWaitingForProcessing(false)
               verificationContextRef.current = null
+              if (address) clearPendingDeposit(address)
               queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
               queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
               onCreditedRef.current?.(hash, result)
@@ -294,7 +350,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
         )
       }
     },
-    [client, executePrivateRead, pollInterval, pollTimeout, queryClient, stopPolling]
+    [address, client, executePrivateRead, pollInterval, pollTimeout, queryClient, stopPolling]
   )
 
   const retryVerification = useCallback(async (): Promise<void> => {
@@ -309,6 +365,66 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     const generation = generationRef.current
     await runVerification(ctx, generation)
   }, [runVerification, stopPolling])
+
+  // Resume a persisted deposit on mount
+  useEffect(() => {
+    if (!address || resumedAddressRef.current === address) return
+    const persisted = loadPendingDeposit(address)
+    if (!persisted) return
+    resumedAddressRef.current = address
+
+    const hash = persisted.txHash as `0x${string}`
+    setTxHash(hash)
+    setDepositAddress(persisted.depositAddress)
+    setIsWaitingForConfirmation(true)
+    const ctx: VerificationContext = {
+      hash,
+      chainId: persisted.chainId,
+      amount: BigInt(persisted.amount),
+    }
+    verificationContextRef.current = ctx
+
+    const generation = ++generationRef.current
+    const isStale = () => generation !== generationRef.current
+
+    ;(async () => {
+      try {
+        // Try a one-shot receipt fetch first. Resumed deposits were submitted
+        // in a previous session, so the transaction is almost certainly mined
+        // already. getTransactionReceipt avoids the subscription-based polling
+        // of waitForTransactionReceipt, which can hang if the wagmi transport
+        // isn't fully initialised yet on mount.
+        let confirmed = false
+        try {
+          await getTransactionReceipt(config, { hash, chainId: persisted.chainId })
+          confirmed = true
+        } catch {
+          // Receipt not available yet — fall back to polling
+        }
+        if (!confirmed) {
+          await waitForTransactionReceipt(config, {
+            hash,
+            chainId: persisted.chainId,
+            confirmations,
+          })
+        }
+        if (isStale()) return
+        setIsWaitingForConfirmation(false)
+        onDepositSuccessRef.current?.(hash)
+        queryClient.invalidateQueries({ queryKey: ['readContract'] })
+        await runVerification(ctx, generation)
+      } catch (err) {
+        if (isStale()) return
+        setIsWaitingForConfirmation(false)
+        stopPolling()
+        const error = err instanceof Error ? err : new Error('Deposit verification failed')
+        setIsWaitingForProcessing(false)
+        setDepositError(error)
+        setVerificationFailed(true)
+        onErrorRef.current?.(error)
+      }
+    })()
+  }, [address, config, confirmations, queryClient, runVerification, stopPolling])
 
   const deposit = useCallback(
     async (params: DepositParams) => {
@@ -392,12 +508,23 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
           amount: params.amount,
         }
         verificationContextRef.current = ctx
+        savePendingDeposit(address, {
+          txHash: hash,
+          chainId: sourceChain.id,
+          amount: params.amount.toString(),
+          depositAddress: addrResponse,
+          savedAt: Date.now(),
+        })
 
         try {
           // 5. Wait for on-chain confirmation
           setIsWaitingForConfirmation(true)
           try {
-            await waitForTransactionReceipt(config, { hash, confirmations })
+            await waitForTransactionReceipt(config, {
+              hash,
+              chainId: sourceChain.id,
+              confirmations,
+            })
           } finally {
             if (!isStale()) setIsWaitingForConfirmation(false)
           }

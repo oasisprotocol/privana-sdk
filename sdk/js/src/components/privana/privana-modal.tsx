@@ -587,7 +587,7 @@ function TokenSelectorView({
 
 interface ModalBodyProps {
   onViewChange?: (view: ModalView) => void
-  onTransactionPendingChange?: (isPending: boolean) => void
+  onCloseBlockedChange?: (isBlocked: boolean) => void
   showLockedFunds?: boolean
   defaultTab?: 'deposit' | 'withdraw'
   onDepositSuccess?: () => void
@@ -595,7 +595,7 @@ interface ModalBodyProps {
 
 function ModalBody({
   onViewChange,
-  onTransactionPendingChange,
+  onCloseBlockedChange,
   showLockedFunds = true,
   defaultTab = 'deposit',
   onDepositSuccess,
@@ -604,7 +604,7 @@ function ModalBody({
   const [selectedToken, setSelectedToken] = useState<TokenConfig | undefined>(defaultToken)
   const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw'>(defaultTab)
   const [currentView, setCurrentView] = useState<ModalView>('main')
-  const [isTransactionPending, setIsTransactionPending] = useState(false)
+  const [isInteractionPending, setIsInteractionPending] = useState(false)
 
   // Sync selectedToken once tokens finish loading
   useEffect(() => {
@@ -613,9 +613,12 @@ function ModalBody({
     }
   }, [selectedToken, defaultToken])
 
-  const handleTransactionPendingChange = (isPending: boolean) => {
-    setIsTransactionPending(isPending)
-    onTransactionPendingChange?.(isPending)
+  const handlePendingChange = (isPending: boolean) => {
+    setIsInteractionPending(isPending)
+  }
+
+  const handleCloseBlockedChange = (isBlocked: boolean) => {
+    onCloseBlockedChange?.(isBlocked)
   }
 
   const handleViewChange = (view: ModalView) => {
@@ -668,19 +671,19 @@ function ModalBody({
 
   return (
     <>
-      <div className="flex flex-col gap-2">
-        <div className={cn(isTransactionPending && 'pointer-events-none')}>
+      <div className="flex flex-col gap-2 pb-4">
+        <div className={cn(isInteractionPending && 'pointer-events-none')}>
           <BalanceCards
             selectedToken={selectedToken}
             onLockedFundsClick={() => handleViewChange('locked-funds')}
             onBalanceClick={() => handleViewChange('balance-details')}
             showLockedFunds={showLockedFunds}
-            disabled={isTransactionPending}
+            disabled={isInteractionPending}
           />
         </div>
 
-        <div className={cn(isTransactionPending && 'pointer-events-none')}>
-          <Tabs activeTab={activeTab} onTabChange={setActiveTab} disabled={isTransactionPending} />
+        <div className={cn(isInteractionPending && 'pointer-events-none')}>
+          <Tabs activeTab={activeTab} onTabChange={setActiveTab} disabled={isInteractionPending} />
         </div>
 
         <div className="bg-muted rounded-[10px] p-5">
@@ -688,14 +691,16 @@ function ModalBody({
             <DepositForm
               selectedToken={selectedToken}
               onTokenSelect={() => handleViewChange('select-token')}
-              onPendingChange={handleTransactionPendingChange}
+              onPendingChange={handlePendingChange}
+              onUnsafeToCloseChange={handleCloseBlockedChange}
               onSuccess={onDepositSuccess}
             />
           ) : (
             <WithdrawForm
               selectedToken={selectedToken}
               onTokenSelect={() => handleViewChange('select-token')}
-              onPendingChange={handleTransactionPendingChange}
+              onPendingChange={handlePendingChange}
+              onUnsafeToCloseChange={handleCloseBlockedChange}
             />
           )}
         </div>
@@ -719,41 +724,46 @@ export function PrivanaModal({
   defaultTab,
   onDepositSuccess,
 }: PrivanaModalProps) {
-  const [isTransactionPending, setIsTransactionPending] = useState(false)
   const [currentView, setCurrentView] = useState<ModalView>('main')
   const titleId = useId()
   const descId = useId()
+  const [isCloseBlocked, setIsCloseBlocked] = useState(false)
 
-  const handleOpenChange = (isOpen: boolean) => {
-    if (!isOpen && isTransactionPending) {
-      return
-    }
-    if (!isOpen) {
-      onClose()
-    }
+  const handleClose = () => {
+    if (!isCloseBlocked) onClose()
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) handleClose()
+      }}
+    >
       <DialogContent
         data-privana
         data-view={currentView}
         showCloseButton={false}
+        onInteractOutside={isCloseBlocked ? (e) => e.preventDefault() : undefined}
+        onEscapeKeyDown={isCloseBlocked ? (e) => e.preventDefault() : undefined}
         className="bg-card flex h-[596px] max-h-[95dvh] w-[560px] max-w-[95vw] flex-col gap-2 overflow-hidden rounded-2xl border-0 p-2 pb-[2.75rem]"
-        overlayClassName={isTransactionPending ? 'cursor-not-allowed' : undefined}
         aria-labelledby={titleId}
         aria-describedby={descId}
       >
-        {onClose && (
-          <button
-            data-privana-close
-            onClick={onClose}
-            aria-label="Close"
-            className="text-muted-foreground hover:text-foreground absolute top-6 right-5 z-20 flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
-          >
-            <CloseIcon />
-          </button>
-        )}
+        <button
+          data-privana-close
+          onClick={handleClose}
+          disabled={isCloseBlocked}
+          aria-label="Close"
+          className={cn(
+            'absolute top-6 right-5 z-20 flex h-6 w-6 items-center justify-center transition-colors',
+            isCloseBlocked
+              ? 'text-muted-foreground/40 cursor-not-allowed'
+              : 'text-muted-foreground hover:text-foreground cursor-pointer'
+          )}
+        >
+          <CloseIcon />
+        </button>
         <div
           data-privana-content
           data-view={currentView}
@@ -773,7 +783,7 @@ export function PrivanaModal({
             </DialogHeader>
           )}
           <ModalBody
-            onTransactionPendingChange={setIsTransactionPending}
+            onCloseBlockedChange={setIsCloseBlocked}
             onViewChange={setCurrentView}
             showLockedFunds={showLockedFunds}
             defaultTab={defaultTab}
