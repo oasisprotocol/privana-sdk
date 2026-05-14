@@ -197,7 +197,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     }
   }, [])
 
-  const resumedRef = useRef(false)
+  const resumedAddressRef = useRef<string | undefined>(undefined)
 
   const stopPolling = useCallback(() => {
     if (pollIntervalRef.current) {
@@ -362,10 +362,10 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
 
   // Resume a persisted deposit on mount
   useEffect(() => {
-    if (resumedRef.current || !address) return
+    if (!address || resumedAddressRef.current === address) return
     const persisted = loadPendingDeposit(address)
     if (!persisted) return
-    resumedRef.current = true
+    resumedAddressRef.current = address
 
     const hash = persisted.txHash as `0x${string}`
     setTxHash(hash)
