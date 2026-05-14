@@ -722,18 +722,25 @@ export function PrivanaModal({
   const [currentView, setCurrentView] = useState<ModalView>('main')
   const titleId = useId()
   const descId = useId()
+  const [isTransactionPending, setIsTransactionPending] = useState(false)
+
+  const handleClose = () => {
+    if (!isTransactionPending) onClose()
+  }
 
   return (
     <Dialog
       open={open}
       onOpenChange={(isOpen) => {
-        if (!isOpen) onClose()
+        if (!isOpen) handleClose()
       }}
     >
       <DialogContent
         data-privana
         data-view={currentView}
         showCloseButton={false}
+        onInteractOutside={isTransactionPending ? (e) => e.preventDefault() : undefined}
+        onEscapeKeyDown={isTransactionPending ? (e) => e.preventDefault() : undefined}
         className="bg-card flex h-[596px] max-h-[95dvh] w-[560px] max-w-[95vw] flex-col gap-2 overflow-hidden rounded-2xl border-0 p-2 pb-[2.75rem]"
         aria-labelledby={titleId}
         aria-describedby={descId}
@@ -741,9 +748,15 @@ export function PrivanaModal({
         {onClose && (
           <button
             data-privana-close
-            onClick={onClose}
+            onClick={handleClose}
+            disabled={isTransactionPending}
             aria-label="Close"
-            className="text-muted-foreground hover:text-foreground absolute top-6 right-5 z-20 flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
+            className={cn(
+              'absolute top-6 right-5 z-20 flex h-6 w-6 items-center justify-center transition-colors',
+              isTransactionPending
+                ? 'text-muted-foreground/40 cursor-not-allowed'
+                : 'text-muted-foreground hover:text-foreground cursor-pointer'
+            )}
           >
             <CloseIcon />
           </button>
@@ -767,6 +780,7 @@ export function PrivanaModal({
             </DialogHeader>
           )}
           <ModalBody
+            onTransactionPendingChange={setIsTransactionPending}
             onViewChange={setCurrentView}
             showLockedFunds={showLockedFunds}
             defaultTab={defaultTab}
