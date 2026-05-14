@@ -66,7 +66,7 @@ export function DepositForm({
 
   const formattedWalletBalance = walletBalance
     ? formatTokenAmount(walletBalance.toString(), selectedToken.decimals)
-    : '0'
+    : '0.00'
 
   const handleMaxClick = () => {
     if (formattedWalletBalance && parseFloat(formattedWalletBalance) > 0) {

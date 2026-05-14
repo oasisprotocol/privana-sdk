@@ -23,6 +23,15 @@ const copyCssToOutput = () => {
   }
 }
 
+const copyStaticAssetsToOutput = () => {
+  try {
+    copyFileSync('src/powered_by_privana.svg', 'dist/powered_by_privana.svg')
+    console.log('✓ Copied static assets to dist/')
+  } catch (err) {
+    console.error('✗ Failed to copy static assets:', err)
+  }
+}
+
 export default defineConfig({
   entry: ['src/index.ts'],
   format: ['esm', 'cjs'],
@@ -45,6 +54,7 @@ export default defineConfig({
   async onSuccess() {
     addUseClientDirective()
     copyCssToOutput()
+    copyStaticAssetsToOutput()
     console.log('✓ Added "use client" directive to output files')
   },
 })
