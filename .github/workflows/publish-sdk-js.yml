@@ -13,6 +13,8 @@ jobs:
   publish:
     name: publish
     runs-on: ubuntu-latest
+    env:
+      TURBO_TELEMETRY_DISABLED: 1
     defaults:
       run:
         working-directory: sdk/js

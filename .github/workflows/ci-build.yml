@@ -20,6 +20,8 @@ jobs:
     # NOTE: This name appears in GitHub's Checks API.
     name: build
     runs-on: ubuntu-latest
+    env:
+      TURBO_TELEMETRY_DISABLED: 1
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
