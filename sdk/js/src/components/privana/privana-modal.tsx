@@ -736,7 +736,7 @@ export function PrivanaModal({
         data-privana
         data-view={currentView}
         showCloseButton={false}
-        className="bg-card flex h-[596px] max-h-[596px] min-h-[596px] w-[560px] max-w-[95vw] flex-col gap-2 overflow-hidden rounded-2xl border-0 p-2 pb-[2.75rem]"
+        className="bg-card flex h-[596px] max-h-[95dvh] w-[560px] max-w-[95vw] flex-col gap-2 overflow-hidden rounded-2xl border-0 p-2 pb-[2.75rem]"
         overlayClassName={isTransactionPending ? 'cursor-not-allowed' : undefined}
         aria-labelledby={titleId}
         aria-describedby={descId}
@@ -756,14 +756,14 @@ export function PrivanaModal({
           data-view={currentView}
           className="flex min-h-0 flex-1 flex-col gap-2"
         >
+          <DialogTitle id={titleId} className="sr-only">
+            Privana
+          </DialogTitle>
+          <DialogDescription id={descId} className="sr-only">
+            Deposit or withdraw tokens from your Privana
+          </DialogDescription>
           {currentView === 'main' && (
             <DialogHeader>
-              <DialogTitle id={titleId} className="sr-only">
-                Privana
-              </DialogTitle>
-              <DialogDescription id={descId} className="sr-only">
-                Deposit or withdraw tokens from your Privana
-              </DialogDescription>
               <div className="flex items-center px-5 py-4">
                 <span className="text-foreground text-xl leading-6 font-medium">Privana</span>
               </div>
