@@ -21,9 +21,15 @@ interface WithdrawFormProps {
   selectedToken: TokenConfig
   onTokenSelect: () => void
   onPendingChange?: (isPending: boolean) => void
+  onUnsafeToCloseChange?: (isUnsafe: boolean) => void
 }
 
-export function WithdrawForm({ selectedToken, onTokenSelect, onPendingChange }: WithdrawFormProps) {
+export function WithdrawForm({
+  selectedToken,
+  onTokenSelect,
+  onPendingChange,
+  onUnsafeToCloseChange,
+}: WithdrawFormProps) {
   const { isConnected, address } = useAccount()
   const { chains, getChainById } = usePrivanaContext()
   const [amount, setAmount] = useState('')
@@ -86,8 +92,10 @@ export function WithdrawForm({ selectedToken, onTokenSelect, onPendingChange }: 
   }, [error])
 
   useEffect(() => {
-    onPendingChange?.(isPending && !cancelled)
-  }, [isPending, cancelled, onPendingChange])
+    const pending = isPending && !cancelled
+    onPendingChange?.(pending)
+    onUnsafeToCloseChange?.(pending)
+  }, [isPending, cancelled, onPendingChange, onUnsafeToCloseChange])
 
   const handleCancel = () => {
     setCancelled(true)
