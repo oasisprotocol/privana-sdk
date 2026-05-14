@@ -122,19 +122,19 @@
   }
 }
 
-html[data-fv-dir='forward']::view-transition-old(privana-modal) {
+html[data-privana-vt-dir='forward']::view-transition-old(privana-modal) {
   animation: privana-slide-out-left 0.3s ease both;
 }
 
-html[data-fv-dir='forward']::view-transition-new(privana-modal) {
+html[data-privana-vt-dir='forward']::view-transition-new(privana-modal) {
   animation: privana-slide-in-right 0.3s ease both;
 }
 
-html[data-fv-dir='back']::view-transition-old(privana-modal) {
+html[data-privana-vt-dir='back']::view-transition-old(privana-modal) {
   animation: privana-slide-out-right 0.3s ease both;
 }
 
-html[data-fv-dir='back']::view-transition-new(privana-modal) {
+html[data-privana-vt-dir='back']::view-transition-new(privana-modal) {
   animation: privana-slide-in-left 0.3s ease both;
 }
 

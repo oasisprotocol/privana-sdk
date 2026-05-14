@@ -624,8 +624,11 @@ function ModalBody({
       onViewChange?.(view)
     }
     if (typeof document !== 'undefined' && typeof document.startViewTransition === 'function') {
-      document.documentElement.dataset.fvDir = view === 'main' ? 'back' : 'forward'
-      document.startViewTransition(update)
+      document.documentElement.dataset.privanaVtDir = view === 'main' ? 'back' : 'forward'
+      const transition = document.startViewTransition(update)
+      transition.finished.then(() => {
+        delete document.documentElement.dataset.privanaVtDir
+      })
     } else {
       update()
     }
