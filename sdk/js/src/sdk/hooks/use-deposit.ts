@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAccount, useWalletClient, useWriteContract, useSendTransaction, useConfig } from 'wagmi'
-import { waitForTransactionReceipt } from '@wagmi/core'
+import { getTransactionReceipt, waitForTransactionReceipt } from '@wagmi/core'
 import { erc20Abi, zeroAddress } from 'viem'
 import { usePrivanaContext } from '../context/privana-provider'
 import { useEnsureCorrectChain } from './use-ensure-correct-chain'
@@ -188,14 +188,20 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
 
   const { ensureCorrectChain } = useEnsureCorrectChain()
 
-  // Cleanup polling on unmount
+  const invalidateGeneration = useCallback(() => {
+    generationRef.current++
+  }, [])
+
+  // Cleanup polling on unmount and invalidate in-flight async work.
   useEffect(() => {
     return () => {
+      invalidateGeneration()
       if (pollIntervalRef.current) {
         clearTimeout(pollIntervalRef.current)
+        pollIntervalRef.current = null
       }
     }
-  }, [])
+  }, [invalidateGeneration])
 
   const resumedAddressRef = useRef<string | undefined>(undefined)
 
@@ -383,7 +389,25 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
 
     ;(async () => {
       try {
-        await waitForTransactionReceipt(config, { hash, chainId: persisted.chainId, confirmations })
+        // Try a one-shot receipt fetch first. Resumed deposits were submitted
+        // in a previous session, so the transaction is almost certainly mined
+        // already. getTransactionReceipt avoids the subscription-based polling
+        // of waitForTransactionReceipt, which can hang if the wagmi transport
+        // isn't fully initialised yet on mount.
+        let confirmed = false
+        try {
+          await getTransactionReceipt(config, { hash, chainId: persisted.chainId })
+          confirmed = true
+        } catch {
+          // Receipt not available yet — fall back to polling
+        }
+        if (!confirmed) {
+          await waitForTransactionReceipt(config, {
+            hash,
+            chainId: persisted.chainId,
+            confirmations,
+          })
+        }
         if (isStale()) return
         setIsWaitingForConfirmation(false)
         onDepositSuccessRef.current?.(hash)
