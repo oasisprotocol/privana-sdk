@@ -22,6 +22,7 @@ import { HostedAuthRequiredError } from '../client'
 import type { Address, HostedAuthConfig, HostedAuthSession, NetworkConfig } from '../types'
 import { NETWORK_CONFIG, type TokenConfig } from '../types'
 import { SUPPORTED_CHAINS, type ChainConfig } from '../types/chains'
+import { SiweAuthProvider, type SiweAuthConfig } from './siwe-auth-provider'
 
 export type TokensStatus = 'loading' | 'ready' | 'error'
 
@@ -122,6 +123,12 @@ export interface PrivanaProviderProps {
    * Optional hosted redirect auth configuration for cross-domain browser apps.
    */
   hostedAuth?: HostedAuthConfig
+  /**
+   * Optional direct (in-app) SIWE auth. When provided, the connected wallet
+   * signs an EIP-4361 message in-app and `useSiweAuth()` becomes available.
+   * Mutually distinct from `hostedAuth` (use one or the other).
+   */
+  siweAuth?: SiweAuthConfig
 }
 
 export function PrivanaProvider({
@@ -132,6 +139,7 @@ export function PrivanaProvider({
   pollingInterval = 10000,
   serviceAddress,
   hostedAuth,
+  siweAuth,
 }: PrivanaProviderProps) {
   const networkConfig = useMemo<NetworkConfig>(() => {
     const config: NetworkConfig = {
@@ -405,7 +413,22 @@ export function PrivanaProvider({
     ]
   )
 
-  return <PrivanaContext.Provider value={value}>{children}</PrivanaContext.Provider>
+  return (
+    <PrivanaContext.Provider value={value}>
+      {siweAuth ? (
+        <SiweAuthProvider
+          client={client}
+          networkConfig={networkConfig}
+          autoLogin={siweAuth.autoLogin}
+          statement={siweAuth.statement}
+        >
+          {children}
+        </SiweAuthProvider>
+      ) : (
+        children
+      )}
+    </PrivanaContext.Provider>
+  )
 }
 
 export function usePrivanaContext(): PrivanaContextValue {
