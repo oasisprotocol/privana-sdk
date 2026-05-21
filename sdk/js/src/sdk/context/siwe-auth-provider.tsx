@@ -70,7 +70,7 @@ export function SiweAuthProvider({
   const loginInFlight = useRef(false)
   const autoAttemptedAddress = useRef<string | null>(null)
 
-  const logout = useCallback(() => {
+  const clearSession = useCallback(() => {
     client.clearPrivateReadToken()
     client.clearBearerToken()
     setSession(null)
@@ -78,6 +78,11 @@ export function SiweAuthProvider({
     setError(null)
     autoAttemptedAddress.current = null
   }, [client])
+
+  const logout = useCallback(() => {
+    clearSession()
+    autoAttemptedAddress.current = address ?? null
+  }, [clearSession, address])
 
   const login = useCallback(async () => {
     if (!wagmiContext) throw new Error('WagmiProvider is required for SIWE auth')
@@ -146,7 +151,7 @@ export function SiweAuthProvider({
     if (status === 'connecting' || status === 'reconnecting') return
 
     if (!isConnected && session) {
-      logout()
+      clearSession()
       return
     }
     if (
@@ -155,7 +160,7 @@ export function SiweAuthProvider({
       session &&
       address.toLowerCase() !== session.address.toLowerCase()
     ) {
-      logout()
+      clearSession()
       return
     }
     if (
@@ -168,7 +173,7 @@ export function SiweAuthProvider({
       autoAttemptedAddress.current = address
       void login().catch(() => {})
     }
-  }, [autoLogin, status, isConnected, address, session, isLoading, login, logout])
+  }, [autoLogin, status, isConnected, address, session, isLoading, login, clearSession])
 
   const value = useMemo<SiweAuthContextValue>(
     () => ({
