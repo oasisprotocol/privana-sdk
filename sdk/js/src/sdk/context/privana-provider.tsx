@@ -126,7 +126,9 @@ export interface PrivanaProviderProps {
   /**
    * Optional direct (in-app) SIWE auth. When provided, the connected wallet
    * signs an EIP-4361 message in-app and `useSiweAuth()` becomes available.
-   * Mutually distinct from `hostedAuth` (use one or the other).
+   * Mutually exclusive with `hostedAuth`: providing both throws, because
+   * `usePrivateReadRequest()` prefers `hostedAuthConfig` and would otherwise
+   * ignore the SIWE login.
    */
   siweAuth?: SiweAuthConfig
 }
@@ -141,6 +143,13 @@ export function PrivanaProvider({
   hostedAuth,
   siweAuth,
 }: PrivanaProviderProps) {
+  if (hostedAuth && siweAuth) {
+    throw new Error(
+      'PrivanaProvider: `hostedAuth` and `siweAuth` are mutually exclusive - provide only one. ' +
+        'When both are set, private reads use hosted auth and the in-app SIWE login is ignored.'
+    )
+  }
+
   const networkConfig = useMemo<NetworkConfig>(() => {
     const config: NetworkConfig = {
       ...DEFAULT_NETWORK_CONFIG,
