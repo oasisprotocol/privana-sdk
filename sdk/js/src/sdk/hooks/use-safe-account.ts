@@ -5,14 +5,18 @@ import { WagmiContext } from 'wagmi'
 import { getAccount, watchAccount } from 'wagmi/actions'
 import type { Address } from 'viem'
 
+type AccountStatus = 'connecting' | 'reconnecting' | 'connected' | 'disconnected'
+
 interface SafeAccountResult {
   address: Address | undefined
   isConnected: boolean
+  status: AccountStatus
 }
 
 const defaultResult: SafeAccountResult = {
   address: undefined,
   isConnected: false,
+  status: 'disconnected',
 }
 
 export function useSafeAccount(): SafeAccountResult {
@@ -32,9 +36,14 @@ export function useSafeAccount(): SafeAccountResult {
     const account = getAccount(context)
     if (
       cacheRef.current.address !== account.address ||
-      cacheRef.current.isConnected !== account.isConnected
+      cacheRef.current.isConnected !== account.isConnected ||
+      cacheRef.current.status !== account.status
     ) {
-      cacheRef.current = { address: account.address, isConnected: account.isConnected }
+      cacheRef.current = {
+        address: account.address,
+        isConnected: account.isConnected,
+        status: account.status,
+      }
     }
     return cacheRef.current
   }, [context])
