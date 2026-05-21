@@ -20,6 +20,7 @@ import { createScopeKey, setCachedPrivateReadToken } from '../hooks/private-read
 
 const DEFAULT_SIWE_VALIDITY_MS = 24 * 60 * 60 * 1000
 const DEFAULT_STATEMENT = 'Sign in to access your private account data.'
+const AUTH_REFRESH_SKEW_MS = 30_000
 
 export type SiweAuthSession = { address: Address }
 
@@ -67,10 +68,15 @@ export function SiweAuthProvider({
   const [tokens, setTokens] = useState<SiweAuthTokens | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
+  const [accessTokenExpiresAt, setAccessTokenExpiresAt] = useState<number | null>(null)
   const loginInFlight = useRef(false)
   const autoAttemptedAddress = useRef<string | null>(null)
+  const refreshInFlight = useRef(false)
+  const refreshDataRef = useRef<{ refreshToken: string; refreshExpiresAt: number } | null>(null)
 
   const clearSession = useCallback(() => {
+    refreshDataRef.current = null
+    setAccessTokenExpiresAt(null)
     client.clearPrivateReadToken()
     client.clearBearerToken()
     setSession(null)
@@ -121,8 +127,13 @@ export function SiweAuthProvider({
         message,
       })
       const res = await client.loginWithSiwe({ siwe_message: message, signature })
+      const loggedInAt = Date.now()
       client.setPrivateReadToken(res.siwe_token)
       client.setBearerToken(res.jwt_access_token)
+      refreshDataRef.current = {
+        refreshToken: res.jwt_refresh_token,
+        refreshExpiresAt: loggedInAt + res.jwt_refresh_expires_in * 1000,
+      }
       // Seed the shared private-read cache so reads reuse this token instead of triggering a second SIWE signature
       setCachedPrivateReadToken(
         createScopeKey(networkConfig.apiUrl, networkConfig.chainId, address),
@@ -136,6 +147,7 @@ export function SiweAuthProvider({
         jwt_refresh_token: res.jwt_refresh_token,
         address: res.address,
       })
+      setAccessTokenExpiresAt(loggedInAt + res.jwt_expires_in * 1000)
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Sign-in failed'))
       throw err
@@ -144,6 +156,43 @@ export function SiweAuthProvider({
       loginInFlight.current = false
     }
   }, [wagmiContext, address, client, networkConfig.chainId, networkConfig.apiUrl, statement])
+
+  const refreshAccessToken = useCallback(async () => {
+    const data = refreshDataRef.current
+    if (!data || refreshInFlight.current) return
+    if (Date.now() >= data.refreshExpiresAt - AUTH_REFRESH_SKEW_MS) {
+      clearSession()
+      return
+    }
+    refreshInFlight.current = true
+    try {
+      const res = await client.refreshJwtSession({ refresh_token: data.refreshToken })
+      const refreshedAt = Date.now()
+      client.setBearerToken(res.token)
+      refreshDataRef.current = {
+        refreshToken: res.refresh_token,
+        refreshExpiresAt: refreshedAt + res.refresh_expires_in * 1000,
+      }
+      setTokens((prev) =>
+        prev ? { ...prev, jwt_access_token: res.token, jwt_refresh_token: res.refresh_token } : prev
+      )
+      setAccessTokenExpiresAt(refreshedAt + res.expires_in * 1000)
+    } catch {
+      clearSession()
+    } finally {
+      refreshInFlight.current = false
+    }
+  }, [client, clearSession])
+
+  // Schedule the next refresh whenever the access-token expiry changes.
+  useEffect(() => {
+    if (accessTokenExpiresAt == null) return
+    const delay = Math.max(accessTokenExpiresAt - AUTH_REFRESH_SKEW_MS - Date.now(), 0)
+    const timer = setTimeout(() => {
+      void refreshAccessToken()
+    }, delay)
+    return () => clearTimeout(timer)
+  }, [accessTokenExpiresAt, refreshAccessToken])
 
   useEffect(() => {
     if (!autoLogin) return
