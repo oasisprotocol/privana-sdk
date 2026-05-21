@@ -38,7 +38,7 @@ export interface SiweAuthContextValue {
   accessToken: string | undefined
   tokens: SiweAuthTokens | null
   login: () => Promise<void>
-  logout: () => void
+  logout: () => Promise<void>
 }
 
 const SiweAuthContext = createContext<SiweAuthContextValue | null>(null)
@@ -85,10 +85,18 @@ export function SiweAuthProvider({
     autoAttemptedAddress.current = null
   }, [client])
 
-  const logout = useCallback(() => {
-    clearSession()
-    autoAttemptedAddress.current = address ?? null
-  }, [clearSession, address])
+  const logout = useCallback(async () => {
+    setError(null)
+    const refreshToken = refreshDataRef.current?.refreshToken
+    try {
+      if (refreshToken) {
+        await client.logoutJwtSession({ refresh_token: refreshToken })
+      }
+    } finally {
+      clearSession()
+      autoAttemptedAddress.current = address ?? null
+    }
+  }, [clearSession, client, address])
 
   const login = useCallback(async () => {
     if (!wagmiContext) throw new Error('WagmiProvider is required for SIWE auth')
