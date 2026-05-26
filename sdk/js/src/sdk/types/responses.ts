@@ -50,8 +50,12 @@ export type HistoryKind =
   | 'deposit'
   | 'withdraw'
   | 'createLock'
-  | 'transferFromLock'
-  | 'transferBalance'
+  | 'transferFromLockOut'
+  | 'transferFromLockIn'
+  | 'transferBalanceOut'
+  | 'transferBalanceIn'
+  | 'modifyLock'
+  | 'unlockLock'
   | 'unknown'
 
 export interface HistoryEntry {

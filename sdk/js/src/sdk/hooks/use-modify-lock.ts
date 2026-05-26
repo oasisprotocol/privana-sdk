@@ -65,6 +65,7 @@ export function useModifyLock(options: UseModifyLockOptions = {}): UseModifyLock
       queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
       queryClient.invalidateQueries({ queryKey: ['accounting-locked-funds'] })
       queryClient.invalidateQueries({ queryKey: ['accounting-total-locked-balance'] })
+      queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
     },
     onError: (error) => {
       options.onError?.(error as Error)

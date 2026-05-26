@@ -57,8 +57,12 @@ HistoryKind = Literal[
     "deposit",
     "withdraw",
     "createLock",
-    "transferFromLock",
-    "transferBalance",
+    "transferFromLockOut",
+    "transferFromLockIn",
+    "transferBalanceOut",
+    "transferBalanceIn",
+    "modifyLock",
+    "unlockLock",
     "unknown",
 ]
 

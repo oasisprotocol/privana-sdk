@@ -40,6 +40,10 @@ The Python SDK exposes the raw helpers and token setters rather than a hosted au
 `get_history(offset=-1, limit=50)` returns one page; non-negative offsets count pages from the
 oldest entries, negative offsets count from the end, each page is oldest-to-newest, and `limit`
 must be between 0 and 100.
+History entries include lock-lifecycle kinds (`modifyLock`, `unlockLock`) and directional transfer
+kinds (`transferFromLockOut`/`transferFromLockIn`, `transferBalanceOut`/`transferBalanceIn`). On the
+outbound (`Out`) kinds `counterparty` is the recipient, and on the inbound (`In`) kinds it is the
+sender.
 
 ```python
 import asyncio
