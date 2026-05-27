@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useAccount } from 'wagmi'
 import { MoonPayBuyWidget } from '@moonpay/moonpay-react'
 import { Button } from '@/components/ui/button'
@@ -46,19 +46,16 @@ export function FiatOnRampForm({
   } = useFiatOnRamp({ tokenId, onCredited, onError })
 
   const isBusy = status === 'depositing' || status === 'awaiting-purchase'
+  const handleClose = useCallback(() => setVisible(false), [])
 
   return (
     <div className="flex flex-col gap-4">
-      <Button
-        type="button"
-        disabled={!address || isBusy}
-        onClick={() => setVisible(true)}
-      >
+      <Button type="button" disabled={!address || isBusy} onClick={() => setVisible(true)}>
         {isBusy ? statusLabel(status) : `Buy ${currencyCode.toUpperCase()}`}
       </Button>
 
       {error && (
-        <p className="text-sm text-destructive" role="alert">
+        <p className="text-destructive text-sm" role="alert">
           {error.message}
         </p>
       )}
@@ -66,7 +63,7 @@ export function FiatOnRampForm({
       {pending.length > 0 && (
         <div className="flex flex-col gap-2 rounded-md border p-3">
           <p className="text-sm font-medium">Finish your deposit</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             You bought crypto but the deposit step was interrupted. Resume it now to credit your
             Privana balance.
           </p>
@@ -85,19 +82,21 @@ export function FiatOnRampForm({
         </div>
       )}
 
-      <MoonPayBuyWidget
-        variant="overlay"
-        visible={visible}
-        baseCurrencyCode={baseCurrencyCode}
-        baseCurrencyAmount={defaultBaseCurrencyAmount}
-        currencyCode={currencyCode}
-        walletAddress={address}
-        externalCustomerId={address}
-        onCloseOverlay={() => setVisible(false)}
-        onUrlSignatureRequested={signUrl}
-        onTransactionCreated={handleTransactionCreated}
-        onTransactionCompleted={handleTransactionCompleted}
-      />
+      {visible && (
+        <MoonPayBuyWidget
+          variant="overlay"
+          visible
+          baseCurrencyCode={baseCurrencyCode}
+          baseCurrencyAmount={defaultBaseCurrencyAmount}
+          currencyCode={currencyCode}
+          walletAddress={address}
+          externalCustomerId={address}
+          onCloseOverlay={handleClose}
+          onUrlSignatureRequested={signUrl}
+          onTransactionCreated={handleTransactionCreated}
+          onTransactionCompleted={handleTransactionCompleted}
+        />
+      )}
     </div>
   )
 }

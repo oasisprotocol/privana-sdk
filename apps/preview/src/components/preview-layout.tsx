@@ -8,6 +8,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit'
 const NAV_ITEMS = [
   { href: '/', label: 'Components' },
   { href: '/hooks', label: 'Hooks' },
+  { href: '/on-ramp', label: 'On Ramp' },
 ]
 
 export function PreviewLayout({ children }: { children: ReactNode }) {

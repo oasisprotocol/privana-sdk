@@ -1,10 +1,11 @@
 import { defineConfig } from 'tsup'
 import { resolve } from 'path'
-import { readFileSync, writeFileSync, copyFileSync } from 'fs'
+import { readFileSync, writeFileSync, copyFileSync, readdirSync } from 'fs'
 
 const addUseClientDirective = () => {
-  const files = ['dist/index.js', 'dist/index.cjs', 'dist/on-ramp.js', 'dist/on-ramp.cjs']
-  files.forEach((file) => {
+  const files = readdirSync('dist').filter((f) => /\.(js|cjs)$/.test(f))
+  files.forEach((name) => {
+    const file = `dist/${name}`
     try {
       const content = readFileSync(file, 'utf-8')
       if (!content.startsWith('"use client"')) {
@@ -36,7 +37,7 @@ export default defineConfig({
   entry: ['src/index.ts', 'src/on-ramp.ts'],
   format: ['esm', 'cjs'],
   dts: true,
-  splitting: false,
+  splitting: true,
   sourcemap: true,
   clean: true,
   external: ['react', 'react-dom', 'react/jsx-runtime', 'wagmi', 'viem', '@tanstack/react-query'],

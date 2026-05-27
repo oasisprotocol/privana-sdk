@@ -99,9 +99,17 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
   const signUrl = useCallback(
     async (url: string): Promise<string> => {
       setError(null)
-      setStatus('awaiting-purchase')
-      const { signature } = await client.signOnRampUrl({ url })
-      return signature
+      try {
+        const { signature } = await client.signOnRampUrl({ url })
+        setStatus('awaiting-purchase')
+        return signature
+      } catch (err) {
+        const e = err instanceof Error ? err : new Error('Failed to sign on-ramp URL')
+        setStatus('failed')
+        setError(e)
+        onErrorRef.current?.(e)
+        throw err
+      }
     },
     [client]
   )
