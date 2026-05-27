@@ -43,6 +43,11 @@ import type {
   SiweLoginRequest,
   SiweLoginResponse,
   TokenListResponse,
+  SignOnRampUrlRequest,
+  SignOnRampUrlResponse,
+  UpdateOnRampRequest,
+  UpdateOnRampResponse,
+  PendingOnRampsResponse,
 } from '../types'
 import { normalizeAddress, normalizeHex } from '../types'
 
@@ -320,6 +325,37 @@ export class PrivanaClient {
       refresh_token: request.refresh_token,
       revoke_all: request.revoke_all ?? false,
     })
+  }
+
+  async signOnRampUrl(request: SignOnRampUrlRequest): Promise<SignOnRampUrlResponse> {
+    return this.http.post<SignOnRampUrlResponse>('/v1/accounting/onramp/sign-url', {
+      url: request.url,
+    })
+  }
+
+  async updateOnRamp(
+    transactionId: string,
+    request: UpdateOnRampRequest
+  ): Promise<UpdateOnRampResponse> {
+    return this.http.post<UpdateOnRampResponse>(
+      `/v1/accounting/onramp/${encodeURIComponent(transactionId)}`,
+      {
+        wallet_address: request.wallet_address
+          ? normalizeAddress(request.wallet_address)
+          : undefined,
+        token_id: request.token_id ? normalizeHex(request.token_id) : undefined,
+        chain_id: request.chain_id,
+        base_currency_code: request.base_currency_code,
+        base_currency_amount: request.base_currency_amount,
+        deposit_tx_hash: request.deposit_tx_hash
+          ? normalizeHex(request.deposit_tx_hash)
+          : undefined,
+      }
+    )
+  }
+
+  async getPendingOnRamps(): Promise<PendingOnRampsResponse> {
+    return this.http.get<PendingOnRampsResponse>('/v1/accounting/onramp/pending')
   }
 
   setPrivateReadToken(token: string): void {

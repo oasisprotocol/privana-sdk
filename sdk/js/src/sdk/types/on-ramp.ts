@@ -11,7 +11,7 @@ export interface SignOnRampUrlResponse {
   signature: string
 }
 
-/** Request body / response of PATCH /api/onramp/{id}. */
+/** Request body / response of POST /api/onramp/{id}. */
 export interface UpdateOnRampRequest {
   wallet_address?: Address
   token_id?: Bytes32
