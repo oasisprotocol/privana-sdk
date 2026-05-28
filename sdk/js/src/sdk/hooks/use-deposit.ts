@@ -8,6 +8,7 @@ import { erc20Abi, zeroAddress } from 'viem'
 import { usePrivanaContext } from '../context/privana-provider'
 import { useEnsureCorrectChain } from './use-ensure-correct-chain'
 import { usePrivateReadRequest } from './use-private-read-request'
+import { useDepositVerification, type VerificationContext } from './use-deposit-verification'
 import type { Bytes32, DepositAddressResponse, DepositCheckResponse } from '../types'
 
 export interface UseDepositOptions {
@@ -55,12 +56,6 @@ export interface UseDepositResult {
   /** Re-run the API verification (sweep trigger + polling) for the existing txHash. */
   retryVerification: () => Promise<void>
   reset: () => void
-}
-
-interface VerificationContext {
-  hash: `0x${string}`
-  chainId: number
-  amount: bigint
 }
 
 interface PersistedDeposit {
@@ -116,23 +111,22 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   const config = useConfig()
   const { executePrivateRead } = usePrivateReadRequest()
 
-  const pollInterval = options.pollInterval ?? 5000
-  const pollTimeout = options.pollTimeout ?? 180000
   const confirmations = options.confirmations ?? 15
 
   const [depositAddress, setDepositAddress] = useState<DepositAddressResponse | null>(null)
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>()
   const [isSwitchingChain, setIsSwitchingChain] = useState(false)
   const [isWaitingForConfirmation, setIsWaitingForConfirmation] = useState(false)
-  const [isWaitingForProcessing, setIsWaitingForProcessing] = useState(false)
-  const [didTimeout, setDidTimeout] = useState(false)
-  const [verificationFailed, setVerificationFailed] = useState(false)
+  // Captures failures from the pre-verification phase (waitForTransactionReceipt
+  // timing out, etc.) so we can OR them with the verification hook's own
+  // verificationFailed when surfacing state to consumers.
+  const [receiptFailed, setReceiptFailed] = useState(false)
   const [depositError, setDepositError] = useState<Error | null>(null)
 
   const generationRef = useRef(0)
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  // Populated once the on-chain transfer is sent. Presence of this context
-  // means a new deposit() call would double-spend, so we guard against it.
+  // Set the moment we know an on-chain transfer has been dispatched so we
+  // refuse a second deposit() call that would double-spend. Cleared on
+  // credit / reset.
   const verificationContextRef = useRef<VerificationContext | null>(null)
 
   // Use refs for callbacks to avoid stale closures in the long-running deposit flow
@@ -154,6 +148,30 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     options.onCheckTimeout,
     options.onError,
   ])
+
+  const {
+    isVerifying,
+    didTimeout,
+    verificationFailed: innerVerificationFailed,
+    error: verificationError,
+    verify,
+    retryVerification,
+    reset: resetVerification,
+  } = useDepositVerification({
+    pollInterval: options.pollInterval,
+    pollTimeout: options.pollTimeout,
+    onCredited: (hash, response) => {
+      verificationContextRef.current = null
+      if (address) clearPendingDeposit(address)
+      onCreditedRef.current?.(hash, response)
+    },
+    onCheckTimeout: (hash) => {
+      onCheckTimeoutRef.current?.(hash)
+    },
+    onError: (err) => {
+      onErrorRef.current?.(err)
+    },
+  })
 
   const addressMutation = useMutation({
     mutationFn: async () => {
@@ -188,183 +206,30 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
 
   const { ensureCorrectChain } = useEnsureCorrectChain()
 
-  const invalidateGeneration = useCallback(() => {
-    generationRef.current++
-  }, [])
-
-  // Cleanup polling on unmount and invalidate in-flight async work.
+  // Cleanup in-flight async work on unmount.
   useEffect(() => {
     return () => {
-      invalidateGeneration()
-      if (pollIntervalRef.current) {
-        clearTimeout(pollIntervalRef.current)
-        pollIntervalRef.current = null
-      }
+      generationRef.current++
     }
-  }, [invalidateGeneration])
+  }, [])
 
   const resumedAddressRef = useRef<string | undefined>(undefined)
 
-  const stopPolling = useCallback(() => {
-    if (pollIntervalRef.current) {
-      clearTimeout(pollIntervalRef.current)
-      pollIntervalRef.current = null
-    }
-  }, [])
-
   const reset = useCallback(() => {
     generationRef.current++
-    stopPolling()
+    resetVerification()
     if (address) clearPendingDeposit(address)
     verificationContextRef.current = null
     setDepositAddress(null)
     setTxHash(undefined)
     setIsSwitchingChain(false)
     setIsWaitingForConfirmation(false)
-    setIsWaitingForProcessing(false)
-    setDidTimeout(false)
-    setVerificationFailed(false)
+    setReceiptFailed(false)
     setDepositError(null)
     addressMutation.reset()
     resetWriteContract()
     resetSendTransaction()
-  }, [address, addressMutation, resetWriteContract, resetSendTransaction, stopPolling])
-
-  // Verification = Phase 1 (POST checkDeposit) + Phase 2 (poll getDepositStatus).
-  // Shared by deposit() and retryVerification(). Callers must set the
-  // verification context and a fresh generation before invoking.
-  const runVerification = useCallback(
-    async (ctx: VerificationContext, generation: number): Promise<void> => {
-      const isStale = () => generation !== generationRef.current
-      const { hash, chainId, amount } = ctx
-
-      setVerificationFailed(false)
-      setDepositError(null)
-      setDidTimeout(false)
-      setIsWaitingForProcessing(true)
-
-      const pollStartTime = Date.now()
-
-      const markVerificationFailed = (err: Error) => {
-        setIsWaitingForProcessing(false)
-        setDepositError(err)
-        setVerificationFailed(true)
-        onErrorRef.current?.(err)
-      }
-
-      try {
-        // Phase 1: trigger sweep
-        const triggerResult = await executePrivateRead(() =>
-          client.checkDeposit({
-            chain_id: chainId,
-            tx_hash: hash,
-            amount: amount.toString(),
-          })
-        )
-        if (isStale()) return
-
-        if (triggerResult.status === 'credited') {
-          setIsWaitingForProcessing(false)
-          verificationContextRef.current = null
-          if (address) clearPendingDeposit(address)
-          queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
-          queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
-          onCreditedRef.current?.(hash, triggerResult)
-          return
-        }
-
-        if (triggerResult.status === 'error') {
-          markVerificationFailed(new Error(triggerResult.detail ?? 'Deposit verification failed'))
-          return
-        }
-
-        const depositId = triggerResult.deposit_id
-        if (!depositId) {
-          markVerificationFailed(new Error('Deposit check did not return a deposit id'))
-          return
-        }
-
-        // Phase 2: poll status
-        let consecutiveFailures = 0
-
-        const checkStatus = async (): Promise<boolean> => {
-          if (isStale()) return true
-
-          if (Date.now() - pollStartTime > pollTimeout) {
-            stopPolling()
-            setIsWaitingForProcessing(false)
-            setDidTimeout(true)
-            onCheckTimeoutRef.current?.(hash)
-            queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
-            return true
-          }
-
-          try {
-            const result = await executePrivateRead(() => client.getDepositStatus(depositId))
-            if (isStale()) return true
-            consecutiveFailures = 0
-
-            if (result.status === 'credited') {
-              stopPolling()
-              setIsWaitingForProcessing(false)
-              verificationContextRef.current = null
-              if (address) clearPendingDeposit(address)
-              queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
-              queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
-              onCreditedRef.current?.(hash, result)
-              return true
-            }
-
-            if (result.status === 'error') {
-              stopPolling()
-              markVerificationFailed(new Error(result.detail ?? 'Deposit verification failed'))
-              return true
-            }
-          } catch (err) {
-            if (isStale()) return true
-            consecutiveFailures++
-            console.warn('Error polling deposit status:', err)
-            if (consecutiveFailures >= 3) {
-              stopPolling()
-              markVerificationFailed(
-                err instanceof Error ? err : new Error('Deposit status polling failed')
-              )
-              return true
-            }
-          }
-          return false
-        }
-
-        const pollLoop = async () => {
-          const done = await checkStatus()
-          if (!done && !isStale() && pollIntervalRef.current !== null) {
-            pollIntervalRef.current = setTimeout(pollLoop, pollInterval)
-          }
-        }
-        pollIntervalRef.current = setTimeout(pollLoop, pollInterval)
-      } catch (err) {
-        if (isStale()) return
-        stopPolling()
-        markVerificationFailed(
-          err instanceof Error ? err : new Error('Deposit verification failed')
-        )
-      }
-    },
-    [address, client, executePrivateRead, pollInterval, pollTimeout, queryClient, stopPolling]
-  )
-
-  const retryVerification = useCallback(async (): Promise<void> => {
-    const ctx = verificationContextRef.current
-    if (!ctx) {
-      throw new Error('No pending deposit to verify')
-    }
-    // Bump generation so any residual polling work from the failed run no-ops,
-    // then start a fresh verification against the same on-chain transfer.
-    generationRef.current++
-    stopPolling()
-    const generation = generationRef.current
-    await runVerification(ctx, generation)
-  }, [runVerification, stopPolling])
+  }, [address, addressMutation, resetWriteContract, resetSendTransaction, resetVerification])
 
   // Resume a persisted deposit on mount
   useEffect(() => {
@@ -412,19 +277,17 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
         setIsWaitingForConfirmation(false)
         onDepositSuccessRef.current?.(hash)
         queryClient.invalidateQueries({ queryKey: ['readContract'] })
-        await runVerification(ctx, generation)
+        await verify(ctx)
       } catch (err) {
         if (isStale()) return
         setIsWaitingForConfirmation(false)
-        stopPolling()
         const error = err instanceof Error ? err : new Error('Deposit verification failed')
-        setIsWaitingForProcessing(false)
         setDepositError(error)
-        setVerificationFailed(true)
+        setReceiptFailed(true)
         onErrorRef.current?.(error)
       }
     })()
-  }, [address, config, confirmations, queryClient, runVerification, stopPolling])
+  }, [address, config, confirmations, queryClient, verify])
 
   const deposit = useCallback(
     async (params: DepositParams) => {
@@ -535,16 +398,14 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
           // Invalidate wagmi wallet balance queries since tokens have left the wallet
           queryClient.invalidateQueries({ queryKey: ['readContract'] })
 
-          // 6-7. Verification (phase 1 + phase 2)
-          await runVerification(ctx, generation)
+          // 6-7. Verification (phase 1 + phase 2) delegated to useDepositVerification
+          await verify(ctx)
         } catch (err) {
           if (isStale()) return
           setIsWaitingForConfirmation(false)
-          stopPolling()
           const error = err instanceof Error ? err : new Error('Deposit verification failed')
-          setIsWaitingForProcessing(false)
           setDepositError(error)
-          setVerificationFailed(true)
+          setReceiptFailed(true)
           onErrorRef.current?.(error)
         }
       } catch (err) {
@@ -569,9 +430,8 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
       queryClient,
       writeContractAsync,
       sendTransactionAsync,
-      stopPolling,
       reset,
-      runVerification,
+      verify,
     ]
   )
 
@@ -580,9 +440,9 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     isSwitchingChain ||
     isSendingTx ||
     isWaitingForConfirmation ||
-    isWaitingForProcessing
+    isVerifying
 
-  const error = addressMutation.error || sendError || depositError
+  const error = addressMutation.error || sendError || depositError || verificationError
 
   return {
     depositAddress,
@@ -591,9 +451,9 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     isSwitchingChain,
     isSendingTransaction: isSendingTx,
     isWaitingForConfirmation,
-    isWaitingForProcessing,
+    isWaitingForProcessing: isVerifying,
     didTimeout,
-    verificationFailed,
+    verificationFailed: innerVerificationFailed || receiptFailed,
     isPending,
     error: error as Error | null,
     deposit,
