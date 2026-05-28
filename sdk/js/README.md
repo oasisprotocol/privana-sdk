@@ -222,6 +222,8 @@ A customizable button that opens the wallet modal.
 | `useBalance`            | Get token balance (available + locked) |
 | `useBatchBalances`      | Get multiple token balances            |
 | `useDeposit`            | Deposit tokens                         |
+| `useDepositVerification`| Run checkDeposit + status polling against an existing on-chain transfer (used by `useDeposit` and `useFiatOnRamp`) |
+| `useFiatOnRamp`         | Buy crypto via MoonPay; delivered straight to the Privana deposit address (from `/on-ramp` sub-export) |
 | `useWithdraw`           | Withdraw tokens                        |
 | `useLockFunds`          | Lock funds for a recipient             |
 | `useUnlockFunds`        | Unlock expired locks                   |
@@ -233,6 +235,111 @@ A customizable button that opens the wallet modal.
 | `useExpiredLocks`       | Get expired locks that can be claimed  |
 | `useTokenList`          | List all registered tokens             |
 | `useTokenInfo`          | Get info for a single token            |
+
+## Fiat On-Ramp
+
+The fiat on-ramp lets users buy USDC with a card and have it credited
+to their Privana balance in one flow. **MoonPay delivers USDC directly
+to the user's Privana deposit address** — the connected wallet is only
+used for SIWE auth and signs no on-chain transfer.
+
+Exported from a separate entry point so consumers who don't use the
+on-ramp don't pay the bundle cost of `@moonpay/moonpay-react`:
+
+```tsx
+import { FiatOnRampForm, useFiatOnRamp } from '@oasisprotocol/privana-sdk/on-ramp'
+```
+
+### Setup
+
+Install MoonPay's React kit as a peer:
+
+```bash
+yarn add @moonpay/moonpay-react @moonpay/moonpay-js
+```
+
+Wrap your app in `<MoonPayProvider>` (only on routes that use the on-ramp,
+to keep MoonPay out of unrelated bundles):
+
+```tsx
+import { MoonPayProvider } from '@moonpay/moonpay-react'
+
+<MoonPayProvider apiKey={import.meta.env.VITE_MOONPAY_API_KEY} debug={import.meta.env.DEV}>
+  {/* on-ramp routes */}
+</MoonPayProvider>
+```
+
+### Quick start with `<FiatOnRampForm>`
+
+```tsx
+import { FiatOnRampForm } from '@oasisprotocol/privana-sdk/on-ramp'
+
+<FiatOnRampForm
+  tokenId="0x..."                  // Privana token id (e.g. USDC on Base)
+  currencyCode="usdc_base"         // MoonPay's currency code; "usdc_base_sepolia" in sandbox
+  baseCurrencyCode="usd"           // optional, defaults to "usd"
+  defaultBaseCurrencyAmount="100"  // optional pre-fill (MoonPay still lets the user edit)
+  onCredited={(txHash) => console.log('credited', txHash)}
+  onError={(err) => console.error(err)}
+/>
+```
+
+The form:
+
+- fetches the user's Privana deposit address and passes it to MoonPay as the
+  destination,
+- sets `externalCustomerId = address.toLowerCase()` so the backend can bind
+  the MoonPay transaction to the SIWE-authenticated user,
+- gates the "Buy" button on the configured token's minimum deposit (input-time
+  check) and double-checks the delivered amount before triggering verification,
+- listens for MoonPay's `transaction_completed` event, waits up to 60s for the
+  backend webhook to surface the on-chain tx hash, then triggers Privana
+  verification (`checkDeposit` + status polling).
+
+### `useFiatOnRamp` for custom UI
+
+If you need a different shell around the MoonPay widget, use the hook
+directly and wire MoonPay's widget callbacks yourself:
+
+```tsx
+import { MoonPayBuyWidget } from '@moonpay/moonpay-react'
+import { useFiatOnRamp } from '@oasisprotocol/privana-sdk/on-ramp'
+
+const {
+  status,                         // 'idle' | 'awaiting-purchase' | 'awaiting-delivery' | 'verifying' | 'credited' | 'failed'
+  pending,                        // recovery list (completed-but-unverified)
+  error,
+  depositAddress,                 // pass as MoonPay's walletAddress
+  minDepositBaseUnits,            // for input validation
+  signUrl,                        // wire to onUrlSignatureRequested
+  handleTransactionCompleted,     // wire to onTransactionCompleted
+  finishPendingVerification,      // call from the recovery CTA
+} = useFiatOnRamp({ tokenId, onCredited, onError })
+```
+
+### Pending / recovery
+
+If the user closes the tab between MoonPay completion and verification, the
+backend has already received the webhook and the row appears in `pending`.
+Render the list with a "Finish verification" CTA that calls
+`finishPendingVerification(record)` — no wallet signature required, just the
+verification poll.
+
+### Required backend endpoints
+
+The `useFiatOnRamp` hook + form call:
+
+- `POST /v1/accounting/onramp/sign-url` — HMAC-signs the MoonPay widget URL
+- `GET /v1/accounting/onramp/pending` — completed MoonPay txs awaiting verification
+
+And the existing deposit verification endpoints:
+
+- `POST /v1/accounting/deposits/check`
+- `GET /v1/accounting/deposits/status/{id}`
+
+MoonPay → backend webhook (`POST /v1/accounting/onramp/webhook`) is what
+populates the pending list with the on-chain tx hash. Configure that URL in
+your MoonPay dashboard.
 
 ## License
 
