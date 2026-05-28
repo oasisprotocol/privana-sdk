@@ -40,14 +40,22 @@ export function FiatOnRampForm({
     pending,
     error,
     depositAddress,
+    minDepositBaseUnits,
     signUrl,
     handleTransactionCompleted,
     finishPendingVerification,
   } = useFiatOnRamp({ tokenId, onCredited, onError })
 
+  // Input-time min-deposit gate: convert base-units minimum → approximate fiat
+  // floor for USDC (1:1 with a 5% buffer for MoonPay fees). For non-stablecoin
+  // pairs this approximation would need a real exchange rate.
+  const minFiat =
+    minDepositBaseUnits !== undefined ? (Number(minDepositBaseUnits) / 1e6) * 1.05 : undefined
+  const isBelowMin = minFiat !== undefined && Number(defaultBaseCurrencyAmount) < minFiat
+
   const isBusy =
     status === 'awaiting-purchase' || status === 'awaiting-delivery' || status === 'verifying'
-  const canBuy = !!address && !!depositAddress && !isBusy
+  const canBuy = !!address && !!depositAddress && !isBusy && !isBelowMin
 
   const handleClose = useCallback(() => setVisible(false), [])
 
@@ -60,6 +68,12 @@ export function FiatOnRampForm({
       {error && (
         <p className="text-destructive text-sm" role="alert">
           {error.message}
+        </p>
+      )}
+
+      {isBelowMin && minFiat !== undefined && (
+        <p className="text-destructive text-sm" role="alert">
+          Minimum purchase is ~${minFiat.toFixed(2)}.
         </p>
       )}
 

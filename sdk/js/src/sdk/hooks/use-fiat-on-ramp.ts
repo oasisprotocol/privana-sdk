@@ -52,6 +52,12 @@ export interface UseFiatOnRampResult {
    * while it's still being fetched.
    */
   depositAddress: `0x${string}` | undefined
+  /**
+   * Minimum deposit in base units for the configured token's chain (e.g. for
+   * USDC on Base, "5000000" = 5 USDC). `undefined` until the deposit address
+   * response has been fetched.
+   */
+  minDepositBaseUnits: bigint | undefined
   /** Wire to `<MoonPayBuyWidget onUrlSignatureRequested>`. */
   signUrl: (url: string) => Promise<string>
   /** Wire to `<MoonPayBuyWidget onTransactionCompleted>`. */
@@ -72,6 +78,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
   const [pending, setPending] = useState<OnRampRecord[]>([])
   const [error, setError] = useState<Error | null>(null)
   const [depositAddress, setDepositAddress] = useState<`0x${string}` | undefined>()
+  const [minDepositBaseUnits, setMinDepositBaseUnits] = useState<bigint | undefined>()
 
   const onCreditedRef = useRef(onCredited)
   const onErrorRef = useRef(onError)
@@ -81,13 +88,19 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
   }, [onCredited, onError])
 
   // Fetch the Privana deposit address once. MoonPay needs this to deliver
-  // directly to Privana, bypassing the user's wallet entirely.
+  // directly to Privana, bypassing the user's wallet entirely. The response
+  // also carries the per-chain minimums we use to gate user input and to
+  // sanity-check the delivered amount before triggering verification.
   useEffect(() => {
     let cancelled = false
     void (async () => {
       try {
         const resp = await client.getDepositAddress()
-        if (!cancelled) setDepositAddress(resp.deposit_address)
+        if (cancelled) return
+        setDepositAddress(resp.deposit_address)
+        const token = enabledTokens.find((t) => t.id.toLowerCase() === tokenId.toLowerCase())
+        const mins = token ? resp.min_deposit?.[String(token.chainId)] : undefined
+        if (mins?.erc20) setMinDepositBaseUnits(BigInt(mins.erc20))
       } catch (err) {
         if (!cancelled) console.warn('Failed to fetch Privana deposit address:', err)
       }
@@ -95,7 +108,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
     return () => {
       cancelled = true
     }
-  }, [client])
+  }, [client, enabledTokens, tokenId])
 
   const refreshPending = useCallback(async () => {
     try {
@@ -171,18 +184,29 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
       const token = enabledTokens.find((t) => t.id.toLowerCase() === tokenId.toLowerCase())
       if (!token) throw new Error(`Unknown token: ${tokenId}`)
 
-      setStatus('verifying')
       // `quote_currency_amount` is a decimal string from MoonPay (e.g. "99.95"),
       // not base units. parseUnits handles the decimal → base-units conversion
       // precisely for typical retail amounts.
       const amount = parseUnits(record.quote_currency_amount, token.decimals)
+
+      // Post-completion safety net: if MoonPay's fees ate more than expected,
+      // the delivered amount might fall below Privana's minimum. Surface a
+      // clean error rather than letting checkDeposit reject server-side.
+      // (MoonPay's own minimum is usually higher than ours, so this is rare.)
+      if (minDepositBaseUnits !== undefined && amount < minDepositBaseUnits) {
+        throw new Error(
+          `Delivered amount (${record.quote_currency_amount}) is below the minimum deposit.`
+        )
+      }
+
+      setStatus('verifying')
       await verify({
         hash: record.on_chain_tx_hash,
         chainId: record.chain_id,
         amount,
       })
     },
-    [enabledTokens, tokenId, verify]
+    [enabledTokens, minDepositBaseUnits, tokenId, verify]
   )
 
   const handleTransactionCompleted = useCallback(
@@ -233,6 +257,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
     pending,
     error,
     depositAddress,
+    minDepositBaseUnits,
     signUrl,
     handleTransactionCompleted,
     finishPendingVerification,
