@@ -49,7 +49,7 @@ export function OnRampPreview() {
                   tokenId={selectedTokenId as `0x${string}`}
                   currencyCode="usdc_base_sepolia"
                   onCredited={(txHash) =>
-                    console.log('[on-ramp] credited, deposit tx:', txHash)
+                    console.log('[on-ramp] credited, verification tx:', txHash)
                   }
                   onError={(err) => console.error('[on-ramp] error:', err)}
                 />
@@ -59,9 +59,11 @@ export function OnRampPreview() {
         </div>
 
         <p className="text-muted-foreground text-xs">
-          Sandbox flow: backend endpoints are not live yet, so clicking Buy will surface a 404 on{' '}
-          <code>/v1/accounting/onramp/sign-url</code>. Wire the accounting-module routes (Phase 2) to
-          complete the flow.
+          MoonPay delivers USDC directly to the per-user Privana deposit address — the connected
+          wallet is only used for SIWE auth and signs no on-chain transfer. After MoonPay completes,
+          the SDK waits for the backend webhook to surface the on-chain tx hash, then triggers
+          Privana verification (<code>checkDeposit</code> + <code>getDepositStatus</code> poll). If
+          the tab is closed mid-flow, the row stays in <code>pending</code> for the recovery CTA.
         </p>
       </div>
     </div>
