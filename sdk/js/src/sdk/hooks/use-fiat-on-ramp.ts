@@ -1,58 +1,77 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { useAccount } from 'wagmi'
 import { parseUnits } from 'viem'
 import type { MoonPayBuyWidget } from '@moonpay/moonpay-react'
 
 // MoonPay doesn't export these types directly
 type MoonPayBuyProps = Parameters<typeof MoonPayBuyWidget>[0]
-type OnTransactionCreatedProps = Parameters<NonNullable<MoonPayBuyProps['onTransactionCreated']>>[0]
 type OnTransactionCompletedProps = Parameters<
   NonNullable<MoonPayBuyProps['onTransactionCompleted']>
 >[0]
+
 import { usePrivanaContext } from '../context/privana-provider'
-import { useDeposit } from './use-deposit'
+import { useDepositVerification } from './use-deposit-verification'
 import type { Bytes32, OnRampRecord } from '../types'
 
-export type FiatOnRampStatus = 'idle' | 'awaiting-purchase' | 'depositing' | 'credited' | 'failed'
+export type FiatOnRampStatus =
+  | 'idle'
+  /** Sign-URL succeeded; MoonPay widget shown and user is completing the purchase. */
+  | 'awaiting-purchase'
+  /** MoonPay reported completion; waiting for the backend webhook to surface the on-chain tx hash. */
+  | 'awaiting-delivery'
+  /** checkDeposit fired; polling getDepositStatus until credited. */
+  | 'verifying'
+  | 'credited'
+  | 'failed'
 
 export interface UseFiatOnRampOptions {
-  /** Privana token id to deposit into after the on-ramp completes. */
+  /** Privana token the on-ramp will deposit into. */
   tokenId: Bytes32
   /** Fired when the deposit is credited inside the Privana accounting module. */
   onCredited?: (txHash: string) => void
   onError?: (error: Error) => void
+  /**
+   * Max time in ms to wait for the backend to surface the on-chain tx hash
+   * after MoonPay reports `transaction_completed` (default: 60000 = 1 minute).
+   * If exceeded, the row stays in `pending` for the user to finish later.
+   */
+  deliveryTimeout?: number
+  /** Polling interval in ms while waiting for the on-chain tx hash (default: 3000). */
+  deliveryPollInterval?: number
 }
 
 export interface UseFiatOnRampResult {
   status: FiatOnRampStatus
-  /** Completed on-ramps that haven't yet had their deposit step triggered. */
+  /** Completed on-ramps that still need Privana verification. */
   pending: OnRampRecord[]
   error: Error | null
+  /**
+   * Per-user Privana deposit address. MoonPay should deliver here directly —
+   * pass to `<MoonPayBuyWidget walletAddress={depositAddress}>`. `undefined`
+   * while it's still being fetched.
+   */
+  depositAddress: `0x${string}` | undefined
   /** Wire to `<MoonPayBuyWidget onUrlSignatureRequested>`. */
   signUrl: (url: string) => Promise<string>
-  /** Wire to `<MoonPayBuyWidget onTransactionCreated>`. */
-  handleTransactionCreated: (props: OnTransactionCreatedProps) => Promise<void>
   /** Wire to `<MoonPayBuyWidget onTransactionCompleted>`. */
   handleTransactionCompleted: (props: OnTransactionCompletedProps) => Promise<void>
-  /** Trigger the deposit step for a row returned by `pending`. */
-  finishPendingDeposit: (record: OnRampRecord) => Promise<void>
+  /** Trigger Privana verification for a row returned by `pending`. */
+  finishPendingVerification: (record: OnRampRecord) => Promise<void>
   refreshPending: () => Promise<void>
 }
 
 export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResult {
   const { tokenId, onCredited, onError } = options
+  const deliveryTimeout = options.deliveryTimeout ?? 60_000
+  const deliveryPollInterval = options.deliveryPollInterval ?? 3_000
+
   const { client, enabledTokens } = usePrivanaContext()
-  const { address } = useAccount()
 
   const [status, setStatus] = useState<FiatOnRampStatus>('idle')
   const [pending, setPending] = useState<OnRampRecord[]>([])
   const [error, setError] = useState<Error | null>(null)
-
-  // The MoonPay transaction id currently being deposited. We need it inside
-  // useDeposit's onCredited to write the deposit_tx_hash back via updateOnRamp.
-  const activeTxIdRef = useRef<string | null>(null)
+  const [depositAddress, setDepositAddress] = useState<`0x${string}` | undefined>()
 
   const onCreditedRef = useRef(onCredited)
   const onErrorRef = useRef(onError)
@@ -60,6 +79,23 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
     onCreditedRef.current = onCredited
     onErrorRef.current = onError
   }, [onCredited, onError])
+
+  // Fetch the Privana deposit address once. MoonPay needs this to deliver
+  // directly to Privana, bypassing the user's wallet entirely.
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const resp = await client.getDepositAddress()
+        if (!cancelled) setDepositAddress(resp.deposit_address)
+      } catch (err) {
+        if (!cancelled) console.warn('Failed to fetch Privana deposit address:', err)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [client])
 
   const refreshPending = useCallback(async () => {
     try {
@@ -74,19 +110,10 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
     refreshPending()
   }, [refreshPending])
 
-  const { deposit } = useDeposit({
-    onCredited: async (depositTxHash) => {
-      const txId = activeTxIdRef.current
-      if (txId) {
-        try {
-          await client.updateOnRamp(txId, { deposit_tx_hash: depositTxHash as `0x${string}` })
-        } catch (err) {
-          console.warn('Failed to mark on-ramp deposited:', err)
-        }
-        activeTxIdRef.current = null
-      }
+  const { verify } = useDepositVerification({
+    onCredited: (depositTxHash) => {
       setStatus('credited')
-      await refreshPending()
+      void refreshPending()
       onCreditedRef.current?.(depositTxHash)
     },
     onError: (err) => {
@@ -114,78 +141,101 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
     [client]
   )
 
-  const handleTransactionCreated = useCallback(
-    async (props: OnTransactionCreatedProps) => {
-      if (!address) return
-      const token = enabledTokens.find((t) => t.id.toLowerCase() === tokenId.toLowerCase())
-      if (!token) return
-
-      await client.updateOnRamp(props.id, {
-        wallet_address: address,
-        token_id: tokenId,
-        chain_id: token.chainId,
-        base_currency_code: props.baseCurrencyCode,
-        base_currency_amount: String(props.baseCurrencyAmount),
-      })
+  // After MoonPay reports completion the on-chain tx hash isn't in the widget
+  // event — it arrives via the MoonPay→backend webhook. Poll `/pending` until
+  // the row for this MoonPay id has `on_chain_tx_hash` populated, then proceed.
+  const waitForOnChainHash = useCallback(
+    async (moonpayId: string): Promise<OnRampRecord | null> => {
+      const startTime = Date.now()
+      while (Date.now() - startTime < deliveryTimeout) {
+        try {
+          const { pending: rows } = await client.getPendingOnRamps()
+          setPending(rows)
+          const record = rows.find((r) => r.transaction_id === moonpayId)
+          if (record?.on_chain_tx_hash && record.quote_currency_amount) return record
+        } catch (err) {
+          console.warn('Polling pending on-ramps failed:', err)
+        }
+        await new Promise((r) => setTimeout(r, deliveryPollInterval))
+      }
+      return null
     },
-    [address, client, enabledTokens, tokenId]
+    [client, deliveryPollInterval, deliveryTimeout]
   )
 
-  const triggerDeposit = useCallback(
-    async (txId: string, deliveredAmount: number) => {
+  const triggerVerification = useCallback(
+    async (record: OnRampRecord) => {
+      if (!record.on_chain_tx_hash || !record.quote_currency_amount) {
+        throw new Error('On-ramp record missing on-chain tx hash or delivered amount')
+      }
       const token = enabledTokens.find((t) => t.id.toLowerCase() === tokenId.toLowerCase())
       if (!token) throw new Error(`Unknown token: ${tokenId}`)
 
-      activeTxIdRef.current = txId
-      setStatus('depositing')
-      // MoonPay returns deliveredAmount as a JS number (decimal units). For
-      // typical retail amounts (well under 10^15) this is exact; conversion to
-      // base units via parseUnits goes through a string and is precise.
-      const amount = parseUnits(deliveredAmount.toString(), token.decimals)
-      await deposit({ tokenId, amount })
+      setStatus('verifying')
+      // `quote_currency_amount` is a decimal string from MoonPay (e.g. "99.95"),
+      // not base units. parseUnits handles the decimal → base-units conversion
+      // precisely for typical retail amounts.
+      const amount = parseUnits(record.quote_currency_amount, token.decimals)
+      await verify({
+        hash: record.on_chain_tx_hash,
+        chainId: record.chain_id,
+        amount,
+      })
     },
-    [deposit, enabledTokens, tokenId]
+    [enabledTokens, tokenId, verify]
   )
 
   const handleTransactionCompleted = useCallback(
     async (props: OnTransactionCompletedProps) => {
       try {
-        await triggerDeposit(props.id, props.quoteCurrencyAmount)
+        setStatus('awaiting-delivery')
+        const record = await waitForOnChainHash(props.id)
+        if (!record) {
+          // Backend hasn't received MoonPay's webhook within the timeout. The
+          // purchase is real and recovery is available via `pending` — surface
+          // a non-terminal error so the form can prompt the user to retry from
+          // the pending list once the webhook lands.
+          const err = new Error(
+            'Backend has not yet confirmed delivery. You can finish from the pending list.'
+          )
+          setStatus('failed')
+          setError(err)
+          onErrorRef.current?.(err)
+          return
+        }
+        await triggerVerification(record)
       } catch (err) {
-        const e = err instanceof Error ? err : new Error('Deposit failed')
+        const e = err instanceof Error ? err : new Error('Verification failed')
         setStatus('failed')
         setError(e)
         onErrorRef.current?.(e)
       }
     },
-    [triggerDeposit]
+    [triggerVerification, waitForOnChainHash]
   )
 
-  const finishPendingDeposit = useCallback(
+  const finishPendingVerification = useCallback(
     async (record: OnRampRecord) => {
-      if (!record.quote_currency_amount) {
-        throw new Error('Pending record missing delivered amount')
-      }
       try {
-        await triggerDeposit(record.transaction_id, parseFloat(record.quote_currency_amount))
+        await triggerVerification(record)
       } catch (err) {
-        const e = err instanceof Error ? err : new Error('Deposit failed')
+        const e = err instanceof Error ? err : new Error('Verification failed')
         setStatus('failed')
         setError(e)
         onErrorRef.current?.(e)
       }
     },
-    [triggerDeposit]
+    [triggerVerification]
   )
 
   return {
     status,
     pending,
     error,
+    depositAddress,
     signUrl,
-    handleTransactionCreated,
     handleTransactionCompleted,
-    finishPendingDeposit,
+    finishPendingVerification,
     refreshPending,
   }
 }

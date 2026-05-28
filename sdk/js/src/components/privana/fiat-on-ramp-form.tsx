@@ -39,18 +39,21 @@ export function FiatOnRampForm({
     status,
     pending,
     error,
+    depositAddress,
     signUrl,
-    handleTransactionCreated,
     handleTransactionCompleted,
-    finishPendingDeposit,
+    finishPendingVerification,
   } = useFiatOnRamp({ tokenId, onCredited, onError })
 
-  const isBusy = status === 'depositing' || status === 'awaiting-purchase'
+  const isBusy =
+    status === 'awaiting-purchase' || status === 'awaiting-delivery' || status === 'verifying'
+  const canBuy = !!address && !!depositAddress && !isBusy
+
   const handleClose = useCallback(() => setVisible(false), [])
 
   return (
     <div className="flex flex-col gap-4">
-      <Button type="button" disabled={!address || isBusy} onClick={() => setVisible(true)}>
+      <Button type="button" disabled={!canBuy} onClick={() => setVisible(true)}>
         {isBusy ? statusLabel(status) : `Buy ${currencyCode.toUpperCase()}`}
       </Button>
 
@@ -62,10 +65,10 @@ export function FiatOnRampForm({
 
       {pending.length > 0 && (
         <div className="flex flex-col gap-2 rounded-md border p-3">
-          <p className="text-sm font-medium">Finish your deposit</p>
+          <p className="text-sm font-medium">Finish verification</p>
           <p className="text-muted-foreground text-xs">
-            You bought crypto but the deposit step was interrupted. Resume it now to credit your
-            Privana balance.
+            MoonPay delivered your purchase, but Privana hasn&apos;t verified it yet. Resume
+            verification now to credit your balance.
           </p>
           {pending.map((record) => (
             <Button
@@ -74,7 +77,7 @@ export function FiatOnRampForm({
               variant="outline"
               size="sm"
               disabled={isBusy}
-              onClick={() => finishPendingDeposit(record)}
+              onClick={() => finishPendingVerification(record)}
             >
               {record.quote_currency_amount ?? '?'} {currencyCode.toUpperCase()}
             </Button>
@@ -82,18 +85,18 @@ export function FiatOnRampForm({
         </div>
       )}
 
-      {visible && (
+      {visible && depositAddress && (
         <MoonPayBuyWidget
           variant="overlay"
           visible
           baseCurrencyCode={baseCurrencyCode}
           baseCurrencyAmount={defaultBaseCurrencyAmount}
           currencyCode={currencyCode}
-          walletAddress={address}
-          externalCustomerId={address}
+          // MoonPay delivers USDC directly to Privana deposit address, user's connected wallet is only used for SIWE auth and not involved in the on-chain transfer
+          walletAddress={depositAddress}
+          externalCustomerId={address?.toLowerCase()}
           onCloseOverlay={handleClose}
           onUrlSignatureRequested={signUrl}
-          onTransactionCreated={handleTransactionCreated}
           onTransactionCompleted={handleTransactionCompleted}
         />
       )}
@@ -105,10 +108,12 @@ function statusLabel(status: ReturnType<typeof useFiatOnRamp>['status']): string
   switch (status) {
     case 'awaiting-purchase':
       return 'Complete your purchase…'
-    case 'depositing':
-      return 'Depositing to Privana…'
+    case 'awaiting-delivery':
+      return 'Waiting for on-chain delivery…'
+    case 'verifying':
+      return 'Verifying with Privana…'
     case 'credited':
-      return 'Deposit credited'
+      return 'Credited'
     case 'failed':
       return 'Failed'
     default:
