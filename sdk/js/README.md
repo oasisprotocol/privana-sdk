@@ -292,6 +292,9 @@ The form:
   the MoonPay transaction to the SIWE-authenticated user,
 - gates the "Buy" button on the configured token's minimum deposit (input-time
   check) and double-checks the delivered amount before triggering verification,
+- on MoonPay's `transaction_created`, fire-and-forget calls
+  `POST /onramp/{id}` with the Privana `token_id` + `chain_id` so the backend
+  knows which Privana token to credit when the delivery webhook arrives,
 - listens for MoonPay's `transaction_completed` event, waits up to 60s for the
   backend webhook to surface the on-chain tx hash, then triggers Privana
   verification (`checkDeposit` + status polling).
@@ -312,6 +315,7 @@ const {
   depositAddress,                 // pass as MoonPay's walletAddress
   minDepositBaseUnits,            // for input validation
   signUrl,                        // wire to onUrlSignatureRequested
+  handleTransactionCreated,       // wire to onTransactionCreated
   handleTransactionCompleted,     // wire to onTransactionCompleted
   finishPendingVerification,      // call from the recovery CTA
 } = useFiatOnRamp({ tokenId, onCredited, onError })
@@ -330,6 +334,7 @@ verification poll.
 The `useFiatOnRamp` hook + form call:
 
 - `POST /v1/accounting/onramp/sign-url` — HMAC-signs the MoonPay widget URL
+- `POST /v1/accounting/onramp/{transaction_id}` — registers the Privana `token_id` + `chain_id` for the MoonPay transaction (fire-and-forget on `transaction_created`)
 - `GET /v1/accounting/onramp/pending` — completed MoonPay txs awaiting verification
 
 And the existing deposit verification endpoints:

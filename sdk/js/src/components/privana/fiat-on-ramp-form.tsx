@@ -42,6 +42,7 @@ export function FiatOnRampForm({
     depositAddress,
     minDepositBaseUnits,
     signUrl,
+    handleTransactionCreated,
     handleTransactionCompleted,
     finishPendingVerification,
   } = useFiatOnRamp({ tokenId, onCredited, onError })
@@ -111,6 +112,7 @@ export function FiatOnRampForm({
           externalCustomerId={address?.toLowerCase()}
           onCloseOverlay={handleClose}
           onUrlSignatureRequested={signUrl}
+          onTransactionCreated={handleTransactionCreated}
           onTransactionCompleted={handleTransactionCompleted}
         />
       )}

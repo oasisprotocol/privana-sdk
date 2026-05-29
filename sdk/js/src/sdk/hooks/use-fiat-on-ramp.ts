@@ -9,6 +9,9 @@ type MoonPayBuyProps = Parameters<typeof MoonPayBuyWidget>[0]
 type OnTransactionCompletedProps = Parameters<
   NonNullable<MoonPayBuyProps['onTransactionCompleted']>
 >[0]
+type OnTransactionCreatedProps = Parameters<
+  NonNullable<MoonPayBuyProps['onTransactionCreated']>
+>[0]
 
 import { usePrivanaContext } from '../context/privana-provider'
 import { useDepositVerification } from './use-deposit-verification'
@@ -60,6 +63,12 @@ export interface UseFiatOnRampResult {
   minDepositBaseUnits: bigint | undefined
   /** Wire to `<MoonPayBuyWidget onUrlSignatureRequested>`. */
   signUrl: (url: string) => Promise<string>
+  /**
+   * Wire to `<MoonPayBuyWidget onTransactionCreated>`. Fire-and-forget — records the Privana
+   * `token_id` + `chain_id` against the MoonPay transaction so the backend can credit the
+   * right balance when the delivery webhook arrives.
+   */
+  handleTransactionCreated: (props: OnTransactionCreatedProps) => Promise<void>
   /** Wire to `<MoonPayBuyWidget onTransactionCompleted>`. */
   handleTransactionCompleted: (props: OnTransactionCompletedProps) => Promise<void>
   /** Trigger Privana verification for a row returned by `pending`. */
@@ -154,6 +163,26 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
       onErrorRef.current?.(err)
     },
   })
+
+  // Fire-and-forget: register Privana token_id + chain_id against the MoonPay
+  // transaction the moment it's created. The webhook handler create-or-updates
+  // so timing isn't gating — if this fails, the row still lands later via the
+  // webhook and the user can still finish from the pending list.
+  const handleTransactionCreated = useCallback(
+    async (props: OnTransactionCreatedProps) => {
+      const token = enabledTokens.find((t) => t.id.toLowerCase() === tokenId.toLowerCase())
+      if (!token) return
+      try {
+        await client.updateOnRamp(props.id, {
+          token_id: tokenId,
+          chain_id: token.chainId,
+        })
+      } catch (err) {
+        console.warn('Failed to register on-ramp token mapping:', err)
+      }
+    },
+    [client, enabledTokens, tokenId]
+  )
 
   const signUrl = useCallback(
     async (url: string): Promise<string> => {
@@ -278,6 +307,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
     depositAddress,
     minDepositBaseUnits,
     signUrl,
+    handleTransactionCreated,
     handleTransactionCompleted,
     finishPendingVerification,
     refreshPending,
