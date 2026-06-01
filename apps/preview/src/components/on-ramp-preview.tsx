@@ -22,7 +22,7 @@ export function OnRampPreview() {
         <div>
           <p className="mb-2 font-semibold">{'<FiatOnRampForm />'}</p>
           <pre className="bg-background mb-2 overflow-x-auto rounded p-2 text-[11px]">
-            {`<FiatOnRampForm tokenId={...} currencyCode="usdc_base" />`}
+            {`<FiatOnRampForm tokenId={...} currencyCode="usdc" />`}
           </pre>
 
           {isLoading ? (
@@ -47,7 +47,7 @@ export function OnRampPreview() {
               {selectedTokenId && (
                 <FiatOnRampForm
                   tokenId={selectedTokenId as `0x${string}`}
-                  currencyCode="usdc_base"
+                  currencyCode="usdc"
                   onCredited={(txHash) =>
                     console.log('[on-ramp] credited, verification tx:', txHash)
                   }
