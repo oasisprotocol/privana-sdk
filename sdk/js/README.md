@@ -276,7 +276,7 @@ import { FiatOnRampForm } from '@oasisprotocol/privana-sdk/on-ramp'
 
 <FiatOnRampForm
   tokenId="0x..."                  // Privana token id (e.g. USDC on Base)
-  currencyCode="usdc_base"         // MoonPay's currency code; "usdc_base_sepolia" in sandbox
+  currencyCode="usdc_base"         // MoonPay's currency code; test/live is controlled by the apiKey (pk_test_* → Base Sepolia, pk_live_* → Base mainnet)
   baseCurrencyCode="usd"           // optional, defaults to "usd"
   defaultBaseCurrencyAmount="100"  // optional pre-fill (MoonPay still lets the user edit)
   onCredited={(txHash) => console.log('credited', txHash)}
