@@ -6,6 +6,7 @@ export { useFiatOnRamp } from './sdk/hooks/use-fiat-on-ramp'
 export type {
   UseFiatOnRampOptions,
   UseFiatOnRampResult,
+  FiatOnRampDebugEvent,
   FiatOnRampStatus,
 } from './sdk/hooks/use-fiat-on-ramp'
 

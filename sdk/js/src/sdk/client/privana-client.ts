@@ -43,6 +43,8 @@ import type {
   SiweLoginRequest,
   SiweLoginResponse,
   TokenListResponse,
+  CreateOnRampIntentRequest,
+  CreateOnRampIntentResponse,
   SignOnRampUrlRequest,
   SignOnRampUrlResponse,
   UpdateOnRampRequest,
@@ -333,6 +335,19 @@ export class PrivanaClient {
     })
   }
 
+  async createOnRampIntent(
+    request: CreateOnRampIntentRequest
+  ): Promise<CreateOnRampIntentResponse> {
+    return this.http.post<CreateOnRampIntentResponse>('/v1/accounting/onramp/intent', {
+      wallet_address: request.wallet_address ? normalizeAddress(request.wallet_address) : undefined,
+      token_id: normalizeHex(request.token_id),
+      chain_id: request.chain_id,
+      moonpay_currency_code: request.moonpay_currency_code,
+      base_currency_code: request.base_currency_code,
+      base_currency_amount: request.base_currency_amount,
+    })
+  }
+
   async updateOnRamp(
     transactionId: string,
     request: UpdateOnRampRequest
@@ -345,6 +360,7 @@ export class PrivanaClient {
           : undefined,
         token_id: request.token_id ? normalizeHex(request.token_id) : undefined,
         chain_id: request.chain_id,
+        moonpay_transaction_id: request.moonpay_transaction_id,
         base_currency_code: request.base_currency_code,
         base_currency_amount: request.base_currency_amount,
         deposit_tx_hash: request.deposit_tx_hash

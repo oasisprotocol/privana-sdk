@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { formatUnits } from 'viem'
 import { useAccount } from 'wagmi'
 import { MoonPayBuyWidget } from '@moonpay/moonpay-react'
 import { Button } from '@/components/ui/button'
-import { useFiatOnRamp } from '@/sdk/hooks/use-fiat-on-ramp'
+import { useFiatOnRamp, type FiatOnRampDebugEvent } from '@/sdk/hooks/use-fiat-on-ramp'
 import type { Bytes32 } from '@/sdk/types'
 
 export interface FiatOnRampFormProps {
@@ -19,9 +20,15 @@ export interface FiatOnRampFormProps {
   baseCurrencyCode?: string
   /** Pre-filled fiat amount the user can still edit in MoonPay (default: '100'). */
   defaultBaseCurrencyAmount?: string
+  /** Display symbol for the Privana token that will be credited. Defaults to `currencyCode`. */
+  tokenSymbol?: string
+  /** Decimals for the Privana token that will be credited. Defaults to 6. */
+  tokenDecimals?: number
   /** Fired when the resulting Privana deposit is credited. */
   onCredited?: (depositTxHash: string) => void
   onError?: (error: Error) => void
+  /** Optional diagnostic event stream for previews/tests. */
+  onDebugEvent?: (event: FiatOnRampDebugEvent) => void
 }
 
 export function FiatOnRampForm({
@@ -29,42 +36,156 @@ export function FiatOnRampForm({
   currencyCode,
   baseCurrencyCode = 'usd',
   defaultBaseCurrencyAmount = '100',
+  tokenSymbol,
+  tokenDecimals = 6,
   onCredited,
   onError,
+  onDebugEvent,
 }: FiatOnRampFormProps) {
   const { address } = useAccount()
   const [visible, setVisible] = useState(false)
+  const [isPreparing, setIsPreparing] = useState(false)
+  const displaySymbol = tokenSymbol ?? currencyCode.toUpperCase()
 
   const {
     status,
+    activeIntentId,
     pending,
     error,
     depositAddress,
     minDepositBaseUnits,
+    prepareOnRampIntent,
     signUrl,
     handleTransactionCreated,
     handleTransactionCompleted,
     finishPendingVerification,
-  } = useFiatOnRamp({ tokenId, onCredited, onError })
+    handleWidgetClosed,
+  } = useFiatOnRamp({ tokenId, onCredited, onError, onDebugEvent })
 
-  // Input-time min-deposit gate: convert base-units minimum → approximate fiat
-  // floor for USDC (1:1 with a 5% buffer for MoonPay fees). For non-stablecoin
-  // pairs this approximation would need a real exchange rate.
+  const emitFormDebug = useCallback(
+    (event: string, payload?: Record<string, unknown>) => {
+      onDebugEvent?.({
+        at: new Date().toISOString(),
+        event,
+        status,
+        tokenId,
+        payload,
+      })
+    },
+    [onDebugEvent, status, tokenId]
+  )
+
+  // Input-time min-deposit gate: convert the selected token's base-units
+  // minimum to an approximate fiat floor with a 5% buffer for MoonPay fees.
   const minFiat =
-    minDepositBaseUnits !== undefined ? (Number(minDepositBaseUnits) / 1e6) * 1.05 : undefined
+    minDepositBaseUnits !== undefined
+      ? Number(formatUnits(minDepositBaseUnits, tokenDecimals)) * 1.05
+      : undefined
   const isBelowMin = minFiat !== undefined && Number(defaultBaseCurrencyAmount) < minFiat
 
   const isBusy =
-    status === 'awaiting-purchase' || status === 'awaiting-delivery' || status === 'verifying'
-  const canBuy = !!address && !!depositAddress && !isBusy && !isBelowMin
+    isPreparing ||
+    status === 'awaiting-purchase' ||
+    status === 'awaiting-delivery' ||
+    status === 'verifying'
+  const blockReasons = useMemo(
+    () =>
+      [
+        !address ? 'wallet-not-connected' : null,
+        !depositAddress ? 'deposit-address-not-loaded' : null,
+        isBusy ? `busy:${isPreparing ? 'preparing' : status}` : null,
+        isBelowMin ? 'below-minimum' : null,
+      ].filter((reason): reason is string => Boolean(reason)),
+    [address, depositAddress, isBelowMin, isBusy, isPreparing, status]
+  )
+  const canBuy = blockReasons.length === 0
 
-  const handleClose = useCallback(() => setVisible(false), [])
+  const handleOpen = useCallback(async () => {
+    if (!canBuy) {
+      emitFormDebug('form:open-blocked', {
+        reasons: blockReasons,
+        currencyCode,
+        tokenSymbol: displaySymbol,
+        tokenDecimals,
+        baseCurrencyCode,
+        defaultBaseCurrencyAmount,
+        depositAddress: depositAddress ?? null,
+        walletAddress: address ?? null,
+        status,
+      })
+      return
+    }
+
+    setIsPreparing(true)
+    emitFormDebug('form:open-click', {
+      currencyCode,
+      tokenSymbol: displaySymbol,
+      tokenDecimals,
+      baseCurrencyCode,
+      defaultBaseCurrencyAmount,
+      depositAddress: depositAddress ?? null,
+      walletConnected: Boolean(address),
+    })
+    try {
+      const intent = await prepareOnRampIntent({
+        currencyCode,
+        baseCurrencyCode,
+        baseCurrencyAmount: defaultBaseCurrencyAmount,
+      })
+      emitFormDebug('form:intent-ready', {
+        transactionId: intent.transaction_id,
+        externalTransactionId: intent.external_transaction_id ?? null,
+      })
+      setVisible(true)
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Failed to prepare MoonPay on-ramp')
+      emitFormDebug('form:intent-error', {
+        name: error.name,
+        message: error.message,
+      })
+    } finally {
+      setIsPreparing(false)
+    }
+  }, [
+    address,
+    baseCurrencyCode,
+    blockReasons,
+    canBuy,
+    currencyCode,
+    displaySymbol,
+    defaultBaseCurrencyAmount,
+    depositAddress,
+    emitFormDebug,
+    prepareOnRampIntent,
+    status,
+    tokenDecimals,
+  ])
+
+  const handleClose = useCallback(async () => {
+    emitFormDebug('moonpay:onClose')
+    setVisible(false)
+    await handleWidgetClosed()
+  }, [emitFormDebug, handleWidgetClosed])
+
+  const handleCloseOverlay = useCallback(async () => {
+    emitFormDebug('moonpay:onCloseOverlay')
+    setVisible(false)
+    await handleWidgetClosed()
+  }, [emitFormDebug, handleWidgetClosed])
+
+  const handleReady = useCallback(async () => {
+    emitFormDebug('moonpay:onReady')
+  }, [emitFormDebug])
 
   return (
     <div className="flex flex-col gap-4">
-      <Button type="button" disabled={!canBuy} onClick={() => setVisible(true)}>
-        {isBusy ? statusLabel(status) : `Buy ${currencyCode.toUpperCase()}`}
+      <Button type="button" onClick={handleOpen}>
+        {isPreparing ? 'Preparing MoonPay…' : isBusy ? statusLabel(status) : `Buy ${displaySymbol}`}
       </Button>
+
+      {!canBuy && !isBusy && (
+        <p className="text-muted-foreground text-xs">Button blocked: {blockReasons.join(', ')}</p>
+      )}
 
       {error && (
         <p className="text-destructive text-sm" role="alert">
@@ -94,23 +215,26 @@ export function FiatOnRampForm({
               disabled={isBusy}
               onClick={() => finishPendingVerification(record)}
             >
-              {record.quote_currency_amount ?? '?'} {currencyCode.toUpperCase()}
+              {record.quote_currency_amount ?? '?'} {displaySymbol}
             </Button>
           ))}
         </div>
       )}
 
-      {visible && depositAddress && (
+      {visible && depositAddress && activeIntentId && (
         <MoonPayBuyWidget
           variant="overlay"
           visible
           baseCurrencyCode={baseCurrencyCode}
           baseCurrencyAmount={defaultBaseCurrencyAmount}
           currencyCode={currencyCode}
-          // MoonPay delivers USDC directly to Privana deposit address, user's connected wallet is only used for SIWE auth and not involved in the on-chain transfer
+          // MoonPay delivers directly to the Privana deposit address; the connected wallet is only used for SIWE auth and not involved in the on-chain transfer.
           walletAddress={depositAddress}
           externalCustomerId={address?.toLowerCase()}
-          onCloseOverlay={handleClose}
+          externalTransactionId={activeIntentId}
+          onClose={handleClose}
+          onCloseOverlay={handleCloseOverlay}
+          onReady={handleReady}
           onUrlSignatureRequested={signUrl}
           onTransactionCreated={handleTransactionCreated}
           onTransactionCompleted={handleTransactionCompleted}
