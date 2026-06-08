@@ -84,6 +84,13 @@ export interface UseFiatOnRampResult {
    * response has been fetched.
    */
   minDepositBaseUnits: bigint | undefined
+  /**
+   * The Privana token config the on-ramp is configured to deposit into. Source
+   * of truth for `decimals`/`symbol` - consumers should prefer this over passing
+   * those values in by hand. `undefined` if `tokenId` doesn't match any enabled
+   * token (e.g., still loading or misconfigured).
+   */
+  selectedToken: TokenConfig | undefined
   /** Create the backend intent that MoonPay will echo through externalTransactionId. */
   prepareOnRampIntent: (request: {
     currencyCode: string
@@ -117,6 +124,8 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
   const { client, enabledTokens } = usePrivanaContext()
   const { executePrivateRead, privateReadReady } = usePrivateReadRequest()
   const wagmiConfig = useConfig()
+
+  const selectedToken = enabledTokens.find((t) => t.id.toLowerCase() === tokenId.toLowerCase())
 
   const [status, setStatus] = useState<FiatOnRampStatus>('idle')
   const [pending, setPending] = useState<OnRampRecord[]>([])
@@ -666,6 +675,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
     error,
     depositAddress,
     minDepositBaseUnits,
+    selectedToken,
     prepareOnRampIntent,
     signUrl,
     handleTransactionCreated,

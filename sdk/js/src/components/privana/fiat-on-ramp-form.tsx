@@ -20,10 +20,8 @@ export interface FiatOnRampFormProps {
   baseCurrencyCode?: string
   /** Pre-filled fiat amount the user can still edit in MoonPay (default: '100'). */
   defaultBaseCurrencyAmount?: string
-  /** Display symbol for the Privana token that will be credited. Defaults to `currencyCode`. */
+  /** Override the display symbol. Defaults to the resolved token's symbol, then `currencyCode`. */
   tokenSymbol?: string
-  /** Decimals for the Privana token that will be credited. Defaults to 6. */
-  tokenDecimals?: number
   /** Fired when the resulting Privana deposit is credited. */
   onCredited?: (depositTxHash: string) => void
   onError?: (error: Error) => void
@@ -37,7 +35,6 @@ export function FiatOnRampForm({
   baseCurrencyCode = 'usd',
   defaultBaseCurrencyAmount = '100',
   tokenSymbol,
-  tokenDecimals = 6,
   onCredited,
   onError,
   onDebugEvent,
@@ -45,7 +42,6 @@ export function FiatOnRampForm({
   const { address } = useAccount()
   const [visible, setVisible] = useState(false)
   const [isPreparing, setIsPreparing] = useState(false)
-  const displaySymbol = tokenSymbol ?? currencyCode.toUpperCase()
 
   const {
     status,
@@ -54,6 +50,7 @@ export function FiatOnRampForm({
     error,
     depositAddress,
     minDepositBaseUnits,
+    selectedToken,
     prepareOnRampIntent,
     signUrl,
     handleTransactionCreated,
@@ -61,6 +58,9 @@ export function FiatOnRampForm({
     finishPendingVerification,
     handleWidgetClosed,
   } = useFiatOnRamp({ tokenId, onCredited, onError, onDebugEvent })
+
+  const decimals = selectedToken?.decimals
+  const displaySymbol = tokenSymbol ?? selectedToken?.symbol ?? currencyCode.toUpperCase()
 
   const emitFormDebug = useCallback(
     (event: string, payload?: Record<string, unknown>) => {
@@ -82,11 +82,10 @@ export function FiatOnRampForm({
   // when the user is at the bottom of the range — actual MoonPay fees are
   // variable by payment method and apply inside the widget regardless.
   const minFiatGate =
-    minDepositBaseUnits !== undefined
-      ? Number(formatUnits(minDepositBaseUnits, tokenDecimals)) * 1.05
+    minDepositBaseUnits !== undefined && decimals !== undefined
+      ? Number(formatUnits(minDepositBaseUnits, decimals)) * 1.05
       : undefined
-  const isBelowMin =
-    minFiatGate !== undefined && Number(defaultBaseCurrencyAmount) < minFiatGate
+  const isBelowMin = minFiatGate !== undefined && Number(defaultBaseCurrencyAmount) < minFiatGate
 
   const isBusy =
     isPreparing ||
@@ -111,7 +110,7 @@ export function FiatOnRampForm({
         reasons: blockReasons,
         currencyCode,
         tokenSymbol: displaySymbol,
-        tokenDecimals,
+        tokenDecimals: decimals ?? null,
         baseCurrencyCode,
         defaultBaseCurrencyAmount,
         depositAddress: depositAddress ?? null,
@@ -125,7 +124,7 @@ export function FiatOnRampForm({
     emitFormDebug('form:open-click', {
       currencyCode,
       tokenSymbol: displaySymbol,
-      tokenDecimals,
+      tokenDecimals: decimals ?? null,
       baseCurrencyCode,
       defaultBaseCurrencyAmount,
       depositAddress: depositAddress ?? null,
@@ -157,13 +156,13 @@ export function FiatOnRampForm({
     blockReasons,
     canBuy,
     currencyCode,
+    decimals,
     displaySymbol,
     defaultBaseCurrencyAmount,
     depositAddress,
     emitFormDebug,
     prepareOnRampIntent,
     status,
-    tokenDecimals,
   ])
 
   const handleClose = useCallback(async () => {
