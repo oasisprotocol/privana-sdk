@@ -1,7 +1,7 @@
 'use client'
 
 import { getDefaultConfig } from '@rainbow-me/rainbowkit'
-import { baseSepolia } from 'wagmi/chains'
+import { baseSepolia, sepolia } from 'wagmi/chains'
 import { http } from 'wagmi'
 
 const sapphireTestnet = {
@@ -26,9 +26,10 @@ const projectId = process.env.NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID || 'demo-pro
 export const wagmiConfig = getDefaultConfig({
   appName: 'Privana SDK',
   projectId,
-  chains: [baseSepolia, sapphireTestnet],
+  chains: [baseSepolia, sepolia, sapphireTestnet],
   transports: {
     [baseSepolia.id]: http(),
+    [sepolia.id]: http(),
     [sapphireTestnet.id]: http(),
   },
   ssr: true,
