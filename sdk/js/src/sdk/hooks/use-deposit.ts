@@ -155,7 +155,6 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     verificationFailed: innerVerificationFailed,
     error: verificationError,
     verify,
-    retryVerification,
     reset: resetVerification,
   } = useDepositVerification({
     pollInterval: options.pollInterval,
@@ -438,6 +437,18 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
       verify,
     ]
   )
+
+  // Wrap the inner hook's retry so it works after a wallet/receipt-phase failure
+  // too. We keep our own ctx set the moment the on-chain transfer is dispatched,
+  // before waitForTransactionReceipt — the inner hook only knows about
+  // contexts that reached verify().
+  const retryVerification = useCallback(async (): Promise<void> => {
+    const ctx = verificationContextRef.current
+    if (!ctx) {
+      throw new Error('No pending deposit to verify')
+    }
+    await verify(ctx)
+  }, [verify])
 
   const isPending =
     addressMutation.isPending ||
