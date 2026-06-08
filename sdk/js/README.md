@@ -216,23 +216,143 @@ A customizable button that opens the wallet modal.
 
 ## Hooks
 
-| Hook                    | Description                            |
-| ----------------------- | -------------------------------------- |
-| `useHostedRedirectAuth` | Hosted redirect auth for widget apps   |
-| `useBalance`            | Get token balance (available + locked) |
-| `useBatchBalances`      | Get multiple token balances            |
-| `useDeposit`            | Deposit tokens                         |
-| `useWithdraw`           | Withdraw tokens                        |
-| `useLockFunds`          | Lock funds for a recipient             |
-| `useUnlockFunds`        | Unlock expired locks                   |
-| `useTransfer`           | Transfer tokens                        |
-| `useLockedFunds`        | Get list of locked funds               |
-| `useTotalLockedBalance` | Get total locked balance for one token |
-| `useHistory`            | Get authenticated account activity     |
-| `usePendingWithdrawals` | Get pending withdrawal requests        |
-| `useExpiredLocks`       | Get expired locks that can be claimed  |
-| `useTokenList`          | List all registered tokens             |
-| `useTokenInfo`          | Get info for a single token            |
+| Hook                     | Description                                                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `useHostedRedirectAuth`  | Hosted redirect auth for widget apps                                                                               |
+| `useBalance`             | Get token balance (available + locked)                                                                             |
+| `useBatchBalances`       | Get multiple token balances                                                                                        |
+| `useDeposit`             | Deposit tokens                                                                                                     |
+| `useDepositVerification` | Run checkDeposit + status polling against an existing on-chain transfer (used by `useDeposit` and `useFiatOnRamp`) |
+| `useFiatOnRamp`          | Buy crypto via MoonPay; delivered straight to the Privana deposit address (from `/on-ramp` sub-export)             |
+| `useWithdraw`            | Withdraw tokens                                                                                                    |
+| `useLockFunds`           | Lock funds for a recipient                                                                                         |
+| `useUnlockFunds`         | Unlock expired locks                                                                                               |
+| `useTransfer`            | Transfer tokens                                                                                                    |
+| `useLockedFunds`         | Get list of locked funds                                                                                           |
+| `useTotalLockedBalance`  | Get total locked balance for one token                                                                             |
+| `useHistory`             | Get authenticated account activity                                                                                 |
+| `usePendingWithdrawals`  | Get pending withdrawal requests                                                                                    |
+| `useExpiredLocks`        | Get expired locks that can be claimed                                                                              |
+| `useTokenList`           | List all registered tokens                                                                                         |
+| `useTokenInfo`           | Get info for a single token                                                                                        |
+
+## Fiat On-Ramp
+
+The fiat on-ramp lets users buy tokens with a card and have them credited to
+their Privana balance in one flow. **MoonPay delivers the purchased token
+directly to the user's Privana deposit address**.
+
+Exported from a separate entry point so consumers who don't use the on-ramp
+don't pay the bundle cost of `@moonpay/moonpay-react`:
+
+```tsx
+import { FiatOnRampForm, useFiatOnRamp } from '@oasisprotocol/privana-sdk/on-ramp'
+```
+
+### Setup
+
+The SDK ships `@moonpay/moonpay-react` as a regular dependency, so it lands in
+your `node_modules` automatically. If you import `<MoonPayProvider>` directly
+(see below) you may also want to declare it in your own `package.json` to keep
+your dependency surface explicit:
+
+```bash
+npm install @moonpay/moonpay-react
+```
+
+Wrap your app in `<MoonPayProvider>` (only on routes that use the on-ramp,
+to keep MoonPay out of unrelated bundles):
+
+```tsx
+import { MoonPayProvider } from '@moonpay/moonpay-react'
+;<MoonPayProvider apiKey={import.meta.env.VITE_MOONPAY_API_KEY} debug={import.meta.env.DEV}>
+  {/* on-ramp routes */}
+</MoonPayProvider>
+```
+
+### Quick start with `<FiatOnRampForm>`
+
+```tsx
+import { FiatOnRampForm } from '@oasisprotocol/privana-sdk/on-ramp'
+;<FiatOnRampForm
+  tokenId="0x..." // Privana token id (e.g. USDC on Base)
+  currencyCode="usdc_base" // MoonPay currency code; test/live is controlled by the apiKey (pk_test_* → testnet, pk_live_* → mainnet)
+  baseCurrencyCode="usd" // optional, defaults to "usd"
+  defaultBaseCurrencyAmount="100" // optional pre-fill (MoonPay still lets the user edit)
+  onCredited={(txHash) => console.log('credited', txHash)}
+  onError={(err) => console.error(err)}
+/>
+```
+
+The form:
+
+- fetches the user's Privana deposit address and passes it to MoonPay as the
+  destination,
+- sets `externalCustomerId = address.toLowerCase()` so the backend can bind the
+  MoonPay transaction to the SIWE-authenticated user,
+- creates a backend on-ramp intent (`POST /onramp/intent`) and passes its id to
+  MoonPay as `externalTransactionId` so the webhook can correlate later,
+- gates the "Buy" button on the configured token's minimum deposit (input-time
+  check) and double-checks the delivered amount before triggering verification,
+- on MoonPay's `transaction_created`, fire-and-forget calls
+  `POST /onramp/{id}` with the MoonPay transaction id so the backend can
+  reconcile both ids once the delivery webhook lands,
+- listens for MoonPay's `transaction_completed` event, waits up to 120s for
+  the backend webhook to surface the on-chain tx hash, then triggers Privana
+  verification (`checkDeposit` + status polling).
+
+### `useFiatOnRamp` for custom UI
+
+If you need a different shell around the MoonPay widget, use the hook
+directly and wire MoonPay's widget callbacks yourself:
+
+```tsx
+import { MoonPayBuyWidget } from '@moonpay/moonpay-react'
+import { useFiatOnRamp } from '@oasisprotocol/privana-sdk/on-ramp'
+
+const {
+  status, // 'idle' | 'awaiting-purchase' | 'awaiting-delivery' | 'verifying' | 'credited' | 'failed'
+  activeIntentId, // pass to MoonPay as externalTransactionId
+  pending, // recovery list (completed-but-unverified)
+  error,
+  depositAddress, // pass to MoonPay as walletAddress
+  minDepositBaseUnits, // for input validation
+  selectedToken, // resolved token config (decimals/symbol for the configured tokenId)
+  prepareOnRampIntent, // call before opening the widget
+  signUrl, // wire to onUrlSignatureRequested
+  handleTransactionCreated, // wire to onTransactionCreated
+  handleTransactionCompleted, // wire to onTransactionCompleted
+  handleWidgetClosed, // call from onClose / onCloseOverlay
+  finishPendingVerification, // call from the recovery CTA
+  refreshPending, // manual refresh of the pending list
+} = useFiatOnRamp({ tokenId, onCredited, onError })
+```
+
+### Pending / recovery
+
+If the user closes the tab between MoonPay completion and verification, the
+backend has already received the webhook and the row appears in `pending`.
+Render the list with a "Finish verification" CTA that calls
+`finishPendingVerification(record)` — no wallet signature required, just the
+verification poll.
+
+### Required backend endpoints
+
+The `useFiatOnRamp` hook + form call:
+
+- `POST /v1/accounting/onramp/sign-url` — HMAC-signs the MoonPay widget URL
+- `POST /v1/accounting/onramp/intent` — creates the Privana intent row that ties a MoonPay transaction to the SIWE'd user + Privana token
+- `POST /v1/accounting/onramp/{transaction_id}` — upserts MoonPay transaction metadata (fire-and-forget on `transaction_created`)
+- `GET /v1/accounting/onramp/pending` — completed MoonPay txs awaiting verification
+
+And the existing deposit verification endpoints:
+
+- `POST /v1/accounting/deposits/check`
+- `GET /v1/accounting/deposits/status/{id}`
+
+MoonPay → backend webhook (`POST /v1/accounting/onramp/webhook`) is what
+populates the pending list with the on-chain tx hash. Configure that URL in
+your MoonPay dashboard.
 
 ## License
 
