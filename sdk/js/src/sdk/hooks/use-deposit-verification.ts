@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { AccountingApiError } from '../client/errors'
 import { usePrivanaContext } from '../context/privana-provider'
 import { usePrivateReadRequest } from './use-private-read-request'
 import type { DepositCheckResponse } from '../types'
@@ -23,6 +24,8 @@ export interface UseDepositVerificationOptions {
   onError?: (error: Error) => void
   /** Polling interval in ms (default: 5000). */
   pollInterval?: number
+  /** Retry interval in ms while the source-chain tx is waiting finality (default: pollInterval). */
+  finalityRetryInterval?: number
   /** Max time to wait for credit confirmation in ms (default: 180000). */
   pollTimeout?: number
 }
@@ -67,6 +70,7 @@ export function useDepositVerification(
   const { executePrivateRead } = usePrivateReadRequest()
 
   const pollInterval = options.pollInterval ?? 5000
+  const finalityRetryInterval = options.finalityRetryInterval ?? pollInterval
   const pollTimeout = options.pollTimeout ?? 180000
 
   const [isVerifying, setIsVerifying] = useState(false)
@@ -127,15 +131,52 @@ export function useDepositVerification(
         onErrorRef.current?.(err)
       }
 
+      const markVerificationTimedOut = () => {
+        stopPolling()
+        setIsVerifying(false)
+        setDidTimeout(true)
+        onCheckTimeoutRef.current?.(hash)
+        queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
+      }
+
       try {
-        // Phase 1: trigger sweep
-        const triggerResult = await executePrivateRead(() =>
-          client.checkDeposit({
-            chain_id: chainId,
-            tx_hash: hash,
-            amount: amount.toString(),
-          })
-        )
+        // Phase 1: trigger sweep. The backend rejects with "Insufficient finality"
+        // when the source-chain tx isn't deep enough yet; retry on a slower
+        // cadence instead of failing, until pollTimeout.
+        let triggerResult: DepositCheckResponse | undefined
+        while (!triggerResult) {
+          if (isStale()) return
+          try {
+            const result = await executePrivateRead(() =>
+              client.checkDeposit({
+                chain_id: chainId,
+                tx_hash: hash,
+                amount: amount.toString(),
+              })
+            )
+            if (result.status === 'error' && isInsufficientFinalityMessage(result.detail)) {
+              if (Date.now() - pollStartTime > pollTimeout) {
+                markVerificationTimedOut()
+                return
+              }
+              await sleep(finalityRetryInterval)
+              if (isStale()) return
+              continue
+            }
+            triggerResult = result
+          } catch (err) {
+            if (isStale()) return
+            if (!isInsufficientFinalityError(err)) {
+              throw err
+            }
+            if (Date.now() - pollStartTime > pollTimeout) {
+              markVerificationTimedOut()
+              return
+            }
+            await sleep(finalityRetryInterval)
+            if (isStale()) return
+          }
+        }
         if (isStale()) return
 
         if (triggerResult.status === 'credited') {
@@ -165,11 +206,7 @@ export function useDepositVerification(
           if (isStale()) return true
 
           if (Date.now() - pollStartTime > pollTimeout) {
-            stopPolling()
-            setIsVerifying(false)
-            setDidTimeout(true)
-            onCheckTimeoutRef.current?.(hash)
-            queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
+            markVerificationTimedOut()
             return true
           }
 
@@ -223,7 +260,15 @@ export function useDepositVerification(
         )
       }
     },
-    [client, executePrivateRead, pollInterval, pollTimeout, queryClient, stopPolling]
+    [
+      client,
+      executePrivateRead,
+      finalityRetryInterval,
+      pollInterval,
+      pollTimeout,
+      queryClient,
+      stopPolling,
+    ]
   )
 
   const verify = useCallback(
@@ -270,4 +315,21 @@ export function useDepositVerification(
     retryVerification,
     reset,
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function isInsufficientFinalityError(error: unknown): boolean {
+  if (error instanceof AccountingApiError) {
+    return (
+      isInsufficientFinalityMessage(error.detail) || isInsufficientFinalityMessage(error.message)
+    )
+  }
+  return error instanceof Error && isInsufficientFinalityMessage(error.message)
+}
+
+function isInsufficientFinalityMessage(message: string | undefined): boolean {
+  return message?.includes('Insufficient finality') ?? false
 }
