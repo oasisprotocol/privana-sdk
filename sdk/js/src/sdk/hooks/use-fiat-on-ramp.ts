@@ -114,6 +114,27 @@ export interface UseFiatOnRampResult {
   refreshPending: () => Promise<void>
 }
 
+/**
+ * Buy crypto via MoonPay and credit it to a Privana balance in one flow.
+ *
+ * Architecture: MoonPay delivers USDC directly to the user's Privana deposit
+ * address (NOT the connected wallet) — the wallet is only used for SIWE auth
+ * and signs no on-chain transfer. After MoonPay reports the purchase complete,
+ * the on-chain tx hash arrives via the MoonPay→backend webhook (not the widget
+ * event), so this hook polls `/onramp/pending` until the row's
+ * `on_chain_tx_hash` is populated and then triggers Privana verification
+ * (`checkDeposit` + `getDepositStatus` poll, delegated to
+ * `useDepositVerification`).
+ *
+ * Wire the returned callbacks to `<MoonPayBuyWidget>`:
+ *
+ *   onUrlSignatureRequested = signUrl
+ *   onTransactionCreated    = handleTransactionCreated
+ *   onTransactionCompleted  = handleTransactionCompleted
+ *   onClose / onCloseOverlay = handleWidgetClosed
+ *
+ * Use `<FiatOnRampForm>` if you don't need custom UI around the widget.
+ */
 export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResult {
   const { tokenId, onCredited, onError, onDebugEvent } = options
   const deliveryTimeout = options.deliveryTimeout ?? DEFAULT_DELIVERY_TIMEOUT_MS
