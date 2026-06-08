@@ -75,13 +75,18 @@ export function FiatOnRampForm({
     [onDebugEvent, status, tokenId]
   )
 
-  // Input-time min-deposit gate: convert the selected token's base-units
-  // minimum to an approximate fiat floor with a 5% buffer for MoonPay fees.
-  const minFiat =
+  // Approximate the fiat floor we need to clear the minimum-deposit check.
+  // Pads the token's base-units minimum by 5% (MoonPay's worst-case card fee
+  // is ~4.5%) so the post-fee delivered amount doesn't fall below Privana's
+  // minimum and strand the user's funds. Only used to gate the buy button
+  // when the user is at the bottom of the range — actual MoonPay fees are
+  // variable by payment method and apply inside the widget regardless.
+  const minFiatGate =
     minDepositBaseUnits !== undefined
       ? Number(formatUnits(minDepositBaseUnits, tokenDecimals)) * 1.05
       : undefined
-  const isBelowMin = minFiat !== undefined && Number(defaultBaseCurrencyAmount) < minFiat
+  const isBelowMin =
+    minFiatGate !== undefined && Number(defaultBaseCurrencyAmount) < minFiatGate
 
   const isBusy =
     isPreparing ||
@@ -193,9 +198,9 @@ export function FiatOnRampForm({
         </p>
       )}
 
-      {isBelowMin && minFiat !== undefined && (
+      {isBelowMin && minFiatGate !== undefined && (
         <p className="text-destructive text-sm" role="alert">
-          Minimum purchase is ~${minFiat.toFixed(2)}.
+          Minimum purchase is ~${minFiatGate.toFixed(2)}.
         </p>
       )}
 
