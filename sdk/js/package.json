@@ -35,6 +35,16 @@
         "default": "./dist/index.cjs"
       }
     },
+    "./on-ramp": {
+      "import": {
+        "types": "./dist/on-ramp.d.ts",
+        "default": "./dist/on-ramp.js"
+      },
+      "require": {
+        "types": "./dist/on-ramp.d.cts",
+        "default": "./dist/on-ramp.cjs"
+      }
+    },
     "./styles.css": "./dist/index.css"
   },
   "files": [
@@ -52,6 +62,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@moonpay/moonpay-react": "^1.10.6",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-label": "^2.1.8",

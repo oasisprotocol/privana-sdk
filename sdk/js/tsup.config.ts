@@ -3,7 +3,7 @@ import { resolve } from 'path'
 import { readFileSync, writeFileSync, copyFileSync } from 'fs'
 
 const addUseClientDirective = () => {
-  const files = ['dist/index.js', 'dist/index.cjs']
+  const files = ['dist/index.js', 'dist/index.cjs', 'dist/on-ramp.js', 'dist/on-ramp.cjs']
   files.forEach((file) => {
     try {
       const content = readFileSync(file, 'utf-8')
@@ -33,7 +33,7 @@ const copyStaticAssetsToOutput = () => {
 }
 
 export default defineConfig({
-  entry: ['src/index.ts'],
+  entry: ['src/index.ts', 'src/on-ramp.ts'],
   format: ['esm', 'cjs'],
   dts: true,
   splitting: false,
