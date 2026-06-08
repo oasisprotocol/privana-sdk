@@ -35,6 +35,16 @@
         "default": "./dist/index.cjs"
       }
     },
+    "./on-ramp": {
+      "import": {
+        "types": "./dist/on-ramp.d.ts",
+        "default": "./dist/on-ramp.js"
+      },
+      "require": {
+        "types": "./dist/on-ramp.d.cts",
+        "default": "./dist/on-ramp.cjs"
+      }
+    },
     "./styles.css": "./dist/index.css"
   },
   "files": [
