@@ -498,8 +498,20 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         if (record.chain_id === undefined || !record.wallet_address) {
           throw new Error('On-ramp record missing chain id or wallet address')
         }
-        const token = enabledTokens.find((t) => t.id.toLowerCase() === tokenId.toLowerCase())
-        if (!token) throw new Error(`Unknown token: ${tokenId}`)
+        // Source the token from the record, not the hook's tokenId. They match
+        // for the active flow but diverge when finishing a pending row for a
+        // different token than the one currently selected.
+        const recordTokenId = record.token_id
+        if (!recordTokenId) {
+          throw new Error('On-ramp record missing token id')
+        }
+        const token = enabledTokens.find((t) => t.id.toLowerCase() === recordTokenId.toLowerCase())
+        if (!token) throw new Error(`Unknown token: ${recordTokenId}`)
+        if (token.chainId !== record.chain_id) {
+          throw new Error(
+            `Token ${recordTokenId} is on chain ${token.chainId} but record is on chain ${record.chain_id}`
+          )
+        }
 
         const amount = await resolveDeliveredAmount({
           onChainTxHash: record.on_chain_tx_hash,
@@ -545,7 +557,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         throw err
       }
     },
-    [emitDebug, enabledTokens, minDepositBaseUnits, tokenId, verify, wagmiConfig]
+    [emitDebug, enabledTokens, minDepositBaseUnits, verify, wagmiConfig]
   )
 
   const handleTransactionCompleted = useCallback(
