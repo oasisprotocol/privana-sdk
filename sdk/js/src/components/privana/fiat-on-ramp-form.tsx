@@ -207,36 +207,49 @@ export function FiatOnRampForm({
 
       {pending.length > 0 && (
         <div className="flex flex-col gap-2 rounded-md border p-3">
-          <p className="text-sm font-medium">Payment verification</p>
-          <p className="text-muted-foreground text-xs">
-            MoonPay delivered your purchase, Privana hasn&apos;t verified it yet. Resume
-            verification.
-          </p>
+          <p className="text-sm font-medium">Pending payments</p>
           {pending.map((record) => {
             const progress = parseFinalityProgress(finalityProgress[record.transaction_id])
+            const hasProgress = !!finalityProgress[record.transaction_id]
+            const isStalled =
+              !hasProgress && Date.now() / 1000 - (record.updated_at ?? 0) > 60
+            const showRetry = rowError?.id === record.transaction_id || isStalled
             return (
-              <div key={record.transaction_id} className="flex flex-col gap-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isBusy}
-                  onClick={async () => {
-                    setRowError(null)
-                    try {
-                      await finishPendingVerification(record)
-                    } catch (err) {
-                      setRowError({
-                        id: record.transaction_id,
-                        message: err instanceof Error ? err.message : 'Verification failed',
-                      })
-                    }
-                  }}
-                >
-                  {progress ?? `${record.quote_currency_amount ?? '?'} ${displaySymbol}`}
-                </Button>
+              <div
+                key={record.transaction_id}
+                className="border-border flex flex-col gap-1 rounded-md border p-2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-muted-foreground flex items-center gap-1 text-xs">
+                    <Loader2 className="size-3 animate-spin" aria-hidden />
+                    {progress ?? 'Verifying…'}
+                  </p>
+                  <p className="text-muted-foreground text-xs">
+                    {record.quote_currency_amount ?? '?'} {displaySymbol}
+                  </p>
+                </div>
                 {rowError?.id === record.transaction_id && (
-                  <p className="text-muted-foreground text-xs">{rowError.message}</p>
+                  <p className="text-destructive text-xs">{rowError.message}</p>
+                )}
+                {showRetry && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      setRowError(null)
+                      try {
+                        await finishPendingVerification(record)
+                      } catch (err) {
+                        setRowError({
+                          id: record.transaction_id,
+                          message: err instanceof Error ? err.message : 'Verification failed',
+                        })
+                      }
+                    }}
+                  >
+                    Retry
+                  </Button>
                 )}
               </div>
             )

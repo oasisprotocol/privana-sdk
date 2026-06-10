@@ -743,6 +743,31 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
     [emitDebug, triggerVerification]
   )
 
+  const triggerVerificationRef = useRef(triggerVerification)
+  useEffect(() => {
+    triggerVerificationRef.current = triggerVerification
+  }, [triggerVerification])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      for (const record of pending) {
+        if (cancelled) break
+        if (!record.on_chain_tx_hash || !record.quote_currency_amount) continue
+        const key = getOnRampVerificationKey(record)
+        if (triggeredVerificationKeysRef.current.has(key)) continue
+        try {
+          await triggerVerificationRef.current(record)
+        } catch {
+          // Error is surfaced via finalityProgress / global error; loop on.
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [pending])
+
   return {
     status,
     activeIntentId,
