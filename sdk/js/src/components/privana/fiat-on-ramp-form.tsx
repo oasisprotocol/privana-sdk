@@ -90,12 +90,7 @@ export function FiatOnRampForm({
       ? Number(formatUnits(minDepositBaseUnits, decimals)) * 1.05
       : undefined
   const isBelowMin = minFiatGate !== undefined && Number(defaultBaseCurrencyAmount) < minFiatGate
-
-  const isBusy =
-    isPreparing ||
-    status === 'awaiting-purchase' ||
-    status === 'awaiting-delivery' ||
-    status === 'verifying'
+  const isBusy = isPreparing || status === 'awaiting-purchase'
   const isInitializing = !!address && !depositAddress
   const blockReasons = useMemo(
     () =>
