@@ -1,10 +1,12 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { formatUnits } from 'viem'
 import { useAccount } from 'wagmi'
 import { MoonPayBuyWidget } from '@moonpay/moonpay-react'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useFiatOnRamp, type FiatOnRampDebugEvent } from '@/sdk/hooks/use-fiat-on-ramp'
 import type { Bytes32 } from '@/sdk/types'
 
@@ -42,12 +44,14 @@ export function FiatOnRampForm({
   const { address } = useAccount()
   const [visible, setVisible] = useState(false)
   const [isPreparing, setIsPreparing] = useState(false)
+  const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null)
 
   const {
     status,
     activeIntentId,
     pending,
     error,
+    finalityProgress,
     depositAddress,
     minDepositBaseUnits,
     selectedToken,
@@ -86,21 +90,18 @@ export function FiatOnRampForm({
       ? Number(formatUnits(minDepositBaseUnits, decimals)) * 1.05
       : undefined
   const isBelowMin = minFiatGate !== undefined && Number(defaultBaseCurrencyAmount) < minFiatGate
-
-  const isBusy =
-    isPreparing ||
-    status === 'awaiting-purchase' ||
-    status === 'awaiting-delivery' ||
-    status === 'verifying'
+  const isBusy = isPreparing || status === 'awaiting-purchase'
+  const isInitializing = !!address && !depositAddress
   const blockReasons = useMemo(
     () =>
       [
         !address ? 'wallet-not-connected' : null,
         !depositAddress ? 'deposit-address-not-loaded' : null,
         isBusy ? `busy:${isPreparing ? 'preparing' : status}` : null,
+        visible ? 'widget-open' : null,
         isBelowMin ? 'below-minimum' : null,
       ].filter((reason): reason is string => Boolean(reason)),
-    [address, depositAddress, isBelowMin, isBusy, isPreparing, status]
+    [address, depositAddress, isBelowMin, isBusy, isPreparing, status, visible]
   )
   const canBuy = blockReasons.length === 0
 
@@ -182,13 +183,14 @@ export function FiatOnRampForm({
   }, [emitFormDebug])
 
   return (
-    <div className="flex flex-col gap-4">
-      <Button type="button" onClick={handleOpen}>
-        {isPreparing ? 'Preparing MoonPay…' : isBusy ? statusLabel(status) : `Buy ${displaySymbol}`}
-      </Button>
-
-      {!canBuy && !isBusy && (
-        <p className="text-muted-foreground text-xs">Button blocked: {blockReasons.join(', ')}</p>
+    <div data-privana className="flex flex-col gap-4">
+      {isInitializing ? (
+        <Skeleton className="h-9 w-full rounded-md" />
+      ) : (
+        <Button type="button" onClick={handleOpen} disabled={!canBuy}>
+          {(isBusy || visible) && <Loader2 className="animate-spin" aria-hidden />}
+          Buy
+        </Button>
       )}
 
       {error && (
@@ -205,23 +207,52 @@ export function FiatOnRampForm({
 
       {pending.length > 0 && (
         <div className="flex flex-col gap-2 rounded-md border p-3">
-          <p className="text-sm font-medium">Finish verification</p>
-          <p className="text-muted-foreground text-xs">
-            MoonPay delivered your purchase, but Privana hasn&apos;t verified it yet. Resume
-            verification now to credit your balance.
-          </p>
-          {pending.map((record) => (
-            <Button
-              key={record.transaction_id}
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={isBusy}
-              onClick={() => finishPendingVerification(record)}
-            >
-              {record.quote_currency_amount ?? '?'} {displaySymbol}
-            </Button>
-          ))}
+          <p className="text-sm font-medium">Pending payments</p>
+          {pending.map((record) => {
+            const progress = parseFinalityProgress(finalityProgress[record.transaction_id])
+            const hasProgress = !!finalityProgress[record.transaction_id]
+            const isStalled = !hasProgress && Date.now() / 1000 - (record.updated_at ?? 0) > 60
+            const showRetry = rowError?.id === record.transaction_id || isStalled
+            return (
+              <div
+                key={record.transaction_id}
+                className="border-border flex flex-col gap-1 rounded-md border p-2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-muted-foreground flex items-center gap-1 text-xs">
+                    <Loader2 className="size-3 animate-spin" aria-hidden />
+                    {progress ?? 'Verifying…'}
+                  </p>
+                  <p className="text-muted-foreground text-xs">
+                    {record.quote_currency_amount ?? '?'} {displaySymbol}
+                  </p>
+                </div>
+                {rowError?.id === record.transaction_id && (
+                  <p className="text-destructive text-xs">{rowError.message}</p>
+                )}
+                {showRetry && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      setRowError(null)
+                      try {
+                        await finishPendingVerification(record)
+                      } catch (err) {
+                        setRowError({
+                          id: record.transaction_id,
+                          message: err instanceof Error ? err.message : 'Verification failed',
+                        })
+                      }
+                    }}
+                  >
+                    Retry
+                  </Button>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -248,19 +279,8 @@ export function FiatOnRampForm({
   )
 }
 
-function statusLabel(status: ReturnType<typeof useFiatOnRamp>['status']): string {
-  switch (status) {
-    case 'awaiting-purchase':
-      return 'Complete your purchase…'
-    case 'awaiting-delivery':
-      return 'Waiting for on-chain delivery…'
-    case 'verifying':
-      return 'Verifying with Privana…'
-    case 'credited':
-      return 'Credited'
-    case 'failed':
-      return 'Failed'
-    default:
-      return ''
-  }
+function parseFinalityProgress(message: string | undefined): string | null {
+  if (!message) return null
+  const match = message.match(/(\d+\/\d+)\s+confirmations/i)
+  return match ? `${match[1]} confirmations` : null
 }

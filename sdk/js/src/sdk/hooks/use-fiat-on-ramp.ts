@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { decodeEventLog, parseAbiItem, parseUnits, zeroAddress } from 'viem'
-import { getTransactionReceipt } from '@wagmi/core'
+import { waitForTransactionReceipt } from '@wagmi/core'
 import { useConfig } from 'wagmi'
 import type { MoonPayBuyWidget } from '@moonpay/moonpay-react'
 
@@ -76,6 +76,12 @@ export interface UseFiatOnRampResult {
   /** Completed on-ramps that still need Privana verification. */
   pending: OnRampRecord[]
   error: Error | null
+  /**
+   * Per-row finality progress messages (e.g. "Insufficient finality: 4/32 confirmations
+   * on chain 11155111"), keyed by `transaction_id`. Updated each time `checkDeposit`
+   * sees the row isn't deep enough yet — non-terminal; cleared on credit.
+   */
+  finalityProgress: Record<string, string>
   /** Per-user Privana deposit address. */
   depositAddress: `0x${string}` | undefined
   /**
@@ -154,6 +160,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
   const [depositAddress, setDepositAddress] = useState<`0x${string}` | undefined>()
   const [minDepositBaseUnits, setMinDepositBaseUnits] = useState<bigint | undefined>()
   const [activeIntentId, setActiveIntentId] = useState<string | null>(null)
+  const [finalityProgress, setFinalityProgress] = useState<Record<string, string>>({})
 
   const onCreditedRef = useRef(onCredited)
   const onErrorRef = useRef(onError)
@@ -164,6 +171,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
   const activeVerificationKeyRef = useRef<string | null>(null)
   const triggeredVerificationKeysRef = useRef<Set<string>>(new Set())
   const closeReconcilePromiseRef = useRef<Promise<void> | null>(null)
+  const purchaseInitiatedRef = useRef(false)
   useEffect(() => {
     onCreditedRef.current = onCredited
     onErrorRef.current = onError
@@ -272,13 +280,32 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
     pollTimeout: verificationTimeout,
     pollInterval: options.verificationPollInterval,
     finalityRetryInterval,
+    onCheckRetry: (message) => {
+      const record = activeVerificationRecordRef.current
+      if (!record) return
+      emitDebug('verification:check-retry', {
+        message,
+        record: summariseOnRampRecord(record),
+      })
+      setFinalityProgress((prev) => ({ ...prev, [record.transaction_id]: message }))
+    },
     onCredited: (depositTxHash) => {
       const record = activeVerificationRecordRef.current
       emitDebug('verification:credited', {
         depositTxHash,
         record: record ? summariseOnRampRecord(record) : null,
       })
-      setStatus('credited')
+      if (record && activeIntentIdRef.current === record.transaction_id) {
+        setStatus('credited')
+      }
+      if (record) {
+        setFinalityProgress((prev) => {
+          if (!(record.transaction_id in prev)) return prev
+          const next = { ...prev }
+          delete next[record.transaction_id]
+          return next
+        })
+      }
       void (async () => {
         try {
           if (record && depositTxHash.startsWith('0x')) {
@@ -310,21 +337,27 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
       onCreditedRef.current?.(depositTxHash)
     },
     onCheckTimeout: (depositTxHash) => {
+      const record = activeVerificationRecordRef.current
       const err = new Error(
         'Privana verification is still pending. Retry from the pending on-ramp list if it does not complete.'
       )
       emitDebug('verification:timeout', { depositTxHash, message: err.message })
       clearActiveVerification()
-      setStatus('failed')
-      setError(err)
+      if (!record || activeIntentIdRef.current === record.transaction_id) {
+        setStatus('failed')
+        setError(err)
+      }
       void refreshPending()
       onErrorRef.current?.(err)
     },
     onError: (err) => {
+      const record = activeVerificationRecordRef.current
       emitDebug('verification:error', errorPayload(err))
       clearActiveVerification()
-      setStatus('failed')
-      setError(err)
+      if (!record || activeIntentIdRef.current === record.transaction_id) {
+        setStatus('failed')
+        setError(err)
+      }
       onErrorRef.current?.(err)
     },
   })
@@ -341,6 +374,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
     }) => {
       try {
         setError(null)
+        purchaseInitiatedRef.current = false
         const token = enabledTokens.find((t) => t.id.toLowerCase() === tokenId.toLowerCase())
         if (!token) throw new Error(`Unknown token: ${tokenId}`)
         if (!depositAddress) throw new Error('Privana deposit address is not ready')
@@ -431,6 +465,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
   const handleTransactionCreated = useCallback(
     async (props: OnTransactionCreatedProps) => {
       emitDebug('moonpay:onTransactionCreated', summariseMoonPayEventProps(props))
+      purchaseInitiatedRef.current = true
       await registerOnRampTokenMapping(props.id)
     },
     [emitDebug, registerOnRampTokenMapping]
@@ -516,6 +551,12 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
       triggeredVerificationKeysRef.current.add(verificationKey)
       activeVerificationKeyRef.current = verificationKey
       activeVerificationRecordRef.current = record
+      setFinalityProgress((prev) => {
+        if (!(record.transaction_id in prev)) return prev
+        const next = { ...prev }
+        delete next[record.transaction_id]
+        return next
+      })
 
       emitDebug('verification:start', {
         verificationKey,
@@ -567,7 +608,9 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
           )
         }
 
-        setStatus('verifying')
+        if (activeIntentIdRef.current === record.transaction_id) {
+          setStatus('verifying')
+        }
         emitDebug('verification:check-deposit-request', {
           hash: record.on_chain_tx_hash,
           chainId: record.chain_id,
@@ -644,6 +687,18 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         return
       }
 
+      if (!purchaseInitiatedRef.current) {
+        emitDebug('moonpay:widget-closed-without-purchase', {
+          previousStatus,
+          transactionId,
+        })
+        await refreshPending()
+        if (previousStatus === 'awaiting-purchase' || previousStatus === 'awaiting-delivery') {
+          setStatus('idle')
+        }
+        return
+      }
+
       try {
         setStatus('awaiting-delivery')
         const record = await waitForOnChainHash(transactionId)
@@ -684,16 +739,43 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         setStatus('failed')
         setError(e)
         onErrorRef.current?.(e)
+        throw e
       }
     },
     [emitDebug, triggerVerification]
   )
+
+  const triggerVerificationRef = useRef(triggerVerification)
+  useEffect(() => {
+    triggerVerificationRef.current = triggerVerification
+  }, [triggerVerification])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      for (const record of pending) {
+        if (cancelled) break
+        if (!record.on_chain_tx_hash || !record.quote_currency_amount) continue
+        const key = getOnRampVerificationKey(record)
+        if (triggeredVerificationKeysRef.current.has(key)) continue
+        try {
+          await triggerVerificationRef.current(record)
+        } catch {
+          // Error is surfaced via finalityProgress / global error; loop on.
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [pending])
 
   return {
     status,
     activeIntentId,
     pending,
     error,
+    finalityProgress,
     depositAddress,
     minDepositBaseUnits,
     selectedToken,
@@ -762,9 +844,11 @@ async function resolveDeliveredAmount({
 
   let receiptError: unknown
   try {
-    const receipt = await getTransactionReceipt(wagmiConfig, {
+    const receipt = await waitForTransactionReceipt(wagmiConfig, {
       hash: onChainTxHash as `0x${string}`,
       chainId,
+      timeout: 60_000,
+      pollingInterval: 4_000,
     })
 
     let delivered = 0n
