@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { decodeEventLog, parseAbiItem, parseUnits, zeroAddress } from 'viem'
-import { getTransactionReceipt } from '@wagmi/core'
+import { waitForTransactionReceipt } from '@wagmi/core'
 import { useConfig } from 'wagmi'
 import type { MoonPayBuyWidget } from '@moonpay/moonpay-react'
 
@@ -777,9 +777,11 @@ async function resolveDeliveredAmount({
 
   let receiptError: unknown
   try {
-    const receipt = await getTransactionReceipt(wagmiConfig, {
+    const receipt = await waitForTransactionReceipt(wagmiConfig, {
       hash: onChainTxHash as `0x${string}`,
       chainId,
+      timeout: 60_000,
+      pollingInterval: 4_000,
     })
 
     let delivered = 0n
