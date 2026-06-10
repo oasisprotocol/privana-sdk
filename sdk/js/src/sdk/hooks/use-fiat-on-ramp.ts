@@ -295,7 +295,9 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         depositTxHash,
         record: record ? summariseOnRampRecord(record) : null,
       })
-      setStatus('credited')
+      if (record && activeIntentIdRef.current === record.transaction_id) {
+        setStatus('credited')
+      }
       if (record) {
         setFinalityProgress((prev) => {
           if (!(record.transaction_id in prev)) return prev
@@ -334,21 +336,27 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
       onCreditedRef.current?.(depositTxHash)
     },
     onCheckTimeout: (depositTxHash) => {
+      const record = activeVerificationRecordRef.current
       const err = new Error(
         'Privana verification is still pending. Retry from the pending on-ramp list if it does not complete.'
       )
       emitDebug('verification:timeout', { depositTxHash, message: err.message })
       clearActiveVerification()
-      setStatus('failed')
-      setError(err)
+      if (!record || activeIntentIdRef.current === record.transaction_id) {
+        setStatus('failed')
+        setError(err)
+      }
       void refreshPending()
       onErrorRef.current?.(err)
     },
     onError: (err) => {
+      const record = activeVerificationRecordRef.current
       emitDebug('verification:error', errorPayload(err))
       clearActiveVerification()
-      setStatus('failed')
-      setError(err)
+      if (!record || activeIntentIdRef.current === record.transaction_id) {
+        setStatus('failed')
+        setError(err)
+      }
       onErrorRef.current?.(err)
     },
   })
@@ -598,7 +606,9 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
           )
         }
 
-        setStatus('verifying')
+        if (activeIntentIdRef.current === record.transaction_id) {
+          setStatus('verifying')
+        }
         emitDebug('verification:check-deposit-request', {
           hash: record.on_chain_tx_hash,
           chainId: record.chain_id,
