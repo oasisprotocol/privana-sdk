@@ -101,9 +101,10 @@ export function FiatOnRampForm({
         !address ? 'wallet-not-connected' : null,
         !depositAddress ? 'deposit-address-not-loaded' : null,
         isBusy ? `busy:${isPreparing ? 'preparing' : status}` : null,
+        visible ? 'widget-open' : null,
         isBelowMin ? 'below-minimum' : null,
       ].filter((reason): reason is string => Boolean(reason)),
-    [address, depositAddress, isBelowMin, isBusy, isPreparing, status]
+    [address, depositAddress, isBelowMin, isBusy, isPreparing, status, visible]
   )
   const canBuy = blockReasons.length === 0
 
@@ -190,7 +191,7 @@ export function FiatOnRampForm({
         <Skeleton className="h-9 w-full rounded-md" />
       ) : (
         <Button type="button" onClick={handleOpen} disabled={!canBuy}>
-          {isBusy && <Loader2 className="animate-spin" aria-hidden />}
+          {(isBusy || visible) && <Loader2 className="animate-spin" aria-hidden />}
           Buy
         </Button>
       )}
