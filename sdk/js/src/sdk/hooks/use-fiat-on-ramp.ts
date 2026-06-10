@@ -301,8 +301,9 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
       if (record) {
         setFinalityProgress((prev) => {
           if (!(record.transaction_id in prev)) return prev
-          const { [record.transaction_id]: _omit, ...rest } = prev
-          return rest
+          const next = { ...prev }
+          delete next[record.transaction_id]
+          return next
         })
       }
       void (async () => {
@@ -552,8 +553,9 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
       activeVerificationRecordRef.current = record
       setFinalityProgress((prev) => {
         if (!(record.transaction_id in prev)) return prev
-        const { [record.transaction_id]: _omit, ...rest } = prev
-        return rest
+        const next = { ...prev }
+        delete next[record.transaction_id]
+        return next
       })
 
       emitDebug('verification:start', {

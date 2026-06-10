@@ -211,8 +211,7 @@ export function FiatOnRampForm({
           {pending.map((record) => {
             const progress = parseFinalityProgress(finalityProgress[record.transaction_id])
             const hasProgress = !!finalityProgress[record.transaction_id]
-            const isStalled =
-              !hasProgress && Date.now() / 1000 - (record.updated_at ?? 0) > 60
+            const isStalled = !hasProgress && Date.now() / 1000 - (record.updated_at ?? 0) > 60
             const showRetry = rowError?.id === record.transaction_id || isStalled
             return (
               <div
