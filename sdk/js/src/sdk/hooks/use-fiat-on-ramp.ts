@@ -164,6 +164,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
   const activeVerificationKeyRef = useRef<string | null>(null)
   const triggeredVerificationKeysRef = useRef<Set<string>>(new Set())
   const closeReconcilePromiseRef = useRef<Promise<void> | null>(null)
+  const purchaseInitiatedRef = useRef(false)
   useEffect(() => {
     onCreditedRef.current = onCredited
     onErrorRef.current = onError
@@ -341,6 +342,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
     }) => {
       try {
         setError(null)
+        purchaseInitiatedRef.current = false
         const token = enabledTokens.find((t) => t.id.toLowerCase() === tokenId.toLowerCase())
         if (!token) throw new Error(`Unknown token: ${tokenId}`)
         if (!depositAddress) throw new Error('Privana deposit address is not ready')
@@ -431,6 +433,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
   const handleTransactionCreated = useCallback(
     async (props: OnTransactionCreatedProps) => {
       emitDebug('moonpay:onTransactionCreated', summariseMoonPayEventProps(props))
+      purchaseInitiatedRef.current = true
       await registerOnRampTokenMapping(props.id)
     },
     [emitDebug, registerOnRampTokenMapping]
@@ -641,6 +644,18 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
 
       if (!transactionId) {
         await refreshPending()
+        return
+      }
+
+      if (!purchaseInitiatedRef.current) {
+        emitDebug('moonpay:widget-closed-without-purchase', {
+          previousStatus,
+          transactionId,
+        })
+        await refreshPending()
+        if (previousStatus === 'awaiting-purchase' || previousStatus === 'awaiting-delivery') {
+          setStatus('idle')
+        }
         return
       }
 
