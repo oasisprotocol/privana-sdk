@@ -1,10 +1,12 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { formatUnits } from 'viem'
 import { useAccount } from 'wagmi'
 import { MoonPayBuyWidget } from '@moonpay/moonpay-react'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { useFiatOnRamp, type FiatOnRampDebugEvent } from '@/sdk/hooks/use-fiat-on-ramp'
 import type { Bytes32 } from '@/sdk/types'
 
@@ -92,6 +94,7 @@ export function FiatOnRampForm({
     status === 'awaiting-purchase' ||
     status === 'awaiting-delivery' ||
     status === 'verifying'
+  const isInitializing = !!address && !depositAddress
   const blockReasons = useMemo(
     () =>
       [
@@ -182,13 +185,14 @@ export function FiatOnRampForm({
   }, [emitFormDebug])
 
   return (
-    <div className="flex flex-col gap-4">
-      <Button type="button" onClick={handleOpen}>
-        {isPreparing ? 'Preparing MoonPay…' : isBusy ? statusLabel(status) : `Buy ${displaySymbol}`}
-      </Button>
-
-      {!canBuy && !isBusy && (
-        <p className="text-muted-foreground text-xs">Button blocked: {blockReasons.join(', ')}</p>
+    <div data-privana className="flex flex-col gap-4">
+      {isInitializing ? (
+        <Skeleton className="h-9 w-full rounded-md" />
+      ) : (
+        <Button type="button" onClick={handleOpen} disabled={!canBuy}>
+          {isBusy && <Loader2 className="animate-spin" aria-hidden />}
+          Buy
+        </Button>
       )}
 
       {error && (
@@ -248,19 +252,3 @@ export function FiatOnRampForm({
   )
 }
 
-function statusLabel(status: ReturnType<typeof useFiatOnRamp>['status']): string {
-  switch (status) {
-    case 'awaiting-purchase':
-      return 'Complete your purchase…'
-    case 'awaiting-delivery':
-      return 'Waiting for on-chain delivery…'
-    case 'verifying':
-      return 'Verifying with Privana…'
-    case 'credited':
-      return 'Credited'
-    case 'failed':
-      return 'Failed'
-    default:
-      return ''
-  }
-}
