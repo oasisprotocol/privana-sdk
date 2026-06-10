@@ -22,6 +22,13 @@ export interface UseDepositVerificationOptions {
   /** Fired when polling exceeds `pollTimeout` (the deposit may still be processing). */
   onCheckTimeout?: (txHash: string) => void
   onError?: (error: Error) => void
+  /**
+   * Fired each time `checkDeposit` returns "Insufficient finality" and the hook
+   * is about to sleep + retry. Non-terminal — does not stop the retry loop.
+   * Use this to surface confirmation-progress messages (e.g. "4/32 confirmations")
+   * to the user while phase 1 is still waiting on chain finality.
+   */
+  onCheckRetry?: (message: string) => void
   /** Polling interval in ms (default: 5000). */
   pollInterval?: number
   /** Retry interval in ms while the source-chain tx is waiting finality (default: pollInterval). */
@@ -88,11 +95,13 @@ export function useDepositVerification(
   const onCreditedRef = useRef(options.onCredited)
   const onCheckTimeoutRef = useRef(options.onCheckTimeout)
   const onErrorRef = useRef(options.onError)
+  const onCheckRetryRef = useRef(options.onCheckRetry)
   useEffect(() => {
     onCreditedRef.current = options.onCredited
     onCheckTimeoutRef.current = options.onCheckTimeout
     onErrorRef.current = options.onError
-  }, [options.onCredited, options.onCheckTimeout, options.onError])
+    onCheckRetryRef.current = options.onCheckRetry
+  }, [options.onCredited, options.onCheckTimeout, options.onError, options.onCheckRetry])
 
   const stopPolling = useCallback(() => {
     if (pollIntervalRef.current) {
@@ -155,6 +164,7 @@ export function useDepositVerification(
               })
             )
             if (result.status === 'error' && isInsufficientFinalityMessage(result.detail)) {
+              if (result.detail) onCheckRetryRef.current?.(result.detail)
               if (Date.now() - pollStartTime > pollTimeout) {
                 markVerificationTimedOut()
                 return
@@ -169,6 +179,13 @@ export function useDepositVerification(
             if (!isInsufficientFinalityError(err)) {
               throw err
             }
+            const message =
+              err instanceof AccountingApiError && err.detail
+                ? err.detail
+                : err instanceof Error
+                  ? err.message
+                  : String(err)
+            onCheckRetryRef.current?.(message)
             if (Date.now() - pollStartTime > pollTimeout) {
               markVerificationTimedOut()
               return

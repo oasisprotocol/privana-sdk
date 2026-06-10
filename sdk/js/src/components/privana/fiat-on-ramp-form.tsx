@@ -44,12 +44,14 @@ export function FiatOnRampForm({
   const { address } = useAccount()
   const [visible, setVisible] = useState(false)
   const [isPreparing, setIsPreparing] = useState(false)
+  const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null)
 
   const {
     status,
     activeIntentId,
     pending,
     error,
+    finalityProgress,
     depositAddress,
     minDepositBaseUnits,
     selectedToken,
@@ -210,23 +212,40 @@ export function FiatOnRampForm({
 
       {pending.length > 0 && (
         <div className="flex flex-col gap-2 rounded-md border p-3">
-          <p className="text-sm font-medium">Finish verification</p>
+          <p className="text-sm font-medium">Payment verification</p>
           <p className="text-muted-foreground text-xs">
-            MoonPay delivered your purchase, but Privana hasn&apos;t verified it yet. Resume
-            verification now to credit your balance.
+            MoonPay delivered your purchase, Privana hasn&apos;t verified it yet. Resume
+            verification.
           </p>
-          {pending.map((record) => (
-            <Button
-              key={record.transaction_id}
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={isBusy}
-              onClick={() => finishPendingVerification(record)}
-            >
-              {record.quote_currency_amount ?? '?'} {displaySymbol}
-            </Button>
-          ))}
+          {pending.map((record) => {
+            const progress = parseFinalityProgress(finalityProgress[record.transaction_id])
+            return (
+              <div key={record.transaction_id} className="flex flex-col gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isBusy}
+                  onClick={async () => {
+                    setRowError(null)
+                    try {
+                      await finishPendingVerification(record)
+                    } catch (err) {
+                      setRowError({
+                        id: record.transaction_id,
+                        message: err instanceof Error ? err.message : 'Verification failed',
+                      })
+                    }
+                  }}
+                >
+                  {progress ?? `${record.quote_currency_amount ?? '?'} ${displaySymbol}`}
+                </Button>
+                {rowError?.id === record.transaction_id && (
+                  <p className="text-muted-foreground text-xs">{rowError.message}</p>
+                )}
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -253,3 +272,8 @@ export function FiatOnRampForm({
   )
 }
 
+function parseFinalityProgress(message: string | undefined): string | null {
+  if (!message) return null
+  const match = message.match(/(\d+\/\d+)\s+confirmations/i)
+  return match ? `${match[1]} confirmations` : null
+}

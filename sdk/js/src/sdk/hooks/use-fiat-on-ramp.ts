@@ -76,6 +76,12 @@ export interface UseFiatOnRampResult {
   /** Completed on-ramps that still need Privana verification. */
   pending: OnRampRecord[]
   error: Error | null
+  /**
+   * Per-row finality progress messages (e.g. "Insufficient finality: 4/32 confirmations
+   * on chain 11155111"), keyed by `transaction_id`. Updated each time `checkDeposit`
+   * sees the row isn't deep enough yet — non-terminal; cleared on credit.
+   */
+  finalityProgress: Record<string, string>
   /** Per-user Privana deposit address. */
   depositAddress: `0x${string}` | undefined
   /**
@@ -154,6 +160,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
   const [depositAddress, setDepositAddress] = useState<`0x${string}` | undefined>()
   const [minDepositBaseUnits, setMinDepositBaseUnits] = useState<bigint | undefined>()
   const [activeIntentId, setActiveIntentId] = useState<string | null>(null)
+  const [finalityProgress, setFinalityProgress] = useState<Record<string, string>>({})
 
   const onCreditedRef = useRef(onCredited)
   const onErrorRef = useRef(onError)
@@ -273,6 +280,15 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
     pollTimeout: verificationTimeout,
     pollInterval: options.verificationPollInterval,
     finalityRetryInterval,
+    onCheckRetry: (message) => {
+      const record = activeVerificationRecordRef.current
+      if (!record) return
+      emitDebug('verification:check-retry', {
+        message,
+        record: summariseOnRampRecord(record),
+      })
+      setFinalityProgress((prev) => ({ ...prev, [record.transaction_id]: message }))
+    },
     onCredited: (depositTxHash) => {
       const record = activeVerificationRecordRef.current
       emitDebug('verification:credited', {
@@ -280,6 +296,13 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         record: record ? summariseOnRampRecord(record) : null,
       })
       setStatus('credited')
+      if (record) {
+        setFinalityProgress((prev) => {
+          if (!(record.transaction_id in prev)) return prev
+          const { [record.transaction_id]: _omit, ...rest } = prev
+          return rest
+        })
+      }
       void (async () => {
         try {
           if (record && depositTxHash.startsWith('0x')) {
@@ -519,6 +542,11 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
       triggeredVerificationKeysRef.current.add(verificationKey)
       activeVerificationKeyRef.current = verificationKey
       activeVerificationRecordRef.current = record
+      setFinalityProgress((prev) => {
+        if (!(record.transaction_id in prev)) return prev
+        const { [record.transaction_id]: _omit, ...rest } = prev
+        return rest
+      })
 
       emitDebug('verification:start', {
         verificationKey,
@@ -699,6 +727,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         setStatus('failed')
         setError(e)
         onErrorRef.current?.(e)
+        throw e
       }
     },
     [emitDebug, triggerVerification]
@@ -709,6 +738,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
     activeIntentId,
     pending,
     error,
+    finalityProgress,
     depositAddress,
     minDepositBaseUnits,
     selectedToken,
