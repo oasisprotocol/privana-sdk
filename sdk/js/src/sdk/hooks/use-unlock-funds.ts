@@ -46,6 +46,7 @@ export function useUnlockFunds(options: UseUnlockFundsOptions = {}): UseUnlockFu
       queryClient.invalidateQueries({ queryKey: ['accounting-locked-funds'] })
       queryClient.invalidateQueries({ queryKey: ['accounting-total-locked-balance'] })
       queryClient.invalidateQueries({ queryKey: ['accounting-expired-locks'] })
+      queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
     },
     onError: (error) => {
       options.onError?.(error as Error)
@@ -68,6 +69,7 @@ export function useUnlockFunds(options: UseUnlockFundsOptions = {}): UseUnlockFu
       queryClient.invalidateQueries({ queryKey: ['accounting-locked-funds'] })
       queryClient.invalidateQueries({ queryKey: ['accounting-total-locked-balance'] })
       queryClient.invalidateQueries({ queryKey: ['accounting-expired-locks'] })
+      queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
     },
     onError: (error) => {
       options.onError?.(error as Error)

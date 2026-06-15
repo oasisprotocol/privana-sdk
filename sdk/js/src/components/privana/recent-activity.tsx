@@ -10,8 +10,12 @@ const ACTIVITY_LABELS: Record<HistoryKind, string> = {
   deposit: 'Deposit',
   withdraw: 'Withdrawal',
   createLock: 'Lock Created',
-  transferFromLock: 'Locked Transfer',
-  transferBalance: 'Transfer',
+  transferFromLockOut: 'Locked Transfer Sent',
+  transferFromLockIn: 'Locked Transfer Received',
+  transferBalanceOut: 'Sent',
+  transferBalanceIn: 'Received',
+  modifyLock: 'Lock Modified',
+  unlockLock: 'Lock Released',
   unknown: 'Activity',
 }
 
@@ -19,8 +23,12 @@ const ACTIVITY_DOT_CLASS: Record<HistoryKind, string> = {
   deposit: 'bg-emerald-400',
   withdraw: 'bg-amber-400',
   createLock: 'bg-blue-400',
-  transferFromLock: 'bg-violet-400',
-  transferBalance: 'bg-cyan-400',
+  transferFromLockOut: 'bg-violet-400',
+  transferFromLockIn: 'bg-violet-300',
+  transferBalanceOut: 'bg-cyan-400',
+  transferBalanceIn: 'bg-cyan-300',
+  modifyLock: 'bg-sky-400',
+  unlockLock: 'bg-teal-400',
   unknown: 'bg-zinc-500',
 }
 
@@ -67,13 +75,18 @@ function getCounterpartyText(entry: HistoryEntry): string | null {
   }
 
   const counterparty = shortenAddress(entry.counterparty)
-  if (entry.kind === 'createLock') return `Service ${counterparty}`
+  if (entry.kind === 'createLock' || entry.kind === 'modifyLock' || entry.kind === 'unlockLock') {
+    return `Service ${counterparty}`
+  }
   if (
     entry.kind === 'withdraw' ||
-    entry.kind === 'transferFromLock' ||
-    entry.kind === 'transferBalance'
+    entry.kind === 'transferFromLockOut' ||
+    entry.kind === 'transferBalanceOut'
   ) {
     return `To ${counterparty}`
+  }
+  if (entry.kind === 'transferFromLockIn' || entry.kind === 'transferBalanceIn') {
+    return `From ${counterparty}`
   }
   return counterparty
 }

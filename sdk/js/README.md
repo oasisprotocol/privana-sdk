@@ -100,6 +100,10 @@ function CustomWallet() {
 `useHistory({ offset: -1, limit: 50 })` fetches one authenticated history page. Non-negative
 offsets count pages from the oldest entries, negative offsets count from the end, and each page is
 returned oldest-to-newest. `limit` must be between 0 and 100.
+History entries include lock-lifecycle kinds (`modifyLock`, `unlockLock`) and directional transfer
+kinds (`transferFromLockOut`/`transferFromLockIn`, `transferBalanceOut`/`transferBalanceIn`). On the
+outbound (`Out`) kinds `counterparty` is the recipient, and on the inbound (`In`) kinds it is the
+sender.
 
 ### Direct SIWE private reads
 

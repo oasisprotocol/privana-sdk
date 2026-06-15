@@ -25,6 +25,9 @@ from privana.types.requests import (
 BASE_URL = "https://api.test.example.com"
 HISTORY_TOKEN_ID = "0x1111111111111111111111111111111111111111111111111111111111111111"
 HISTORY_DEPOSIT_ID = "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+HISTORY_RECIPIENT = "0x0000000000000000000000000000000000000003"
+HISTORY_SENDER = "0x0000000000000000000000000000000000000001"
+HISTORY_SERVICE = "0x0000000000000000000000000000000000000002"
 
 
 @pytest.fixture
@@ -90,8 +93,44 @@ class TestGetHistory:
                             "chain_id": 84532,
                         },
                         {
-                            "kind": "unknown",
+                            "kind": "transferBalanceOut",
                             "timestamp": 1710000001,
+                            "token_id": HISTORY_TOKEN_ID,
+                            "amount": "250",
+                            "counterparty": HISTORY_RECIPIENT,
+                            "deposit_id": None,
+                            "chain_id": 84532,
+                        },
+                        {
+                            "kind": "transferBalanceIn",
+                            "timestamp": 1710000002,
+                            "token_id": HISTORY_TOKEN_ID,
+                            "amount": "250",
+                            "counterparty": HISTORY_SENDER,
+                            "deposit_id": None,
+                            "chain_id": 84532,
+                        },
+                        {
+                            "kind": "modifyLock",
+                            "timestamp": 1710000003,
+                            "token_id": HISTORY_TOKEN_ID,
+                            "amount": "0",
+                            "counterparty": HISTORY_SERVICE,
+                            "deposit_id": None,
+                            "chain_id": None,
+                        },
+                        {
+                            "kind": "unlockLock",
+                            "timestamp": 1710000004,
+                            "token_id": HISTORY_TOKEN_ID,
+                            "amount": "500",
+                            "counterparty": HISTORY_SERVICE,
+                            "deposit_id": None,
+                            "chain_id": None,
+                        },
+                        {
+                            "kind": "unknown",
+                            "timestamp": 1710000005,
                             "token_id": None,
                             "amount": None,
                             "counterparty": None,
@@ -99,19 +138,28 @@ class TestGetHistory:
                             "chain_id": None,
                         },
                     ],
-                    "total": 2,
+                    "total": 6,
                 },
             )
         )
 
         result = await client.get_history()
-        assert result.total == 2
-        assert result.history[0].kind == "deposit"
+        assert result.total == 6
+        assert [entry.kind for entry in result.history] == [
+            "deposit",
+            "transferBalanceOut",
+            "transferBalanceIn",
+            "modifyLock",
+            "unlockLock",
+            "unknown",
+        ]
         assert result.history[0].token_id == HISTORY_TOKEN_ID
         assert result.history[0].deposit_id == HISTORY_DEPOSIT_ID
         assert result.history[0].chain_id == 84532
-        assert result.history[1].kind == "unknown"
-        assert result.history[1].token_id is None
+        assert result.history[1].counterparty == HISTORY_RECIPIENT
+        assert result.history[2].counterparty == HISTORY_SENDER
+        assert result.history[3].counterparty == HISTORY_SERVICE
+        assert result.history[5].token_id is None
 
     @respx.mock
     async def test_get_history_uses_page_parameters_only(self, client):

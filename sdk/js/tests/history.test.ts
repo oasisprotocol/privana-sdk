@@ -4,6 +4,9 @@ import { PrivanaClient } from '../src/sdk/client'
 const BASE_URL = 'https://privana.example.com'
 const HISTORY_TOKEN_ID = '0x1111111111111111111111111111111111111111111111111111111111111111'
 const HISTORY_DEPOSIT_ID = '0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'
+const HISTORY_RECIPIENT = '0x0000000000000000000000000000000000000003'
+const HISTORY_SENDER = '0x0000000000000000000000000000000000000001'
+const HISTORY_SERVICE = '0x0000000000000000000000000000000000000002'
 
 describe('PrivanaClient history methods', () => {
   it('getHistory requests the latest page by default', async () => {
@@ -25,8 +28,44 @@ describe('PrivanaClient history methods', () => {
               chain_id: 84532,
             },
             {
-              kind: 'unknown',
+              kind: 'transferBalanceOut',
               timestamp: 1710000001,
+              token_id: HISTORY_TOKEN_ID,
+              amount: '250',
+              counterparty: HISTORY_RECIPIENT,
+              deposit_id: null,
+              chain_id: 84532,
+            },
+            {
+              kind: 'transferBalanceIn',
+              timestamp: 1710000002,
+              token_id: HISTORY_TOKEN_ID,
+              amount: '250',
+              counterparty: HISTORY_SENDER,
+              deposit_id: null,
+              chain_id: 84532,
+            },
+            {
+              kind: 'modifyLock',
+              timestamp: 1710000003,
+              token_id: HISTORY_TOKEN_ID,
+              amount: '0',
+              counterparty: HISTORY_SERVICE,
+              deposit_id: null,
+              chain_id: null,
+            },
+            {
+              kind: 'unlockLock',
+              timestamp: 1710000004,
+              token_id: HISTORY_TOKEN_ID,
+              amount: '500',
+              counterparty: HISTORY_SERVICE,
+              deposit_id: null,
+              chain_id: null,
+            },
+            {
+              kind: 'unknown',
+              timestamp: 1710000005,
               token_id: null,
               amount: null,
               counterparty: null,
@@ -34,7 +73,7 @@ describe('PrivanaClient history methods', () => {
               chain_id: null,
             },
           ],
-          total: 2,
+          total: 6,
         }),
         {
           status: 200,
@@ -48,12 +87,21 @@ describe('PrivanaClient history methods', () => {
       const result = await client.getHistory()
 
       expect(requestUrl).toBe(`${BASE_URL}/v1/accounting/history?offset=-1&limit=50`)
-      expect(result.total).toBe(2)
-      expect(result.history[0].kind).toBe('deposit')
+      expect(result.total).toBe(6)
+      expect(result.history.map((entry) => entry.kind)).toEqual([
+        'deposit',
+        'transferBalanceOut',
+        'transferBalanceIn',
+        'modifyLock',
+        'unlockLock',
+        'unknown',
+      ])
       expect(result.history[0].token_id).toBe(HISTORY_TOKEN_ID)
       expect(result.history[0].deposit_id).toBe(HISTORY_DEPOSIT_ID)
-      expect(result.history[1].kind).toBe('unknown')
-      expect(result.history[1].token_id).toBeNull()
+      expect(result.history[1].counterparty).toBe(HISTORY_RECIPIENT)
+      expect(result.history[2].counterparty).toBe(HISTORY_SENDER)
+      expect(result.history[3].counterparty).toBe(HISTORY_SERVICE)
+      expect(result.history[5].token_id).toBeNull()
     } finally {
       globalThis.fetch = originalFetch
     }
