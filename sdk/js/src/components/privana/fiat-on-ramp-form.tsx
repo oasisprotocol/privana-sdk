@@ -33,9 +33,10 @@ export interface FiatOnRampFormProps {
   /**
    * - 'overlay' (default): full-screen modal over the page with the Privana splash screen.
    * - 'embedded': iframe injected inline where this component renders.
-   * - 'newTab' / 'newWindow': standalone page.
+   * other variants are intentionally not supported - they require `window.open` to fire synchronously inside the
+   * click handler, but this form awaits `prepareOnRampIntent` before mounting the widget, so the popup would be blocked by the browser.
    */
-  variant?: 'overlay' | 'embedded' | 'newTab' | 'newWindow'
+  variant?: 'overlay' | 'embedded'
   /**
    * When true, the user cannot edit the fiat amount inside MoonPay.
    * Requires `defaultBaseCurrencyAmount` to take effect — MoonPay silently
