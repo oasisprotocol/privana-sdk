@@ -172,6 +172,9 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
   const triggeredVerificationKeysRef = useRef<Set<string>>(new Set())
   const closeReconcilePromiseRef = useRef<Promise<void> | null>(null)
   const purchaseInitiatedRef = useRef(false)
+  const verificationRunningRef = useRef(false)
+  const verificationWaitersRef = useRef<Array<() => void>>([])
+  const verificationSettleRef = useRef<(() => void) | null>(null)
   useEffect(() => {
     onCreditedRef.current = onCredited
     onErrorRef.current = onError
@@ -276,6 +279,36 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
     activeVerificationRecordRef.current = null
   }, [])
 
+  // The deposit verifier (`useDepositVerification`) is single-active: each
+  // `verify()` bumps its generation ref and clears its poll timer, cancelling
+  // any verification already in flight. With multiple pending on-ramp rows that
+  // would silently orphan every row but the last. Serialize verifications
+  // through a one-at-a-time lock that is only released once the current row
+  // reaches a terminal state (credited / failed / timeout). The terminal
+  // callbacks below call `settleVerification` to release it.
+  const settleVerification = useCallback(() => {
+    const resolve = verificationSettleRef.current
+    verificationSettleRef.current = null
+    resolve?.()
+  }, [])
+
+  const acquireVerificationLock = useCallback((lane: 'active' | 'background') => {
+    if (!verificationRunningRef.current) {
+      verificationRunningRef.current = true
+      return Promise.resolve()
+    }
+    return new Promise<void>((wake) => {
+      if (lane === 'active') verificationWaitersRef.current.unshift(wake)
+      else verificationWaitersRef.current.push(wake)
+    })
+  }, [])
+
+  const releaseVerificationLock = useCallback(() => {
+    const next = verificationWaitersRef.current.shift()
+    if (next) next()
+    else verificationRunningRef.current = false
+  }, [])
+
   const { verify } = useDepositVerification({
     pollTimeout: verificationTimeout,
     pollInterval: options.verificationPollInterval,
@@ -332,6 +365,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
             setActiveIntentId(null)
           }
           void refreshPending()
+          settleVerification()
         }
       })()
       onCreditedRef.current?.(depositTxHash)
@@ -348,6 +382,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         setError(err)
       }
       void refreshPending()
+      settleVerification()
       onErrorRef.current?.(err)
     },
     onError: (err) => {
@@ -358,6 +393,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         setStatus('failed')
         setError(err)
       }
+      settleVerification()
       onErrorRef.current?.(err)
     },
   })
@@ -546,7 +582,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
           verificationKey,
           record: summariseOnRampRecord(record),
         })
-        return
+        return false
       }
       triggeredVerificationKeysRef.current.add(verificationKey)
       activeVerificationKeyRef.current = verificationKey
@@ -629,8 +665,28 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         }
         throw err
       }
+      return true
     },
     [emitDebug, enabledTokens, minDepositBaseUnits, verify, wagmiConfig]
+  )
+
+  // Run a verification under the serialization lock, holding it until the row
+  // reaches a terminal state so the next queued row can't cancel this one's background polling
+  const enqueueVerification = useCallback(
+    async (record: OnRampRecord, lane: 'active' | 'background') => {
+      await acquireVerificationLock(lane)
+      const settled = new Promise<void>((resolve) => {
+        verificationSettleRef.current = resolve
+      })
+      try {
+        const started = await triggerVerification(record)
+        if (started) await settled
+      } finally {
+        verificationSettleRef.current = null
+        releaseVerificationLock()
+      }
+    },
+    [acquireVerificationLock, releaseVerificationLock, triggerVerification]
   )
 
   const handleTransactionCompleted = useCallback(
@@ -659,7 +715,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
           onErrorRef.current?.(err)
           return
         }
-        await triggerVerification(record)
+        await enqueueVerification(record, 'active')
       } catch (err) {
         const e = err instanceof Error ? err : new Error('Verification failed')
         emitDebug('moonpay:onTransactionCompleted-error', errorPayload(e))
@@ -668,7 +724,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         onErrorRef.current?.(e)
       }
     },
-    [emitDebug, registerOnRampTokenMapping, triggerVerification, waitForOnChainHash]
+    [emitDebug, enqueueVerification, registerOnRampTokenMapping, waitForOnChainHash]
   )
 
   const handleWidgetClosed = useCallback(async () => {
@@ -703,7 +759,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         setStatus('awaiting-delivery')
         const record = await waitForOnChainHash(transactionId)
         if (record) {
-          await triggerVerification(record)
+          await enqueueVerification(record, 'active')
           return
         }
         await refreshPending()
@@ -724,7 +780,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
     } finally {
       closeReconcilePromiseRef.current = null
     }
-  }, [emitDebug, refreshPending, triggerVerification, waitForOnChainHash])
+  }, [emitDebug, enqueueVerification, refreshPending, waitForOnChainHash])
 
   const finishPendingVerification = useCallback(
     async (record: OnRampRecord) => {
@@ -732,7 +788,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         emitDebug('pending:finish-verification', {
           record: summariseOnRampRecord(record),
         })
-        await triggerVerification(record)
+        await enqueueVerification(record, 'active')
       } catch (err) {
         const e = err instanceof Error ? err : new Error('Verification failed')
         emitDebug('pending:finish-verification-error', errorPayload(e))
@@ -742,13 +798,13 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         throw e
       }
     },
-    [emitDebug, triggerVerification]
+    [emitDebug, enqueueVerification]
   )
 
-  const triggerVerificationRef = useRef(triggerVerification)
+  const enqueueVerificationRef = useRef(enqueueVerification)
   useEffect(() => {
-    triggerVerificationRef.current = triggerVerification
-  }, [triggerVerification])
+    enqueueVerificationRef.current = enqueueVerification
+  }, [enqueueVerification])
 
   useEffect(() => {
     let cancelled = false
@@ -759,7 +815,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         const key = getOnRampVerificationKey(record)
         if (triggeredVerificationKeysRef.current.has(key)) continue
         try {
-          await triggerVerificationRef.current(record)
+          await enqueueVerificationRef.current(record, 'background')
         } catch {
           // Error is surfaced via finalityProgress / global error; loop on.
         }
