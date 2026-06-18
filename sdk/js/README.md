@@ -35,7 +35,7 @@ function App() {
           networkConfig={{
             name: 'Sapphire Testnet',
             chainId: 23295,
-            apiUrl: 'https://testnet.privana.finance',
+            apiUrl: 'https://api.testnet.privana.finance',
             accountingContract: '0xYourContractAddress',
           }}
           hostedAuth={{
