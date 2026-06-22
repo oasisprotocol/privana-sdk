@@ -4,7 +4,7 @@ import { useCallback, useContext, useMemo } from 'react'
 import { createSiweMessage } from 'viem/siwe'
 import { WagmiContext } from 'wagmi'
 import { getWalletClient } from 'wagmi/actions'
-import { isHostedAuthSessionActive } from '../auth'
+import { buildSiweStatement, isHostedAuthSessionActive } from '../auth'
 import { AccountingApiError, HostedAuthRequiredError } from '../client'
 import type { PrivanaClient } from '../client'
 import { usePrivanaContext } from '../context'
@@ -20,7 +20,6 @@ import {
 const INITIAL_AUTH_BACKOFF_MS = 5_000
 const MAX_AUTH_BACKOFF_MS = 60_000
 const DEFAULT_SIWE_AUTH_VALIDITY_MS = 24 * 60 * 60 * 1000
-const PRIVATE_READ_STATEMENT = 'Sign in to Privana to access private account data.'
 
 interface PrivateReadFailureEntry {
   backoffMs: number
@@ -182,12 +181,12 @@ export function usePrivateReadRequest(): {
 
             const message = createSiweMessage({
               address: walletAddress,
-              chainId: walletClient.chain?.id ?? networkConfig.chainId,
+              chainId: networkConfig.chainId,
               domain,
               expirationTime,
               issuedAt,
               nonce: nonceResponse.nonce,
-              statement: PRIVATE_READ_STATEMENT,
+              statement: buildSiweStatement(networkConfig.chainId),
               uri,
               version: '1',
             })

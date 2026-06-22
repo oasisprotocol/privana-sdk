@@ -15,11 +15,11 @@ import { WagmiContext } from 'wagmi'
 import { getWalletClient } from 'wagmi/actions'
 import type { PrivanaClient } from '../client'
 import type { Address, NetworkConfig, SiweLoginResponse } from '../types'
+import { buildSiweStatement } from '../auth'
 import { useSafeAccount } from '../hooks/use-safe-account'
 import { createScopeKey, setCachedPrivateReadToken } from '../hooks/private-read-token-store'
 
 const DEFAULT_SIWE_VALIDITY_MS = 24 * 60 * 60 * 1000
-const DEFAULT_STATEMENT = 'Sign in to access your private account data.'
 const AUTH_REFRESH_SKEW_MS = 30_000
 
 export type SiweAuthSession = { address: Address }
@@ -43,15 +43,13 @@ export interface SiweAuthContextValue {
 
 const SiweAuthContext = createContext<SiweAuthContextValue | null>(null)
 
-export interface SiweAuthConfig {
-  autoLogin?: boolean
-  statement?: string
-}
+export type SiweAuthConfig = boolean | { autoLogin?: boolean }
 
-export interface SiweAuthProviderProps extends SiweAuthConfig {
+export interface SiweAuthProviderProps {
   children: ReactNode
   client: PrivanaClient
   networkConfig: NetworkConfig
+  autoLogin?: boolean
 }
 
 export function SiweAuthProvider({
@@ -59,7 +57,6 @@ export function SiweAuthProvider({
   client,
   networkConfig,
   autoLogin = true,
-  statement,
 }: SiweAuthProviderProps) {
   const wagmiContext = useContext(WagmiContext)
   const { address, isConnected, status } = useSafeAccount()
@@ -126,7 +123,7 @@ export function SiweAuthProvider({
         uri,
         version: '1',
         nonce: nonceRes.nonce,
-        statement: statement ?? DEFAULT_STATEMENT,
+        statement: buildSiweStatement(networkConfig.chainId),
         issuedAt,
         expirationTime,
       })
@@ -163,7 +160,7 @@ export function SiweAuthProvider({
       setIsLoading(false)
       loginInFlight.current = false
     }
-  }, [wagmiContext, address, client, networkConfig.chainId, networkConfig.apiUrl, statement])
+  }, [wagmiContext, address, client, networkConfig.chainId, networkConfig.apiUrl])
 
   const refreshAccessToken = useCallback(async () => {
     const data = refreshDataRef.current
