@@ -428,8 +428,7 @@ export function PrivanaProvider({
         <SiweAuthProvider
           client={client}
           networkConfig={networkConfig}
-          autoLogin={siweAuth.autoLogin}
-          statement={siweAuth.statement}
+          autoLogin={typeof siweAuth === 'object' ? siweAuth.autoLogin : undefined}
         >
           {children}
         </SiweAuthProvider>
