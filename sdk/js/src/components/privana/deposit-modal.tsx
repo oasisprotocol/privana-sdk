@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useAccount, useBalance, useReadContract } from 'wagmi'
 import { erc20Abi, zeroAddress } from 'viem'
 import { QRCodeSVG } from 'qrcode.react'
@@ -320,7 +320,7 @@ function ExternalDepositView({
   amount: string
 }) {
   const { getChainById } = usePrivanaContext()
-  const { depositAddress, isLoading } = useDepositAddress()
+  const { depositAddress, isReady, isLoading } = useDepositAddress()
   const chain = token ? getChainById(token.chainId) : undefined
   const [copied, setCopied] = useState(false)
 
@@ -351,7 +351,11 @@ function ExternalDepositView({
       </div>
 
       <div className="bg-secondary flex h-50 items-center justify-center rounded-[10px]">
-        {depositAddress ? (
+        {!isReady ? (
+          <p className="text-muted-foreground px-6 text-center text-sm">
+            Connect your wallet to generate a deposit address.
+          </p>
+        ) : depositAddress ? (
           <div className="rounded-[10px] bg-white p-3">
             <QRCodeSVG value={depositAddress} size={160} />
           </div>
@@ -368,7 +372,7 @@ function ExternalDepositView({
           <div className="border-border flex h-10 min-w-0 flex-1 items-center rounded-[10px] border px-3">
             {depositAddress ? (
               <p className="text-foreground min-w-0 flex-1 truncate text-sm">{depositAddress}</p>
-            ) : isLoading ? (
+            ) : isReady && isLoading ? (
               <Skeleton className="h-4 w-3/4" />
             ) : (
               <p className="text-muted-foreground text-sm">—</p>
@@ -469,7 +473,8 @@ function DepositModalContent({
   onDeposit,
   onClose,
 }: DepositMethodHandlers & { onClose?: () => void }) {
-  const { serviceName, enabledTokens, defaultToken } = usePrivanaContext()
+  const { serviceName, enabledTokens, defaultToken, hostedAuthConfig } = usePrivanaContext()
+  const { address } = useAccount()
   const appName = serviceName ?? 'Privana'
   const [activeTab, setActiveTab] = useState<DepositMethodTab>(defaultTab)
   const [view, setView] = useState<DepositView>('method')
@@ -479,15 +484,29 @@ function DepositModalContent({
 
   const selectedToken = enabledTokens.find((t) => t.id === selectedTokenId) ?? defaultToken
 
+  const prevAddressRef = useRef(address)
+  useEffect(() => {
+    const prev = prevAddressRef.current
+    prevAddressRef.current = address
+    if (hostedAuthConfig) return
+    if (prev && address && prev !== address) {
+      setView('method')
+      setAmount('')
+      setSelectedTokenId('')
+    }
+  }, [address, hostedAuthConfig])
+
   const openDeposit = (next: DepositSource) => {
     setSource(next)
     setView('deposit')
   }
 
   const handleSubmit = (args: { source: DepositSource; tokenId: string; amount: string }) => {
+    if (args.source === 'external') {
+      setView('external-deposit')
+      return
+    }
     onDeposit?.(args)
-    // External wallet: advance to the deposit-address (QR) step.
-    if (args.source === 'external') setView('external-deposit')
   }
 
   const back =
@@ -625,10 +644,10 @@ export function DepositModal({ open, onClose, ...handlers }: DepositModalProps) 
         aria-describedby={descId}
       >
         <DialogTitle id={titleId} className="sr-only">
-          Choose the deposit method
+          Deposit
         </DialogTitle>
         <DialogDescription id={descId} className="sr-only">
-          Choose how to deposit funds into your account.
+          Deposit funds into your account.
         </DialogDescription>
         <DepositModalContent onClose={onClose} {...handlers} />
       </DialogContent>

@@ -12,6 +12,7 @@ export interface UseDepositAddressOptions {
 
 export interface UseDepositAddressResult {
   depositAddress: string | null
+  isReady: boolean
   isLoading: boolean
   isError: boolean
   error: Error | null
@@ -32,6 +33,7 @@ export function useDepositAddress(options: UseDepositAddressOptions = {}): UseDe
   const client = accountingContext?.client
   const { executePrivateRead, privateReadAddress, privateReadQueryScope, privateReadReady } =
     usePrivateReadRequest()
+  const isReady = hasProviders && privateReadReady && !!privateReadAddress && !!client
 
   const query = useQuery<DepositAddressResponse, Error>({
     queryKey: ['accounting-deposit-address', ...privateReadQueryScope],
@@ -40,17 +42,13 @@ export function useDepositAddress(options: UseDepositAddressOptions = {}): UseDe
       if (!client) throw new Error('No accounting client')
       return executePrivateRead(() => client.getDepositAddress())
     },
-    enabled:
-      hasProviders &&
-      (options.enabled ?? true) &&
-      privateReadReady &&
-      !!privateReadAddress &&
-      !!client,
+    enabled: isReady && (options.enabled ?? true),
   })
 
   return {
     depositAddress: query.data?.deposit_address ?? null,
-    isLoading: query.isPending || query.isLoading,
+    isReady,
+    isLoading: query.isLoading,
     isError: query.isError,
     error: query.error,
     refetch: query.refetch,
