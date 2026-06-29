@@ -44,7 +44,7 @@ function MethodTabs({
   onTabChange: (tab: DepositMethodTab) => void
 }) {
   return (
-    <div className="bg-muted relative flex gap-2 overflow-hidden rounded-[10px] p-1">
+    <div className="bg-secondary relative flex gap-2 overflow-hidden rounded-[10px] p-1">
       <div
         className={cn(
           'bg-input absolute top-1 bottom-1 left-1 w-[calc(50%-8px)] rounded-md transition-transform duration-200',
@@ -88,7 +88,7 @@ function MethodOption({
     <button
       type="button"
       onClick={onClick}
-      className="bg-background hover:bg-background/70 border-border flex w-full cursor-pointer items-center gap-3 rounded-lg border p-3 text-left transition-colors"
+      className="bg-input hover:bg-input/70 border-border flex w-full cursor-pointer items-center gap-3 rounded-lg border p-3 text-left transition-colors"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="text-foreground text-sm leading-[14px] font-medium">{title}</span>
