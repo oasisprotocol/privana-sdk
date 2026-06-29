@@ -1,13 +1,7 @@
 'use client'
 
 import { useId, useState } from 'react'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { cn } from '@/lib/utils'
 
@@ -107,26 +101,84 @@ function MethodOption({
   )
 }
 
-export interface DepositModalProps {
-  open: boolean
-  onClose: () => void
+interface DepositMethodHandlers {
   defaultTab?: DepositMethodTab
   onSelectConnectedWallet?: () => void
   onSelectExternalWallet?: () => void
   onSelectCreditCard?: () => void
 }
 
-export function DepositModal({
-  open,
-  onClose,
+function DepositModalContent({
   defaultTab = 'crypto',
   onSelectConnectedWallet,
   onSelectExternalWallet,
   onSelectCreditCard,
-}: DepositModalProps) {
+  onClose,
+}: DepositMethodHandlers & { onClose?: () => void }) {
   const { serviceName } = usePrivanaContext()
   const appName = serviceName ?? 'Privana'
   const [activeTab, setActiveTab] = useState<DepositMethodTab>(defaultTab)
+
+  return (
+    <>
+      {onClose && (
+        <button
+          data-privana-close
+          onClick={onClose}
+          aria-label="Close"
+          className="text-muted-foreground hover:text-foreground absolute top-6 right-5 z-20 flex h-5 w-5 cursor-pointer items-center justify-center transition-colors"
+        >
+          <CloseIcon />
+        </button>
+      )}
+
+      <div className="flex items-center px-5 py-4">
+        <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
+      </div>
+
+      <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
+        <div className="flex flex-col gap-2">
+          <h2 className="text-foreground text-[28px] leading-8 font-medium">
+            Choose the deposit method
+          </h2>
+          <p className="text-muted-foreground text-sm">Choose the deposit method.</p>
+        </div>
+
+        <MethodTabs activeTab={activeTab} onTabChange={setActiveTab} />
+
+        {activeTab === 'crypto' ? (
+          <div className="flex flex-col gap-3">
+            <MethodOption
+              title="Connected wallet"
+              description="Deposit from your connected wallet."
+              onClick={onSelectConnectedWallet}
+            />
+            <MethodOption
+              title="External Wallet"
+              description="Send funds from external wallet or exchange."
+              onClick={onSelectExternalWallet}
+            />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <MethodOption
+              title="Moonpay"
+              description="Buy crypto with a card."
+              onClick={onSelectCreditCard}
+            />
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+export interface DepositModalProps extends DepositMethodHandlers {
+  open: boolean
+  onClose: () => void
+}
+
+export function DepositModal({ open, onClose, ...handlers }: DepositModalProps) {
   const titleId = useId()
   const descId = useId()
 
@@ -144,57 +196,32 @@ export function DepositModal({
         aria-labelledby={titleId}
         aria-describedby={descId}
       >
-        <button
-          data-privana-close
-          onClick={onClose}
-          aria-label="Close"
-          className="text-muted-foreground hover:text-foreground absolute top-6 right-5 z-20 flex h-5 w-5 cursor-pointer items-center justify-center transition-colors"
-        >
-          <CloseIcon />
-        </button>
-
-        <DialogHeader>
-          <div className="flex items-center px-5 py-4">
-            <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
-          </div>
-        </DialogHeader>
-
-        <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
-          <div className="flex flex-col gap-2">
-            <DialogTitle id={titleId} className="text-foreground text-[28px] leading-8 font-medium">
-              Choose the deposit method
-            </DialogTitle>
-            <DialogDescription id={descId} className="text-muted-foreground text-sm">
-              Choose the deposit method.
-            </DialogDescription>
-          </div>
-
-          <MethodTabs activeTab={activeTab} onTabChange={setActiveTab} />
-
-          {activeTab === 'crypto' ? (
-            <div className="flex flex-col gap-3">
-              <MethodOption
-                title="Connected wallet"
-                description="Deposit from your connected wallet."
-                onClick={onSelectConnectedWallet}
-              />
-              <MethodOption
-                title="External Wallet"
-                description="Send funds from external wallet or exchange."
-                onClick={onSelectExternalWallet}
-              />
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3">
-              <MethodOption
-                title="Moonpay"
-                description="Buy crypto with a card."
-                onClick={onSelectCreditCard}
-              />
-            </div>
-          )}
-        </div>
+        <DialogTitle id={titleId} className="sr-only">
+          Choose the deposit method
+        </DialogTitle>
+        <DialogDescription id={descId} className="sr-only">
+          Choose how to deposit funds into your account.
+        </DialogDescription>
+        <DepositModalContent onClose={onClose} {...handlers} />
       </DialogContent>
     </Dialog>
+  )
+}
+
+export interface DepositInlineModalProps extends DepositMethodHandlers {
+  className?: string
+}
+
+export function DepositInlineModal({ className, ...handlers }: DepositInlineModalProps) {
+  return (
+    <div
+      data-privana
+      className={cn(
+        'bg-card relative flex w-[560px] max-w-full flex-col gap-2 overflow-hidden rounded-2xl p-2 shadow-lg',
+        className
+      )}
+    >
+      <DepositModalContent {...handlers} />
+    </div>
   )
 }

@@ -6,6 +6,7 @@ import {
   PrivanaButton,
   PrivanaInlineModal,
   DepositModal,
+  DepositInlineModal,
   usePrivanaContext,
   useHostedRedirectAuth,
 } from '@oasisprotocol/privana-sdk'
@@ -38,7 +39,8 @@ export function ComponentPreview() {
 
       <div>
         <SectionLabel>Live SDK Modal</SectionLabel>
-        <div className="flex justify-center">
+        <div className="flex flex-col items-center gap-6">
+          <DepositInlineModal />
           <PrivanaInlineModal />
         </div>
       </div>

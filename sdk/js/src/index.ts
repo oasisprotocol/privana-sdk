@@ -9,8 +9,8 @@ export type { PrivanaButtonProps } from './components/privana/privana-button'
 
 export { PrivanaModal, PrivanaInlineModal } from './components/privana/privana-modal'
 
-export { DepositModal } from './components/privana/deposit-modal'
-export type { DepositModalProps } from './components/privana/deposit-modal'
+export { DepositModal, DepositInlineModal } from './components/privana/deposit-modal'
+export type { DepositModalProps, DepositInlineModalProps } from './components/privana/deposit-modal'
 
 export { Button, buttonVariants } from './components/ui/button'
 
