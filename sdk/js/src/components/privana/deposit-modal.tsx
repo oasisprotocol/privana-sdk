@@ -3,9 +3,12 @@
 import { useId, useState } from 'react'
 import { useAccount, useBalance, useReadContract } from 'wagmi'
 import { erc20Abi, zeroAddress } from 'viem'
+import { QRCodeSVG } from 'qrcode.react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
+import { useDepositAddress } from '@/sdk/hooks'
 import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
 import { getTokenIcon, ChevronRightIcon } from './token-icons'
 
@@ -13,7 +16,7 @@ type DepositMethodTab = 'crypto' | 'credit-card'
 
 export type DepositSource = 'connected' | 'external'
 
-type DepositView = 'method' | 'deposit' | 'select-token'
+type DepositView = 'method' | 'deposit' | 'select-token' | 'external-deposit'
 
 function CloseIcon() {
   return (
@@ -55,6 +58,24 @@ function ChevronLeft() {
         strokeLinejoin="round"
         fill="none"
       />
+    </svg>
+  )
+}
+
+function CopyIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
     </svg>
   )
 }
@@ -130,14 +151,14 @@ function DepositView({
   amount,
   onAmountChange,
   onSelectToken,
-  onDeposit,
+  onSubmit,
 }: {
   source: DepositSource
   selectedToken: TokenConfig | undefined
   amount: string
   onAmountChange: (value: string) => void
   onSelectToken: () => void
-  onDeposit?: (args: { source: DepositSource; tokenId: string; amount: string }) => void
+  onSubmit?: (args: { source: DepositSource; tokenId: string; amount: string }) => void
 }) {
   const { getChainById, chains } = usePrivanaContext()
   const { address, isConnected } = useAccount()
@@ -273,11 +294,99 @@ function DepositView({
       <button
         type="button"
         disabled={!canDeposit}
-        onClick={() => selectedToken && onDeposit?.({ source, tokenId: selectedToken.id, amount })}
+        onClick={() => selectedToken && onSubmit?.({ source, tokenId: selectedToken.id, amount })}
         className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
       >
         {needsConnect ? 'Connect Wallet' : 'Deposit'}
       </button>
+    </div>
+  )
+}
+
+function SummaryRow({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="flex items-center justify-between text-sm leading-5">
+      <span className="text-foreground font-medium">{value}</span>
+      <span className="text-muted-foreground">{label}</span>
+    </div>
+  )
+}
+
+function ExternalDepositView({
+  token,
+  amount,
+}: {
+  token: TokenConfig | undefined
+  amount: string
+}) {
+  const { getChainById } = usePrivanaContext()
+  const { depositAddress, isLoading } = useDepositAddress()
+  const chain = token ? getChainById(token.chainId) : undefined
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    if (!depositAddress) return
+    void navigator.clipboard.writeText(depositAddress)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
+      <div className="flex flex-col gap-2">
+        <h2 className="text-foreground text-[28px] leading-8 font-medium">
+          Deposit from an External Wallet
+        </h2>
+        <p className="text-muted-foreground text-sm">
+          Transfer crypto from external wallet or exchange.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <SummaryRow value={chain?.name ?? '—'} label="Chain" />
+        <div className="bg-border h-px w-full" />
+        <SummaryRow value={token?.symbol ?? '—'} label="Currency" />
+        <div className="bg-border h-px w-full" />
+        <SummaryRow value={amount || '—'} label="Value" />
+      </div>
+
+      <div className="bg-secondary flex h-50 items-center justify-center rounded-[10px]">
+        {depositAddress ? (
+          <div className="rounded-[10px] bg-white p-3">
+            <QRCodeSVG value={depositAddress} size={160} />
+          </div>
+        ) : isLoading ? (
+          <Skeleton className="h-full w-full rounded-[10px]" />
+        ) : (
+          <span className="text-muted-foreground text-sm">Deposit address unavailable</span>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <p className="text-muted-foreground text-sm">Deposit Address</p>
+        <div className="flex items-center gap-3">
+          <div className="border-border flex h-10 min-w-0 flex-1 items-center rounded-[10px] border px-3">
+            {depositAddress ? (
+              <p className="text-foreground min-w-0 flex-1 truncate text-sm">{depositAddress}</p>
+            ) : isLoading ? (
+              <Skeleton className="h-4 w-3/4" />
+            ) : (
+              <p className="text-muted-foreground text-sm">—</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={handleCopy}
+            disabled={!depositAddress}
+            className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-[10px] px-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <CopyIcon />
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+      </div>
+
+      {/* Awaiting-deposit + refresh-status intentionally omitted for now. */}
     </div>
   )
 }
@@ -375,7 +484,26 @@ function DepositModalContent({
     setView('deposit')
   }
 
-  const backTarget = view === 'select-token' ? 'Deposit' : 'Deposit Method'
+  const handleSubmit = (args: { source: DepositSource; tokenId: string; amount: string }) => {
+    onDeposit?.(args)
+    // External wallet: advance to the deposit-address (QR) step.
+    if (args.source === 'external') setView('external-deposit')
+  }
+
+  const back =
+    view === 'external-deposit'
+      ? { to: 'deposit' as const, label: 'Deposit from External Wallet' }
+      : view === 'select-token'
+        ? { to: 'deposit' as const, label: 'Deposit' }
+        : { to: 'method' as const, label: 'Deposit Method' }
+
+  const goBack = () => {
+    if (back.to === 'method') {
+      setAmount('')
+      setSelectedTokenId('')
+    }
+    setView(back.to)
+  }
 
   return (
     <>
@@ -397,11 +525,11 @@ function DepositModalContent({
       ) : (
         <button
           type="button"
-          onClick={() => setView(view === 'select-token' ? 'deposit' : 'method')}
+          onClick={goBack}
           className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
         >
           <ChevronLeft />
-          {backTarget}
+          {back.label}
         </button>
       )}
 
@@ -454,7 +582,7 @@ function DepositModalContent({
           amount={amount}
           onAmountChange={setAmount}
           onSelectToken={() => setView('select-token')}
-          onDeposit={onDeposit}
+          onSubmit={handleSubmit}
         />
       )}
 
@@ -467,6 +595,8 @@ function DepositModalContent({
           }}
         />
       )}
+
+      {view === 'external-deposit' && <ExternalDepositView token={selectedToken} amount={amount} />}
     </>
   )
 }
