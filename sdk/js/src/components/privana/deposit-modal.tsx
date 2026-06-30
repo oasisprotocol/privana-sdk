@@ -129,21 +129,21 @@ function CircleXIcon() {
   )
 }
 
-function ChevronDown({ collapsed }: { collapsed?: boolean }) {
+function ChevronDown({ up, className }: { up?: boolean; className?: string }) {
   return (
     <svg
-      width="12"
-      height="6"
-      viewBox="0 0 12 6"
-      className={cn('transition-transform', collapsed && '-rotate-90')}
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      className={cn('transition-transform', up && 'rotate-180', className)}
     >
       <path
-        d="M0 0l6 6 6-6"
+        d="M4 6l4 4 4-4"
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
-        fill="none"
       />
     </svg>
   )
@@ -222,13 +222,13 @@ function AllowancePolicySection({
           <button
             type="button"
             onClick={() => setCollapsed((prev) => !prev)}
-            className="text-muted-foreground hover:text-foreground flex w-full cursor-pointer items-center gap-3 transition-colors"
+            className="flex w-full cursor-pointer items-center gap-2"
           >
             <span className="bg-border h-px flex-1" />
-            <span className="flex items-center gap-1 text-[11px] font-semibold tracking-wider uppercase">
+            <span className="text-muted-foreground text-[10px] leading-[14px] font-medium tracking-[0.2px] whitespace-nowrap uppercase">
               {collapsed ? 'Show details' : 'Hide details'}
-              <ChevronDown collapsed={collapsed} />
             </span>
+            <ChevronDown up={!collapsed} className="text-foreground shrink-0" />
             <span className="bg-border h-px flex-1" />
           </button>
 
@@ -409,7 +409,7 @@ function DepositView({
         onClick={() => selectedToken && onSubmit?.({ source, tokenId: selectedToken.id, amount })}
         className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {needsConnect ? 'Connect Wallet' : 'Deposit'}
+        {needsConnect ? 'Connect Wallet' : allowance ? 'Sign Policy and Deposit' : 'Deposit'}
       </button>
     </div>
   )
