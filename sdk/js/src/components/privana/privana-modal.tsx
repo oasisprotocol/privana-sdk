@@ -17,72 +17,9 @@ import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useBalance, useLockedFunds, useUnlockFunds } from '@/sdk/hooks'
 import { formatTokenAmount, formatTimeRemaining, cn, shortenAddress } from '@/lib/utils'
 import { getTokenIcon, getChainIcon } from './token-icons'
+import { CloseIcon, ChevronRightIcon, ChevronLeftIcon, ChevronDownIcon } from './icons'
 
 type ModalView = 'main' | 'locked-funds' | 'select-token' | 'balance-details'
-
-function CloseIcon() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-      <path
-        d="M11.99997 11.99997l-5.99995-5.99995-6.00002-6.00002m6.00002 6.00002l6.00001-6.00002m-12.00003 12.00003l6.00002-6.00001"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function ChevronRight() {
-  return (
-    <svg width="10" height="5" viewBox="0 0 12 6" className="-rotate-90">
-      <path
-        d="M0 0l6 6 6-6"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </svg>
-  )
-}
-
-function ChevronLeft() {
-  return (
-    <svg width="10" height="5" viewBox="0 0 12 6" className="rotate-90">
-      <path
-        d="M0 0l6 6 6-6"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </svg>
-  )
-}
-
-function ChevronDown({ collapsed }: { collapsed?: boolean }) {
-  return (
-    <svg
-      width="12"
-      height="6"
-      viewBox="0 0 12 6"
-      className={cn('transition-transform', collapsed && '-rotate-90')}
-    >
-      <path
-        d="M0 0l6 6 6-6"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </svg>
-  )
-}
 
 function BalanceCards({
   selectedToken,
@@ -125,7 +62,7 @@ function BalanceCards({
             </span>
           </div>
           <div className="text-muted-foreground flex h-6 w-6 items-center justify-center">
-            <ChevronRight />
+            <ChevronRightIcon />
           </div>
         </div>
         <div className="text-foreground text-xl font-medium">
@@ -154,7 +91,7 @@ function BalanceCards({
               </span>
             </div>
             <div className="text-muted-foreground flex h-6 w-6 items-center justify-center">
-              <ChevronRight />
+              <ChevronRightIcon />
             </div>
           </div>
           <div className="text-foreground text-xl font-medium">
@@ -275,7 +212,7 @@ function LockedFundsView({ onBack }: { onBack: () => void }) {
             onClick={onBack}
             className="text-muted-foreground hover:text-foreground -ml-2 flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
           >
-            <ChevronLeft />
+            <ChevronLeftIcon />
           </button>
           <span className="text-foreground text-xl leading-6 font-medium">Locked Funds</span>
         </div>
@@ -307,7 +244,7 @@ function LockedFundsView({ onBack }: { onBack: () => void }) {
                   className="text-muted-foreground hover:bg-secondary flex w-full cursor-pointer items-center justify-between rounded-lg px-4 py-4 transition-colors"
                 >
                   <span className="text-sm">{section.title}</span>
-                  <ChevronDown collapsed={collapsedSections[section.title]} />
+                  <ChevronDownIcon collapsed={collapsedSections[section.title]} />
                 </button>
 
                 {!collapsedSections[section.title] &&
@@ -405,7 +342,7 @@ function BalanceDetailsView({ onBack }: { onBack: () => void }) {
             onClick={onBack}
             className="text-muted-foreground hover:text-foreground -ml-2 flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
           >
-            <ChevronLeft />
+            <ChevronLeftIcon />
           </button>
           <span className="text-foreground text-xl leading-6 font-medium">Token Balances</span>
         </div>
@@ -531,7 +468,7 @@ function TokenSelectorView({
             onClick={onBack}
             className="text-muted-foreground hover:text-foreground -ml-2 flex h-6 w-6 cursor-pointer items-center justify-center transition-colors"
           >
-            <ChevronLeft />
+            <ChevronLeftIcon />
           </button>
           <span className="text-foreground text-xl leading-6 font-medium">Select Token</span>
         </div>

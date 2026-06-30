@@ -10,75 +10,14 @@ import type { TokenConfig } from '@/sdk/types/tokens'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useDepositAddress } from '@/sdk/hooks'
 import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
-import { getTokenIcon, ChevronRightIcon } from './token-icons'
+import { getTokenIcon } from './token-icons'
+import { CloseIcon, ChevronRightIcon, ChevronLeftIcon, CopyIcon } from './icons'
 
 type DepositMethodTab = 'crypto' | 'credit-card'
 
 export type DepositSource = 'connected' | 'external'
 
 type DepositView = 'method' | 'deposit' | 'select-token' | 'external-deposit'
-
-function CloseIcon() {
-  return (
-    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-      <path
-        d="M11.99997 11.99997l-5.99995-5.99995-6.00002-6.00002m6.00002 6.00002l6.00001-6.00002m-12.00003 12.00003l6.00002-6.00001"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function ChevronRight() {
-  return (
-    <svg width="10" height="5" viewBox="0 0 12 6" className="-rotate-90">
-      <path
-        d="M0 0l6 6 6-6"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </svg>
-  )
-}
-
-function ChevronLeft() {
-  return (
-    <svg width="10" height="5" viewBox="0 0 12 6" className="rotate-90">
-      <path
-        d="M0 0l6 6 6-6"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
-    </svg>
-  )
-}
-
-function CopyIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-    </svg>
-  )
-}
 
 function MethodTabs({
   activeTab,
@@ -139,7 +78,7 @@ function MethodOption({
         <span className="text-muted-foreground text-xs leading-3">{description}</span>
       </div>
       <div className="text-muted-foreground flex h-5 w-5 items-center justify-center">
-        <ChevronRight />
+        <ChevronRightIcon />
       </div>
     </button>
   )
@@ -547,7 +486,7 @@ function DepositModalContent({
           onClick={goBack}
           className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
         >
-          <ChevronLeft />
+          <ChevronLeftIcon />
           {back.label}
         </button>
       )}

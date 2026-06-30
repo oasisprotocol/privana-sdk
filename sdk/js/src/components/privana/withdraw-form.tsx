@@ -7,7 +7,8 @@ import { useWithdraw, useBalance } from '@/sdk/hooks'
 import type { WithdrawStep } from '@/sdk/hooks'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import { parseTokenAmount, formatTokenAmount, cn } from '@/lib/utils'
-import { getTokenIcon, ChevronRightIcon } from './token-icons'
+import { getTokenIcon } from './token-icons'
+import { ChevronRightIcon } from './icons'
 import {
   TransactionProgressView,
   TransactionSuccessView,
