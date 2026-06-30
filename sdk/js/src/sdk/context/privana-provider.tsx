@@ -39,6 +39,7 @@ export interface PrivanaContextValue {
   pollingInterval: number
   serviceAddress?: Address
   serviceName?: string
+  serviceIcon?: ReactNode
   hostedAuthConfig: HostedAuthConfig | null
   hostedAuthSession: HostedAuthSession | null
   setHostedAuthSession: (session: HostedAuthSession | null) => void
@@ -126,6 +127,10 @@ export interface PrivanaProviderProps {
    */
   serviceName?: string
   /**
+   * Optional icon/logo for the host application/service.
+   */
+  serviceIcon?: ReactNode
+  /**
    * Optional hosted redirect auth configuration for cross-domain browser apps.
    */
   hostedAuth?: HostedAuthConfig
@@ -147,6 +152,7 @@ export function PrivanaProvider({
   pollingInterval = 10000,
   serviceAddress,
   serviceName,
+  serviceIcon,
   hostedAuth,
   siweAuth,
 }: PrivanaProviderProps) {
@@ -405,6 +411,7 @@ export function PrivanaProvider({
       pollingInterval,
       serviceAddress,
       serviceName,
+      serviceIcon,
       hostedAuthConfig,
       hostedAuthSession,
       setHostedAuthSession,
@@ -423,6 +430,7 @@ export function PrivanaProvider({
       pollingInterval,
       serviceAddress,
       serviceName,
+      serviceIcon,
       hostedAuthConfig,
       hostedAuthSession,
       setHostedAuthSession,

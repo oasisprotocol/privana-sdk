@@ -27,3 +27,4 @@ export { Button, buttonVariants } from './components/ui/button'
 export { Skeleton } from './components/ui/skeleton'
 
 export { getTokenIcon, getChainIcon } from './components/privana/token-icons'
+export { PrivanaIcon } from './components/privana/privana-icon'
