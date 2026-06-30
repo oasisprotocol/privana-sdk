@@ -12,7 +12,16 @@ import { useDepositAddress } from '@/sdk/hooks'
 import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
 import { getTokenIcon } from './token-icons'
 import { TokenSelectorView } from './token-selector-view'
-import { CloseIcon, ChevronRightIcon, ChevronLeftIcon, CopyIcon } from './icons'
+import {
+  CloseIcon,
+  ChevronRightIcon,
+  ChevronLeftIcon,
+  ChevronDownIcon,
+  CopyIcon,
+  CircleCheckIcon,
+  CircleXIcon,
+  ArrowRightIcon,
+} from './icons'
 import { PrivanaIcon } from './privana-icon'
 
 type DepositMethodTab = 'crypto' | 'credit-card'
@@ -100,70 +109,6 @@ function MethodOption({
   )
 }
 
-function CircleCheckIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <circle cx="10" cy="10" r="9" stroke="currentColor" strokeWidth="1.5" />
-      <path
-        d="M6 10l2.5 2.5L14 7.5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function CircleXIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <circle cx="10" cy="10" r="9" stroke="currentColor" strokeWidth="1.5" />
-      <path
-        d="M7 7l6 6M13 7l-6 6"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function ChevronDown({ up, className }: { up?: boolean; className?: string }) {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-      className={cn('transition-transform', up && 'rotate-180', className)}
-    >
-      <path
-        d="M4 6l4 4 4-4"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function PolicyArrow() {
-  return (
-    <svg width="24" height="8" viewBox="0 0 24 8" fill="none" className="text-muted-foreground">
-      <path
-        d="M0 4h22m0 0l-4-4m4 4l-4 4"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
 function PolicyTermRow({
   term,
   kind,
@@ -209,7 +154,7 @@ function AllowancePolicySection({
         <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg">
           {serviceIcon}
         </div>
-        <PolicyArrow />
+        <ArrowRightIcon className="text-muted-foreground" />
         <PrivanaIcon size={32} />
       </div>
 
@@ -229,7 +174,7 @@ function AllowancePolicySection({
             <span className="text-muted-foreground text-[10px] leading-[14px] font-medium tracking-[0.2px] whitespace-nowrap uppercase">
               {collapsed ? 'Show details' : 'Hide details'}
             </span>
-            <ChevronDown up={!collapsed} className="text-foreground shrink-0" />
+            <ChevronDownIcon up={!collapsed} className="text-foreground shrink-0" />
             <span className="bg-border h-px flex-1" />
           </button>
 
