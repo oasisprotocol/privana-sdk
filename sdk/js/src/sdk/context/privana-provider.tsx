@@ -38,6 +38,7 @@ export interface PrivanaContextValue {
   tokensError?: Error
   pollingInterval: number
   serviceAddress?: Address
+  serviceName?: string
   hostedAuthConfig: HostedAuthConfig | null
   hostedAuthSession: HostedAuthSession | null
   setHostedAuthSession: (session: HostedAuthSession | null) => void
@@ -120,6 +121,11 @@ export interface PrivanaProviderProps {
    */
   serviceAddress?: Address
   /**
+   * Display name of the host application/service. Shown as the title in
+   * Privana modals (e.g. the deposit modal header). Defaults to "Privana".
+   */
+  serviceName?: string
+  /**
    * Optional hosted redirect auth configuration for cross-domain browser apps.
    */
   hostedAuth?: HostedAuthConfig
@@ -140,6 +146,7 @@ export function PrivanaProvider({
   chains,
   pollingInterval = 10000,
   serviceAddress,
+  serviceName,
   hostedAuth,
   siweAuth,
 }: PrivanaProviderProps) {
@@ -397,6 +404,7 @@ export function PrivanaProvider({
       tokensError,
       pollingInterval,
       serviceAddress,
+      serviceName,
       hostedAuthConfig,
       hostedAuthSession,
       setHostedAuthSession,
@@ -414,6 +422,7 @@ export function PrivanaProvider({
       tokensError,
       pollingInterval,
       serviceAddress,
+      serviceName,
       hostedAuthConfig,
       hostedAuthSession,
       setHostedAuthSession,

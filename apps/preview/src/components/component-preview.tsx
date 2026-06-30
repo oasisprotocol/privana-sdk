@@ -5,6 +5,8 @@ import { useAccount } from 'wagmi'
 import {
   PrivanaButton,
   PrivanaInlineModal,
+  DepositModal,
+  DepositInlineModal,
   usePrivanaContext,
   useHostedRedirectAuth,
 } from '@oasisprotocol/privana-sdk'
@@ -12,15 +14,24 @@ import { PreviewLayout, SectionLabel } from './preview-layout'
 
 export function ComponentPreview() {
   const { isConnected } = useAccount()
+  const [depositModalOpen, setDepositModalOpen] = useState(false)
 
   return (
     <PreviewLayout>
       {isConnected && (
         <div>
           <SectionLabel>Live SDK Button</SectionLabel>
-          <div className="flex items-center justify-center">
+          <div className="flex items-center justify-center gap-3">
             <PrivanaButton />
+            <button
+              type="button"
+              className="rounded border px-3 py-2 text-sm"
+              onClick={() => setDepositModalOpen(true)}
+            >
+              Open Deposit Modal
+            </button>
           </div>
+          <DepositModal open={depositModalOpen} onClose={() => setDepositModalOpen(false)} />
         </div>
       )}
 
@@ -28,7 +39,8 @@ export function ComponentPreview() {
 
       <div>
         <SectionLabel>Live SDK Modal</SectionLabel>
-        <div className="flex justify-center">
+        <div className="flex flex-col items-center gap-6">
+          <DepositInlineModal />
           <PrivanaInlineModal />
         </div>
       </div>
