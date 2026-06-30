@@ -20,6 +20,19 @@ export type DepositSource = 'connected' | 'external'
 
 type DepositView = 'method' | 'deposit' | 'select-token' | 'external-deposit'
 
+export interface AllowanceTerm {
+  title: string
+  description: string
+}
+
+export interface Allowance {
+  value: string
+  terms?: {
+    permissions?: AllowanceTerm[]
+    restrictions?: AllowanceTerm[]
+  }
+}
+
 function MethodTabs({
   activeTab,
   onTabChange,
@@ -337,6 +350,8 @@ function ExternalDepositView({
 
 interface DepositMethodHandlers {
   defaultTab?: DepositMethodTab
+  /** Allowance (shown as a "policy") the host service requests. */
+  allowance?: Allowance
   onSelectConnectedWallet?: () => void
   onSelectExternalWallet?: () => void
   onSelectCreditCard?: () => void
