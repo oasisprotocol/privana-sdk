@@ -27,6 +27,7 @@ export interface AllowanceTerm {
 }
 
 export interface Allowance {
+  /**  Requested allowance amount in the token's base units. */
   value: string
   terms?: {
     permissions?: AllowanceTerm[]

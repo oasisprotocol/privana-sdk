@@ -16,7 +16,7 @@ import {
 import { PreviewLayout, SectionLabel } from './preview-layout'
 
 const demoAllowance: Allowance = {
-  value: '1000',
+  value: '1000000000',
   terms: {
     permissions: [
       {
