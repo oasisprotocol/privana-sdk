@@ -11,8 +11,28 @@ import {
   WithdrawInlineModal,
   usePrivanaContext,
   useHostedRedirectAuth,
+  type Allowance,
 } from '@oasisprotocol/privana-sdk'
 import { PreviewLayout, SectionLabel } from './preview-layout'
+
+const demoAllowance: Allowance = {
+  value: '1000',
+  terms: {
+    permissions: [
+      {
+        title: 'Play instantly - no signing, no interruptions',
+        description:
+          'Your deposited assets become available to bet and settle outcomes with zero per-action signatures.',
+      },
+    ],
+    restrictions: [
+      {
+        title: 'Not possible to withdraw to an outside wallet',
+        description: 'Funds and cash-outs stay inside your account.',
+      },
+    ],
+  },
+}
 
 export function ComponentPreview() {
   const { isConnected } = useAccount()
@@ -41,7 +61,11 @@ export function ComponentPreview() {
               Open Withdraw Modal
             </button>
           </div>
-          <DepositModal open={depositModalOpen} onClose={() => setDepositModalOpen(false)} />
+          <DepositModal
+            open={depositModalOpen}
+            onClose={() => setDepositModalOpen(false)}
+            allowance={demoAllowance}
+          />
           <WithdrawModal open={withdrawModalOpen} onClose={() => setWithdrawModalOpen(false)} />
         </div>
       )}
@@ -51,7 +75,7 @@ export function ComponentPreview() {
       <div>
         <SectionLabel>Live SDK Modal</SectionLabel>
         <div className="flex flex-col items-center gap-6">
-          <DepositInlineModal />
+          <DepositInlineModal allowance={demoAllowance} />
           <WithdrawInlineModal />
           <PrivanaInlineModal />
         </div>

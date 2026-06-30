@@ -64,6 +64,12 @@ export function Providers({ children, network = 'testnet' }: ProvidersProps) {
           <RainbowKitWrapper>
             <PrivanaProvider
               networkConfig={{ ...NETWORK_CONFIG[network], apiUrl }}
+              serviceName="Honoroll Casino"
+              serviceIcon={
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-black font-serif text-base font-bold text-orange-400">
+                  H
+                </div>
+              }
               hostedAuth={
                 hostedAuthClientId && hostedAuthRedirectUri
                   ? {
