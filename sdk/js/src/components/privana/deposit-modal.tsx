@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useAccount, useBalance, useReadContract } from 'wagmi'
 import { erc20Abi, zeroAddress } from 'viem'
 import { QRCodeSVG } from 'qrcode.react'
@@ -13,6 +13,7 @@ import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
 import { getTokenIcon } from './token-icons'
 import { TokenSelectorView } from './token-selector-view'
 import { CloseIcon, ChevronRightIcon, ChevronLeftIcon, CopyIcon } from './icons'
+import { PrivanaIcon } from './privana-icon'
 
 type DepositMethodTab = 'crypto' | 'credit-card'
 
@@ -98,10 +99,160 @@ function MethodOption({
   )
 }
 
+function CircleCheckIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <circle cx="10" cy="10" r="9" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M6 10l2.5 2.5L14 7.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function CircleXIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <circle cx="10" cy="10" r="9" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M7 7l6 6M13 7l-6 6"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function ChevronDown({ collapsed }: { collapsed?: boolean }) {
+  return (
+    <svg
+      width="12"
+      height="6"
+      viewBox="0 0 12 6"
+      className={cn('transition-transform', collapsed && '-rotate-90')}
+    >
+      <path
+        d="M0 0l6 6 6-6"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </svg>
+  )
+}
+
+function PolicyArrow() {
+  return (
+    <svg width="24" height="8" viewBox="0 0 24 8" fill="none" className="text-muted-foreground">
+      <path
+        d="M0 4h22m0 0l-4-4m4 4l-4 4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function PolicyTermRow({
+  term,
+  kind,
+}: {
+  term: AllowanceTerm
+  kind: 'permission' | 'restriction'
+}) {
+  return (
+    <div className="flex gap-2">
+      <div
+        className={cn(
+          'mt-0.5 shrink-0',
+          kind === 'permission' ? 'text-emerald-500' : 'text-orange-500'
+        )}
+      >
+        {kind === 'permission' ? <CircleCheckIcon /> : <CircleXIcon />}
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="text-foreground text-sm leading-5 font-medium">{term.title}</span>
+        <span className="text-muted-foreground text-sm leading-5">{term.description}</span>
+      </div>
+    </div>
+  )
+}
+
+function AllowancePolicySection({
+  allowance,
+  serviceName,
+  serviceIcon,
+}: {
+  allowance: Allowance
+  serviceName: string
+  serviceIcon?: ReactNode
+}) {
+  const [collapsed, setCollapsed] = useState(false)
+  const permissions = allowance.terms?.permissions ?? []
+  const restrictions = allowance.terms?.restrictions ?? []
+  const hasTerms = permissions.length > 0 || restrictions.length > 0
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-4">
+        <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg">
+          {serviceIcon}
+        </div>
+        <PolicyArrow />
+        <PrivanaIcon size={32} />
+      </div>
+
+      <p className="text-sm leading-5">
+        <span className="text-foreground font-medium">{serviceName}</span>{' '}
+        <span className="text-muted-foreground">wants a policy on your Privana account.</span>
+      </p>
+
+      {hasTerms && (
+        <>
+          <button
+            type="button"
+            onClick={() => setCollapsed((prev) => !prev)}
+            className="text-muted-foreground hover:text-foreground flex w-full cursor-pointer items-center gap-3 transition-colors"
+          >
+            <span className="bg-border h-px flex-1" />
+            <span className="flex items-center gap-1 text-[11px] font-semibold tracking-wider uppercase">
+              {collapsed ? 'Show details' : 'Hide details'}
+              <ChevronDown collapsed={collapsed} />
+            </span>
+            <span className="bg-border h-px flex-1" />
+          </button>
+
+          {!collapsed && (
+            <div className="flex flex-col gap-4">
+              {permissions.map((term, i) => (
+                <PolicyTermRow key={`permission-${i}`} term={term} kind="permission" />
+              ))}
+              {restrictions.map((term, i) => (
+                <PolicyTermRow key={`restriction-${i}`} term={term} kind="restriction" />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 function DepositView({
   source,
   selectedToken,
   amount,
+  allowance,
   onAmountChange,
   onSelectToken,
   onSubmit,
@@ -109,12 +260,14 @@ function DepositView({
   source: DepositSource
   selectedToken: TokenConfig | undefined
   amount: string
+  allowance?: Allowance
   onAmountChange: (value: string) => void
   onSelectToken: () => void
   onSubmit?: (args: { source: DepositSource; tokenId: string; amount: string }) => void
 }) {
-  const { getChainById, chains } = usePrivanaContext()
+  const { getChainById, chains, serviceName, serviceIcon } = usePrivanaContext()
   const { address, isConnected } = useAccount()
+  const appName = serviceName ?? 'Privana'
   const chain = selectedToken ? getChainById(selectedToken.chainId) : undefined
   const targetChain = chain ?? chains[0]
   const sourceLabel = source === 'connected' ? 'Connected Wallet' : 'External Wallet'
@@ -242,7 +395,13 @@ function DepositView({
         {exceedsBalance && <p className="text-destructive text-sm">Insufficient balance</p>}
       </div>
 
-      {/* TODO: policy section (honoroll casino) goes here */}
+      {allowance && (
+        <AllowancePolicySection
+          allowance={allowance}
+          serviceName={appName}
+          serviceIcon={serviceIcon}
+        />
+      )}
 
       <button
         type="button"
@@ -361,6 +520,7 @@ interface DepositMethodHandlers {
 
 function DepositModalContent({
   defaultTab = 'crypto',
+  allowance,
   onSelectConnectedWallet,
   onSelectExternalWallet,
   onSelectCreditCard,
@@ -493,6 +653,7 @@ function DepositModalContent({
           source={source}
           selectedToken={selectedToken}
           amount={amount}
+          allowance={allowance}
           onAmountChange={setAmount}
           onSelectToken={() => setView('select-token')}
           onSubmit={handleSubmit}
