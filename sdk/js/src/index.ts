@@ -16,6 +16,12 @@ export type {
   DepositSource,
 } from './components/privana/deposit-modal'
 
+export { WithdrawModal, WithdrawInlineModal } from './components/privana/withdraw-modal'
+export type {
+  WithdrawModalProps,
+  WithdrawInlineModalProps,
+} from './components/privana/withdraw-modal'
+
 export { Button, buttonVariants } from './components/ui/button'
 
 export { Skeleton } from './components/ui/skeleton'

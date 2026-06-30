@@ -1,6 +1,7 @@
 export * from './privana-button'
 export * from './privana-modal'
 export * from './deposit-modal'
+export * from './withdraw-modal'
 export * from './token-selector-modal'
 export * from './deposit-form'
 export * from './withdraw-form'
