@@ -229,9 +229,88 @@ export function FiatOnRampForm({
     void handleOpen()
   }, [autoStart, canBuy, handleOpen])
 
+  // MoonPayBuyWidget rebuilds its internal config from the raw props object on
+  // every render (its useMemo keys on `props`), and its useSdk effect closes and
+  // re-inits the iframe whenever that config changes — so ANY re-render of this
+  // form restarts the checkout. Freeze the element: callbacks go through a ref
+  // and the element is memoized on data props only.
+  const widgetCallbacksRef = useRef({
+    handleClose,
+    handleCloseOverlay,
+    handleReady,
+    signUrl,
+    handleTransactionCreated,
+    handleTransactionCompleted,
+  })
+  useEffect(() => {
+    widgetCallbacksRef.current = {
+      handleClose,
+      handleCloseOverlay,
+      handleReady,
+      signUrl,
+      handleTransactionCreated,
+      handleTransactionCompleted,
+    }
+  })
+  const widgetElement = useMemo(() => {
+    if (!visible || !depositAddress || !activeIntentId) return null
+    return (
+      <MoonPayBuyWidget
+        variant={variant}
+        visible
+        theme={theme}
+        themeId={themeId}
+        colorCode={colorCode}
+        overlayNode={overlayNode}
+        baseCurrencyCode={baseCurrencyCode}
+        baseCurrencyAmount={defaultBaseCurrencyAmount}
+        lockAmount={lockAmount ? 'true' : undefined}
+        paymentMethod={paymentMethod}
+        currencyCode={currencyCode}
+        // MoonPay delivers directly to the Privana deposit address; the connected wallet is only used for SIWE auth and not involved in the on-chain transfer.
+        walletAddress={depositAddress}
+        externalCustomerId={address?.toLowerCase()}
+        externalTransactionId={activeIntentId}
+        onClose={() => widgetCallbacksRef.current.handleClose()}
+        onCloseOverlay={() => widgetCallbacksRef.current.handleCloseOverlay()}
+        onReady={() => widgetCallbacksRef.current.handleReady()}
+        onUrlSignatureRequested={(url) => widgetCallbacksRef.current.signUrl(url)}
+        onTransactionCreated={(props) => widgetCallbacksRef.current.handleTransactionCreated(props)}
+        onTransactionCompleted={(props) =>
+          widgetCallbacksRef.current.handleTransactionCompleted(props)
+        }
+      />
+    )
+  }, [
+    visible,
+    depositAddress,
+    activeIntentId,
+    variant,
+    theme,
+    themeId,
+    colorCode,
+    overlayNode,
+    baseCurrencyCode,
+    defaultBaseCurrencyAmount,
+    lockAmount,
+    paymentMethod,
+    currencyCode,
+    address,
+  ])
+
+  // The embedded iframe doesn't reliably deliver onTransactionCompleted (the
+  // overlay flow also has onClose as a fallback trigger; embedded has neither),
+  // so poll pending while the widget is open. Once the MoonPay webhook lands
+  // the row surfaces in `pending` and verification auto-starts from the hook.
+  useEffect(() => {
+    if (variant !== 'embedded' || !visible) return
+    const id = setInterval(() => void refreshPending(), 5_000)
+    return () => clearInterval(id)
+  }, [variant, visible, refreshPending])
+
   // The embedded widget doesn't self-close on completion (the overlay does, which
   // is what surfaces the finality/verification status). Once the purchase settles,
-  // hide it and refresh so the pending/finality UI takes over.
+  // hide it and refresh once so the pending/finality UI takes over.
   useEffect(() => {
     if (variant !== 'embedded' || !visible) return
     if (isVerifying || status === 'credited') {
@@ -242,39 +321,9 @@ export function FiatOnRampForm({
 
   return (
     <div data-privana className="flex flex-col gap-4">
-      {autoStart ? (
-        !visible && isPrePurchase && <Skeleton className="h-[656px] w-full rounded-md" />
-      ) : isInitializing ? (
-        <Skeleton className="h-9 w-full rounded-md" />
-      ) : (
-        <Button type="button" onClick={handleOpen} disabled={!canBuy}>
-          {(isBusy || visible) && <Loader2 className="animate-spin" aria-hidden />}
-          Buy
-        </Button>
-      )}
-
-      {error && (
-        <p className="text-destructive text-sm" role="alert">
-          {error.message}
-        </p>
-      )}
-
-      {isBelowMin && minFiatGate !== undefined && (
-        <p className="text-destructive text-sm" role="alert">
-          Minimum purchase is ~${minFiatGate.toFixed(2)}.
-        </p>
-      )}
-
-      {isVerifying && pending.length === 0 && (
-        <p className="text-muted-foreground flex items-center gap-2 text-sm">
-          <Loader2 className="size-4 animate-spin" aria-hidden />
-          Verifying your purchase…
-        </p>
-      )}
-
       {pending.length > 0 && (
         <div className="flex flex-col gap-2">
-          <p className="text-sm font-medium">Pending payments</p>
+          <p className="text-sm font-medium">Validating purchases</p>
           {pending.map((record) => {
             const progress = parseFinalityProgress(finalityProgress[record.transaction_id])
             const hasProgress = !!finalityProgress[record.transaction_id]
@@ -323,30 +372,36 @@ export function FiatOnRampForm({
         </div>
       )}
 
-      {visible && depositAddress && activeIntentId && (
-        <MoonPayBuyWidget
-          variant={variant}
-          visible
-          theme={theme}
-          themeId={themeId}
-          colorCode={colorCode}
-          overlayNode={overlayNode}
-          baseCurrencyCode={baseCurrencyCode}
-          baseCurrencyAmount={defaultBaseCurrencyAmount}
-          lockAmount={lockAmount ? 'true' : undefined}
-          paymentMethod={paymentMethod}
-          currencyCode={currencyCode}
-          // MoonPay delivers directly to the Privana deposit address; the connected wallet is only used for SIWE auth and not involved in the on-chain transfer.
-          walletAddress={depositAddress}
-          externalCustomerId={address?.toLowerCase()}
-          externalTransactionId={activeIntentId}
-          onClose={handleClose}
-          onCloseOverlay={handleCloseOverlay}
-          onReady={handleReady}
-          onUrlSignatureRequested={signUrl}
-          onTransactionCreated={handleTransactionCreated}
-          onTransactionCompleted={handleTransactionCompleted}
-        />
+      {autoStart ? (
+        !visible && isPrePurchase && <Skeleton className="h-[656px] w-full rounded-md" />
+      ) : isInitializing ? (
+        <Skeleton className="h-9 w-full rounded-md" />
+      ) : (
+        <Button type="button" onClick={handleOpen} disabled={!canBuy}>
+          {(isBusy || visible) && <Loader2 className="animate-spin" aria-hidden />}
+          Buy
+        </Button>
+      )}
+
+      {widgetElement}
+
+      {error && (
+        <p className="text-destructive text-sm" role="alert">
+          {error.message}
+        </p>
+      )}
+
+      {isBelowMin && minFiatGate !== undefined && (
+        <p className="text-destructive text-sm" role="alert">
+          Minimum purchase is ~${minFiatGate.toFixed(2)}.
+        </p>
+      )}
+
+      {isVerifying && pending.length === 0 && (
+        <p className="text-muted-foreground flex items-center gap-2 text-sm">
+          <Loader2 className="size-4 animate-spin" aria-hidden />
+          Verifying your purchase…
+        </p>
       )}
     </div>
   )

@@ -234,7 +234,11 @@ function DepositView({
   // The credit-card amount is a fiat value (MoonPay's baseCurrencyAmount); gate it
   // against MoonPay's minimum here so the user can't sign the policy for an amount
   // MoonPay would reject once the widget opens.
-  const { minBuyAmount: moonpayMinBuy } = useMoonpayLimits({
+  const {
+    minBuyAmount: moonpayMinBuy,
+    isLoading: moonpayLimitsLoading,
+    error: moonpayLimitsError,
+  } = useMoonpayLimits({
     currencyCode: selectedToken?.moonpayCurrencyCode,
     enabled: isCreditCard,
   })
@@ -254,6 +258,8 @@ function DepositView({
     parseTokenAmount(amount, selectedToken.decimals) > walletBalance
   const belowMoonpayMin =
     isCreditCard && hasValidAmount && moonpayMinBuy != null && parseFloat(amount) < moonpayMinBuy
+  const moonpayLimitsUnready =
+    isCreditCard && !!selectedToken?.moonpayCurrencyCode && moonpayMinBuy == null
   const needsConnect = isConnectedSource && !isConnected
 
   const canDeposit =
@@ -262,6 +268,7 @@ function DepositView({
     !tooManyDecimals &&
     !exceedsBalance &&
     !belowMoonpayMin &&
+    !moonpayLimitsUnready &&
     !needsConnect
 
   const handleMax = () => {
@@ -359,7 +366,15 @@ function DepositView({
         )}
         {exceedsBalance && <p className="text-destructive text-sm">Insufficient balance</p>}
         {belowMoonpayMin && moonpayMinBuy != null && (
-          <p className="text-destructive text-sm">Minimum purchase is ${moonpayMinBuy}.</p>
+          <p className="text-destructive text-sm">Minimum purchase is ${moonpayMinBuy} USD.</p>
+        )}
+        {isCreditCard && moonpayLimitsError && (
+          <p className="text-destructive text-sm">
+            Couldn’t load purchase limits. Please try again.
+          </p>
+        )}
+        {isCreditCard && moonpayLimitsLoading && (
+          <p className="text-muted-foreground text-sm">Checking purchase limits…</p>
         )}
       </div>
 
@@ -530,8 +545,8 @@ function DepositModalContent({
     }
     if (args.source === 'credit-card') {
       // TODO: sign the DepositLockAuthorization (maxAmount=allowance.value, minAmount,
-      // lockDuration) via useFiatOnRamp's postDepositLock once the deposit-lock-authorization branch lands.
-      console.log('TODO: sign policy and deposit', { ...args, allowance })
+      // lockDuration) via useFiatOnRamp's postDepositLock once the deposit-lock-authorization
+      // branch lands. Until then we just advance to the embedded MoonPay widget.
       setView('credit-card-widget')
       return
     }

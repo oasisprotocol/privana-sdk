@@ -218,7 +218,7 @@ export function PrivanaProvider({
             contract: t.token_address ?? zeroAddress,
             name: t.name,
             chainId: t.chain_id,
-            moonpayCurrencyCode: resolveMoonpayCurrencyCode(t.symbol, t.chain_id),
+            moonpayCurrencyCode: resolveMoonpayCurrencyCode(t.token_id),
           }))
         )
         setTokensStatus('ready')

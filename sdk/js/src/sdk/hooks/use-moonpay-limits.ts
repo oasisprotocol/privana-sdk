@@ -27,14 +27,6 @@ export interface UseMoonpayLimitsResult extends MoonpayLimits {
   error: Error | null
 }
 
-/**
- * Fetches MoonPay's per-currency buy limits so a flow can validate the amount
- * before committing the user (e.g. before signing a deposit-lock policy).
- *
- * The `apiKey` is read from `MoonPayContext`, so a `MoonPayProvider` ancestor is
- * required. Limits are region/payment-method dependent — always source them here
- * rather than hardcoding a minimum.
- */
 export function useMoonpayLimits({
   currencyCode,
   baseCurrencyCode = 'usd',
@@ -62,11 +54,13 @@ export function useMoonpayLimits({
         throw new Error(`MoonPay limits request failed: ${res.status}`)
       }
       const data = (await res.json()) as {
-        baseCurrency?: { minBuyAmount?: number; maxBuyAmount?: number }
+        baseCurrency?: { minBuyAmount?: unknown; maxBuyAmount?: unknown }
       }
+      const asNumber = (value: unknown): number | undefined =>
+        typeof value === 'number' && Number.isFinite(value) ? value : undefined
       return {
-        minBuyAmount: data.baseCurrency?.minBuyAmount,
-        maxBuyAmount: data.baseCurrency?.maxBuyAmount,
+        minBuyAmount: asNumber(data.baseCurrency?.minBuyAmount),
+        maxBuyAmount: asNumber(data.baseCurrency?.maxBuyAmount),
       }
     },
   })
