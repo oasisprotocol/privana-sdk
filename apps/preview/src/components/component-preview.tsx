@@ -7,6 +7,8 @@ import {
   PrivanaInlineModal,
   DepositModal,
   DepositInlineModal,
+  WithdrawModal,
+  WithdrawInlineModal,
   usePrivanaContext,
   useHostedRedirectAuth,
 } from '@oasisprotocol/privana-sdk'
@@ -15,6 +17,7 @@ import { PreviewLayout, SectionLabel } from './preview-layout'
 export function ComponentPreview() {
   const { isConnected } = useAccount()
   const [depositModalOpen, setDepositModalOpen] = useState(false)
+  const [withdrawModalOpen, setWithdrawModalOpen] = useState(false)
 
   return (
     <PreviewLayout>
@@ -30,8 +33,16 @@ export function ComponentPreview() {
             >
               Open Deposit Modal
             </button>
+            <button
+              type="button"
+              className="rounded border px-3 py-2 text-sm"
+              onClick={() => setWithdrawModalOpen(true)}
+            >
+              Open Withdraw Modal
+            </button>
           </div>
           <DepositModal open={depositModalOpen} onClose={() => setDepositModalOpen(false)} />
+          <WithdrawModal open={withdrawModalOpen} onClose={() => setWithdrawModalOpen(false)} />
         </div>
       )}
 
@@ -41,6 +52,7 @@ export function ComponentPreview() {
         <SectionLabel>Live SDK Modal</SectionLabel>
         <div className="flex flex-col items-center gap-6">
           <DepositInlineModal />
+          <WithdrawInlineModal />
           <PrivanaInlineModal />
         </div>
       </div>

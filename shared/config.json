@@ -3,12 +3,14 @@
     {
       "id": 84532,
       "name": "Base Sepolia",
-      "explorerUrl": "https://sepolia.basescan.org"
+      "explorerUrl": "https://sepolia.basescan.org",
+      "explorerName": "BaseScan"
     },
     {
       "id": 11155111,
       "name": "Ethereum Sepolia",
-      "explorerUrl": "https://sepolia.etherscan.io"
+      "explorerUrl": "https://sepolia.etherscan.io",
+      "explorerName": "Etherscan"
     }
   ],
   "networks": {
