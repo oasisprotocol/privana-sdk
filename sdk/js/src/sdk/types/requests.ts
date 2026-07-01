@@ -5,6 +5,17 @@ export interface DepositAddressRequest {
   version?: number
 }
 
+export interface DepositLockAuthorizationRequest {
+  service_address: Address
+  token_id: Bytes32
+  max_amount: IntegerLike
+  min_amount?: IntegerLike
+  lock_duration: IntegerLike
+  authorization_deadline: IntegerLike
+  intent_id: Bytes32
+  signature: HexString
+}
+
 export interface DepositCheckRequest {
   chain_type?: string
   chain_id: number
@@ -12,6 +23,7 @@ export interface DepositCheckRequest {
   amount: IntegerLike
   log_index?: number
   version?: number
+  lock_authorization?: DepositLockAuthorizationRequest
 }
 
 export interface LockFundsRequest {

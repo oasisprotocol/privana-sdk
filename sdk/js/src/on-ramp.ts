@@ -8,6 +8,7 @@ export type {
   UseFiatOnRampResult,
   FiatOnRampDebugEvent,
   FiatOnRampStatus,
+  FiatOnRampPostDepositLockConfig,
 } from './sdk/hooks/use-fiat-on-ramp'
 
 export { FiatOnRampForm } from './components/privana/fiat-on-ramp-form'

@@ -1,4 +1,5 @@
 import type { Address, Bytes32, HexString } from './common'
+import type { DepositLockAuthorizationRequest } from './requests'
 
 export type OnRampStatus = 'pending' | 'completed' | 'failed' | 'cancelled'
 
@@ -34,6 +35,7 @@ export interface UpdateOnRampRequest {
   quote_currency_amount?: string
   on_chain_tx_hash?: HexString
   deposit_tx_hash?: HexString
+  lock_authorization?: DepositLockAuthorizationRequest
 }
 
 export type UpdateOnRampResponse = OnRampRecord
@@ -52,6 +54,7 @@ export interface OnRampRecord {
   quote_currency_amount?: string
   on_chain_tx_hash?: HexString
   deposit_tx_hash?: HexString
+  lock_authorization?: DepositLockAuthorizationRequest
   deposit_triggered_at?: number
   credited_at?: number
   created_at: number

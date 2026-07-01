@@ -1,4 +1,5 @@
 export * from './eip712-types'
+export * from './sign-deposit-lock-authorization'
 export * from './sign-lock'
 export * from './sign-modify-lock'
 export * from './sign-transfer'

@@ -1,13 +1,16 @@
 from eth_account import Account
 
 from privana.signatures import (
+    DEPOSIT_LOCK_AUTHORIZATION_TYPES,
     LOCK_TYPES,
     MODIFY_LOCK_TYPES,
     TRANSFER_LOCKED_TYPES,
     TRANSFER_TYPES,
     WITHDRAW_TYPES,
+    DepositLockAuthorizationMessage,
     LockMessage,
     ModifyLockMessage,
+    SignDepositLockAuthorizationParams,
     SignLockParams,
     SignModifyLockParams,
     SignTransferLockedParams,
@@ -16,8 +19,12 @@ from privana.signatures import (
     TransferLockedMessage,
     TransferMessage,
     WithdrawMessage,
+    create_deposit_lock_authorization_deadline,
+    create_deposit_lock_duration,
+    create_deposit_lock_intent_id,
     create_domain,
     create_lock_expiry,
+    sign_deposit_lock_authorization_message,
     sign_lock_message,
     sign_modify_lock_message,
     sign_transfer_locked_message,
@@ -97,6 +104,69 @@ class TestSignLockMessage:
         sig1 = sign_lock_message(params)
         sig2 = sign_lock_message(params)
         assert sig1 == sig2
+
+
+class TestSignDepositLockAuthorizationMessage:
+    def test_produces_valid_signature(self):
+        sig = sign_deposit_lock_authorization_message(
+            SignDepositLockAuthorizationParams(
+                account=TEST_ACCOUNT,
+                network="testnet",
+                verifying_contract=CONTRACT_ADDRESS,
+                message=DepositLockAuthorizationMessage(
+                    user_address=TEST_ADDRESS,
+                    service_address=SERVICE_ADDRESS,
+                    token_id=TOKEN_ID,
+                    max_amount=1000000,
+                    min_amount=0,
+                    lock_duration=3600,
+                    authorization_deadline=9999999999,
+                    intent_id="0x" + "22" * 32,
+                ),
+            )
+        )
+        assert sig.startswith("0x")
+        assert len(sig) == 132
+
+    def test_deterministic(self):
+        params = SignDepositLockAuthorizationParams(
+            account=TEST_ACCOUNT,
+            network="testnet",
+            verifying_contract=CONTRACT_ADDRESS,
+            message=DepositLockAuthorizationMessage(
+                user_address=TEST_ADDRESS,
+                service_address=SERVICE_ADDRESS,
+                token_id=TOKEN_ID,
+                max_amount=1000000,
+                min_amount=0,
+                lock_duration=3600,
+                authorization_deadline=9999999999,
+                intent_id="0x" + "22" * 32,
+            ),
+        )
+        sig1 = sign_deposit_lock_authorization_message(params)
+        sig2 = sign_deposit_lock_authorization_message(params)
+        assert sig1 == sig2
+
+
+class TestDepositLockAuthorizationHelpers:
+    def test_deadline_defaults_to_60_minutes(self):
+        deadline = create_deposit_lock_authorization_deadline()
+        import time
+
+        expected = int(time.time()) + 3600
+        assert abs(deadline - expected) < 2
+
+    def test_duration_defaults_to_60_minutes(self):
+        assert create_deposit_lock_duration() == 3600
+        assert create_deposit_lock_duration(30) == 1800
+
+    def test_intent_id_is_random_bytes32(self):
+        first = create_deposit_lock_intent_id()
+        second = create_deposit_lock_intent_id()
+        assert first.startswith("0x")
+        assert len(first) == 66
+        assert first != second
 
 
 class TestSignModifyLockMessage:
@@ -213,6 +283,21 @@ class TestEIP712Types:
             "amount",
             "expiry",
             "nonce",
+        ]
+
+    def test_deposit_lock_authorization_types_structure(self):
+        assert "DepositLockAuthorization" in DEPOSIT_LOCK_AUTHORIZATION_TYPES
+        assert [
+            field["name"] for field in DEPOSIT_LOCK_AUTHORIZATION_TYPES["DepositLockAuthorization"]
+        ] == [
+            "userAddress",
+            "serviceAddress",
+            "tokenId",
+            "maxAmount",
+            "minAmount",
+            "lockDuration",
+            "authorizationDeadline",
+            "intentId",
         ]
 
     def test_modify_lock_types_structure(self):

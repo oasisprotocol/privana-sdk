@@ -21,10 +21,14 @@ class TestPackageExports:
 
     def test_signature_exports(self):
         assert hasattr(privana, "sign_lock_message")
+        assert hasattr(privana, "sign_deposit_lock_authorization_message")
         assert hasattr(privana, "sign_transfer_message")
         assert hasattr(privana, "sign_transfer_locked_message")
         assert hasattr(privana, "sign_withdraw_message")
         assert hasattr(privana, "create_lock_expiry")
+        assert hasattr(privana, "create_deposit_lock_authorization_deadline")
+        assert hasattr(privana, "create_deposit_lock_duration")
+        assert hasattr(privana, "create_deposit_lock_intent_id")
         assert hasattr(privana, "create_domain")
 
     def test_util_exports(self):
@@ -38,6 +42,7 @@ class TestPackageExports:
 
     def test_request_types(self):
         assert hasattr(privana, "DepositAddressRequest")
+        assert hasattr(privana, "DepositLockAuthorization")
         assert hasattr(privana, "DepositCheckRequest")
         assert hasattr(privana, "LockFundsRequest")
         assert hasattr(privana, "UnlockFundsRequest")

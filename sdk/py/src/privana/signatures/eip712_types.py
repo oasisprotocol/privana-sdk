@@ -32,6 +32,19 @@ LOCK_TYPES = {
     ],
 }
 
+DEPOSIT_LOCK_AUTHORIZATION_TYPES = {
+    "DepositLockAuthorization": [
+        {"name": "userAddress", "type": "address"},
+        {"name": "serviceAddress", "type": "address"},
+        {"name": "tokenId", "type": "bytes32"},
+        {"name": "maxAmount", "type": "uint256"},
+        {"name": "minAmount", "type": "uint256"},
+        {"name": "lockDuration", "type": "uint256"},
+        {"name": "authorizationDeadline", "type": "uint256"},
+        {"name": "intentId", "type": "bytes32"},
+    ],
+}
+
 TRANSFER_TYPES = {
     "Transfer": [
         {"name": "toAddress", "type": "address"},
@@ -87,6 +100,18 @@ class LockMessage:
     amount: int
     expiry: int
     nonce: int
+
+
+@dataclass
+class DepositLockAuthorizationMessage:
+    user_address: Address
+    service_address: Address
+    token_id: Bytes32
+    max_amount: int
+    min_amount: int
+    lock_duration: int
+    authorization_deadline: int
+    intent_id: Bytes32
 
 
 @dataclass

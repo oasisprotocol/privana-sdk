@@ -6,7 +6,11 @@ import { formatUnits } from 'viem'
 import { useAccount } from 'wagmi'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useFiatOnRamp, type FiatOnRampDebugEvent } from '@/sdk/hooks/use-fiat-on-ramp'
+import {
+  useFiatOnRamp,
+  type FiatOnRampDebugEvent,
+  type FiatOnRampPostDepositLockConfig,
+} from '@/sdk/hooks/use-fiat-on-ramp'
 import type { Bytes32 } from '@/sdk/types'
 import { useMoonPayBuyWidget } from './use-moonpay-buy-widget'
 
@@ -49,6 +53,8 @@ export interface FiatOnRampFormProps {
   lockAmount?: boolean
   /** Pre-selects a payment method tab in MoonPay */
   paymentMethod?: string
+  /** Optional signed cap that locks the delivered on-ramp amount after Privana credits it. */
+  postDepositLock?: FiatOnRampPostDepositLockConfig
   /** Fired when the resulting Privana deposit is credited. */
   onCredited?: (depositTxHash: string) => void
   onError?: (error: Error) => void
@@ -69,6 +75,7 @@ export function FiatOnRampForm({
   autoStart = false,
   lockAmount,
   paymentMethod,
+  postDepositLock,
   onCredited,
   onError,
   onDebugEvent,
@@ -95,7 +102,7 @@ export function FiatOnRampForm({
     finishPendingVerification,
     handleWidgetClosed,
     refreshPending,
-  } = useFiatOnRamp({ tokenId, onCredited, onError, onDebugEvent })
+  } = useFiatOnRamp({ tokenId, postDepositLock, onCredited, onError, onDebugEvent })
 
   const decimals = selectedToken?.decimals
   const displaySymbol = tokenSymbol ?? selectedToken?.symbol ?? currencyCode.toUpperCase()

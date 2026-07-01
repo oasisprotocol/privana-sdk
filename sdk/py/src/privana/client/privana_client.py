@@ -181,16 +181,30 @@ class PrivanaClient:
         )
 
     async def check_deposit(self, request: DepositCheckRequest) -> DepositCheckResponse:
+        body: dict[str, Any] = {
+            "chain_type": request.chain_type,
+            "chain_id": request.chain_id,
+            "tx_hash": normalize_hex(request.tx_hash),
+            "amount": str(request.amount),
+            "log_index": request.log_index,
+            "version": request.version,
+        }
+        if request.lock_authorization is not None:
+            lock_authorization = request.lock_authorization
+            body["lock_authorization"] = {
+                "service_address": normalize_address(lock_authorization.service_address),
+                "token_id": normalize_hex(lock_authorization.token_id),
+                "max_amount": str(lock_authorization.max_amount),
+                "min_amount": str(lock_authorization.min_amount),
+                "lock_duration": str(lock_authorization.lock_duration),
+                "authorization_deadline": str(lock_authorization.authorization_deadline),
+                "intent_id": normalize_hex(lock_authorization.intent_id),
+                "signature": normalize_hex(lock_authorization.signature),
+            }
+
         data = await self._http.post(
             "/v1/accounting/deposits/check",
-            {
-                "chain_type": request.chain_type,
-                "chain_id": request.chain_id,
-                "tx_hash": normalize_hex(request.tx_hash),
-                "amount": str(request.amount),
-                "log_index": request.log_index,
-                "version": request.version,
-            },
+            body,
         )
         return DepositCheckResponse(
             status=data["status"],

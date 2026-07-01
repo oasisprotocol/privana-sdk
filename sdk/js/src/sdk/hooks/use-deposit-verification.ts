@@ -5,7 +5,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { AccountingApiError } from '../client/errors'
 import { usePrivanaContext } from '../context/privana-provider'
 import { usePrivateReadRequest } from './use-private-read-request'
-import type { DepositCheckResponse } from '../types'
+import { isDepositLockAuthorizationUsable } from './deposit-lock-authorization'
+import type { DepositCheckResponse, DepositLockAuthorizationRequest } from '../types'
 
 export interface VerificationContext {
   /** On-chain transfer that funded the user's Privana deposit address. */
@@ -14,6 +15,8 @@ export interface VerificationContext {
   chainId: number
   /** Transferred amount in base units (matches the deposit's token decimals). */
   amount: bigint
+  /** Optional signed policy to lock the credited deposit amount after sweep. */
+  lockAuthorization?: DepositLockAuthorizationRequest
 }
 
 export interface UseDepositVerificationOptions {
@@ -155,12 +158,21 @@ export function useDepositVerification(
         let triggerResult: DepositCheckResponse | undefined
         while (!triggerResult) {
           if (isStale()) return
+          if (ctx.lockAuthorization && !isDepositLockAuthorizationUsable(ctx.lockAuthorization)) {
+            // Mutating ctx makes the drop stick across finality retries and
+            // retryVerification(), so the warning fires once.
+            console.warn(
+              'Deposit lock authorization expired before verification; verifying deposit without it'
+            )
+            ctx.lockAuthorization = undefined
+          }
           try {
             const result = await executePrivateRead(() =>
               client.checkDeposit({
                 chain_id: chainId,
                 tx_hash: hash,
                 amount: amount.toString(),
+                lock_authorization: ctx.lockAuthorization,
               })
             )
             if (result.status === 'error' && isInsufficientFinalityMessage(result.detail)) {

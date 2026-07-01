@@ -9,7 +9,23 @@ import { usePrivanaContext } from '../context/privana-provider'
 import { useEnsureCorrectChain } from './use-ensure-correct-chain'
 import { usePrivateReadRequest } from './use-private-read-request'
 import { useDepositVerification, type VerificationContext } from './use-deposit-verification'
-import type { Bytes32, DepositAddressResponse, DepositCheckResponse } from '../types'
+import {
+  canUseBrowserStorage,
+  getBrowserStorageItem,
+  removeBrowserStorageItem,
+  setBrowserStorageItem,
+} from './browser-storage'
+import {
+  createSignedDepositLockAuthorization,
+  type DepositLockAuthorizationConfig,
+} from './deposit-lock-authorization'
+import type {
+  Address,
+  Bytes32,
+  DepositAddressResponse,
+  DepositCheckResponse,
+  DepositLockAuthorizationRequest,
+} from '../types'
 
 export interface UseDepositOptions {
   onDepositAddressReceived?: (response: DepositAddressResponse) => void
@@ -29,6 +45,7 @@ export interface UseDepositOptions {
 export interface DepositParams {
   tokenId: Bytes32
   amount: bigint
+  postDepositLock?: DepositLockAuthorizationConfig
 }
 
 export interface UseDepositResult {
@@ -63,6 +80,7 @@ interface PersistedDeposit {
   chainId: number
   amount: string
   depositAddress: DepositAddressResponse
+  lockAuthorization?: DepositLockAuthorizationRequest
   savedAt: number
 }
 
@@ -73,16 +91,15 @@ function storageKey(address: string): string {
 }
 
 function savePendingDeposit(address: string, data: PersistedDeposit): void {
-  try {
-    sessionStorage.setItem(storageKey(address), JSON.stringify(data))
-  } catch {
-    // sessionStorage may be unavailable (incognito quota, etc.)
+  const stored = setBrowserStorageItem(storageKey(address), JSON.stringify(data))
+  if (!stored && data.lockAuthorization) {
+    throw new Error('Unable to persist pending locked deposit for recovery')
   }
 }
 
 function loadPendingDeposit(address: string): PersistedDeposit | null {
   try {
-    const raw = sessionStorage.getItem(storageKey(address))
+    const raw = getBrowserStorageItem(storageKey(address))
     if (!raw) return null
     const data: PersistedDeposit = JSON.parse(raw)
     if (Date.now() - data.savedAt > STALE_MS) {
@@ -96,16 +113,12 @@ function loadPendingDeposit(address: string): PersistedDeposit | null {
 }
 
 function clearPendingDeposit(address: string): void {
-  try {
-    sessionStorage.removeItem(storageKey(address))
-  } catch {
-    // ignore
-  }
+  removeBrowserStorageItem(storageKey(address))
 }
 
 export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   const { address } = useAccount()
-  const { client, enabledTokens, getChainById } = usePrivanaContext()
+  const { client, enabledTokens, getChainById, networkConfig, serviceAddress } = usePrivanaContext()
   const { data: walletClient } = useWalletClient()
   const queryClient = useQueryClient()
   const config = useConfig()
@@ -249,6 +262,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
       hash,
       chainId: persisted.chainId,
       amount: BigInt(persisted.amount),
+      lockAuthorization: persisted.lockAuthorization,
     }
     verificationContextRef.current = ctx
 
@@ -347,6 +361,26 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
           )
         }
 
+        if (params.postDepositLock && !canUseBrowserStorage()) {
+          throw new Error('Browser storage is required for locked deposit recovery')
+        }
+        const lockServiceAddress = params.postDepositLock?.serviceAddress ?? serviceAddress
+        const lockAuthorization = params.postDepositLock
+          ? await createSignedDepositLockAuthorization({
+              walletClient,
+              userAddress: address as Address,
+              networkConfig,
+              tokenId: params.tokenId,
+              serviceAddress: requireServiceAddress(lockServiceAddress),
+              maxAmount: params.postDepositLock.maxAmount ?? params.amount,
+              minAmount: params.postDepositLock.minAmount,
+              lockDuration: params.postDepositLock.lockDuration,
+              authorizationDeadline: params.postDepositLock.authorizationDeadline,
+              intentId: params.postDepositLock.intentId,
+            })
+          : undefined
+        if (isStale()) return
+
         // 4. Send transfer to the deposit address (native or ERC-20)
         const hash =
           token.contract === zeroAddress
@@ -372,15 +406,21 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
           hash,
           chainId: sourceChain.id,
           amount: params.amount,
+          lockAuthorization,
         }
         verificationContextRef.current = ctx
-        savePendingDeposit(address, {
-          txHash: hash,
-          chainId: sourceChain.id,
-          amount: params.amount.toString(),
-          depositAddress: addrResponse,
-          savedAt: Date.now(),
-        })
+        try {
+          savePendingDeposit(address, {
+            txHash: hash,
+            chainId: sourceChain.id,
+            amount: params.amount.toString(),
+            depositAddress: addrResponse,
+            lockAuthorization,
+            savedAt: Date.now(),
+          })
+        } catch (err) {
+          console.warn('Failed to persist pending deposit after transfer broadcast:', err)
+        }
 
         try {
           // 5. Wait for on-chain confirmation
@@ -430,7 +470,9 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
       confirmations,
       enabledTokens,
       ensureCorrectChain,
+      networkConfig,
       queryClient,
+      serviceAddress,
       writeContractAsync,
       sendTransactionAsync,
       reset,
@@ -478,4 +520,11 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     retryVerification,
     reset,
   }
+}
+
+function requireServiceAddress(serviceAddress: Address | undefined): Address {
+  if (!serviceAddress) {
+    throw new Error('Service address not configured')
+  }
+  return serviceAddress
 }
