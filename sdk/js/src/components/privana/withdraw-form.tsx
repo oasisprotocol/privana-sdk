@@ -16,7 +16,7 @@ import {
   type Step,
 } from './transaction-steps'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
-import { getExplorerAddressUrl } from '@/sdk/types/chains'
+import { getExplorerAddressUrl, getExplorerLabel } from '@/sdk/types/chains'
 
 interface WithdrawFormProps {
   selectedToken: TokenConfig
@@ -147,7 +147,7 @@ export function WithdrawForm({
         title="Withdrawal Complete"
         message={`Your ${selectedToken.symbol} withdrawal has been processed. Funds should appear in your wallet shortly.`}
         explorerUrl={explorerUrl}
-        explorerLabel="View on BaseScan"
+        explorerLabel={targetChain ? getExplorerLabel(targetChain.id) : undefined}
         onDone={handleDone}
       />
     )

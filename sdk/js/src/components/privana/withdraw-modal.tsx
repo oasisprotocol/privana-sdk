@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { useAccount } from 'wagmi'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import type { TokenConfig } from '@/sdk/types/tokens'
-import { getExplorerAddressUrl } from '@/sdk/types/chains'
+import { getExplorerAddressUrl, getExplorerLabel } from '@/sdk/types/chains'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useBalance, useWithdraw } from '@/sdk/hooks'
 import type { WithdrawStep } from '@/sdk/hooks'
@@ -146,7 +146,7 @@ function WithdrawView({
           title="Withdrawal Complete"
           message={`Your ${selectedToken.symbol} withdrawal has been processed. Funds should appear in your wallet shortly.`}
           explorerUrl={explorerUrl}
-          explorerLabel="View on BaseScan"
+          explorerLabel={targetChain ? getExplorerLabel(targetChain.id) : undefined}
           onDone={handleDone}
         />
       </div>
