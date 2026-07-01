@@ -9,7 +9,10 @@
  */
 const MOONPAY_CURRENCY_CODES: Record<string, string> = {
   'USDC:8453': 'usdc_base', // Base mainnet
-  'USDC:84532': 'usdc_base_sepolia', // Base Sepolia (sandbox)
+  // MoonPay sandbox blocks the network-specific `usdc_base_sepolia` in some regions,
+  // so testnet uses the generic `usdc` code (what the /on-ramp preview signs with).
+  // The value must also be present in the backend's MOONPAY_ALLOWED_CURRENCY_CODES.
+  'USDC:84532': 'usdc', // Base Sepolia (sandbox)
 }
 
 export function resolveMoonpayCurrencyCode(symbol: string, chainId: number): string | undefined {

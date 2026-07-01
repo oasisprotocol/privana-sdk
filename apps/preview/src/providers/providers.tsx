@@ -4,6 +4,7 @@ import { useState, type ReactNode } from 'react'
 import { WagmiProvider } from 'wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RainbowKitProvider, darkTheme, lightTheme } from '@rainbow-me/rainbowkit'
+import { MoonPayProvider } from '@moonpay/moonpay-react'
 import { wagmiConfig } from './wagmi-config'
 import { PrivanaProvider, NETWORK_CONFIG, type Network } from '@oasisprotocol/privana-sdk'
 import { ThemeProvider, useTheme } from './theme-provider'
@@ -43,6 +44,7 @@ function RainbowKitWrapper({ children }: { children: ReactNode }) {
 
 export function Providers({ children, network = 'testnet' }: ProvidersProps) {
   const apiUrl = process.env.NEXT_PUBLIC_PRIVANA_API_URL?.trim() || NETWORK_CONFIG[network].apiUrl
+  const moonpayApiKey = process.env.NEXT_PUBLIC_MOONPAY_API_KEY?.trim()
   const hostedAuthClientId = process.env.NEXT_PUBLIC_PRIVANA_HOSTED_AUTH_CLIENT_ID?.trim()
   const hostedAuthRedirectUri = process.env.NEXT_PUBLIC_PRIVANA_HOSTED_AUTH_REDIRECT_URI?.trim()
   const [queryClient] = useState(
@@ -79,7 +81,13 @@ export function Providers({ children, network = 'testnet' }: ProvidersProps) {
                   : undefined
               }
             >
-              {children}
+              {moonpayApiKey ? (
+                <MoonPayProvider apiKey={moonpayApiKey} debug>
+                  {children}
+                </MoonPayProvider>
+              ) : (
+                children
+              )}
             </PrivanaProvider>
           </RainbowKitWrapper>
         </QueryClientProvider>
