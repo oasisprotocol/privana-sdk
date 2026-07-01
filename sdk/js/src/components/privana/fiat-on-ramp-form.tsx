@@ -93,6 +93,7 @@ export function FiatOnRampForm({
     handleTransactionCompleted,
     finishPendingVerification,
     handleWidgetClosed,
+    refreshPending,
   } = useFiatOnRamp({ tokenId, onCredited, onError, onDebugEvent })
 
   const decimals = selectedToken?.decimals
@@ -129,6 +130,8 @@ export function FiatOnRampForm({
   const isBelowMin = minFiatGate !== undefined && Number(defaultBaseCurrencyAmount) < minFiatGate
   const isBusy = isPreparing || status === 'awaiting-purchase'
   const isInitializing = !!address && !depositAddress
+  const isPrePurchase = status === 'idle' || status === 'awaiting-purchase'
+  const isVerifying = status === 'awaiting-delivery' || status === 'verifying'
   const blockReasons = useMemo(
     () =>
       [
@@ -226,10 +229,21 @@ export function FiatOnRampForm({
     void handleOpen()
   }, [autoStart, canBuy, handleOpen])
 
+  // The embedded widget doesn't self-close on completion (the overlay does, which
+  // is what surfaces the finality/verification status). Once the purchase settles,
+  // hide it and refresh so the pending/finality UI takes over.
+  useEffect(() => {
+    if (variant !== 'embedded' || !visible) return
+    if (isVerifying || status === 'credited') {
+      setVisible(false)
+      void refreshPending()
+    }
+  }, [variant, visible, isVerifying, status, refreshPending])
+
   return (
     <div data-privana className="flex flex-col gap-4">
       {autoStart ? (
-        !visible && <Skeleton className="h-[656px] w-full rounded-md" />
+        !visible && isPrePurchase && <Skeleton className="h-[656px] w-full rounded-md" />
       ) : isInitializing ? (
         <Skeleton className="h-9 w-full rounded-md" />
       ) : (
@@ -251,8 +265,15 @@ export function FiatOnRampForm({
         </p>
       )}
 
+      {isVerifying && pending.length === 0 && (
+        <p className="text-muted-foreground flex items-center gap-2 text-sm">
+          <Loader2 className="size-4 animate-spin" aria-hidden />
+          Verifying your purchase…
+        </p>
+      )}
+
       {pending.length > 0 && (
-        <div className="flex flex-col gap-2 rounded-md border p-3">
+        <div className="flex flex-col gap-2">
           <p className="text-sm font-medium">Pending payments</p>
           {pending.map((record) => {
             const progress = parseFinalityProgress(finalityProgress[record.transaction_id])
