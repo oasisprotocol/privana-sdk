@@ -27,7 +27,7 @@ import { PrivanaIcon } from './privana-icon'
 
 type DepositMethodTab = 'crypto' | 'credit-card'
 
-export type DepositSource = 'connected' | 'external'
+export type DepositSource = 'connected' | 'external' | 'credit-card'
 
 type DepositView = 'method' | 'deposit' | 'select-token' | 'external-deposit'
 
@@ -208,6 +208,7 @@ function DepositView({
   const targetChain = chain ?? chains[0]
   const sourceLabel = source === 'connected' ? 'Connected Wallet' : 'External Wallet'
   const isConnectedSource = source === 'connected'
+  const isCreditCard = source === 'credit-card'
   const isNative = selectedToken?.contract === zeroAddress
   const { data: nativeBalanceData } = useBalance({
     address,
@@ -253,9 +254,20 @@ function DepositView({
 
   return (
     <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
-      <h2 className="text-foreground text-[28px] leading-8 font-medium">
-        Deposit from {sourceLabel}
-      </h2>
+      {isCreditCard ? (
+        <div className="flex flex-col gap-2">
+          <h2 className="text-foreground text-[28px] leading-8 font-medium">
+            Buy with credit card and deposit
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            Enter your deposit amount and proceed to sign a policy.
+          </p>
+        </div>
+      ) : (
+        <h2 className="text-foreground text-[28px] leading-8 font-medium">
+          Deposit from {sourceLabel}
+        </h2>
+      )}
 
       <div className="flex flex-col gap-3">
         <label className="text-muted-foreground text-sm">Token</label>
@@ -496,6 +508,10 @@ function DepositModalContent({
       setView('external-deposit')
       return
     }
+    if (args.source === 'credit-card') {
+      console.log('TODO', args)
+      return
+    }
     onDeposit?.(args)
   }
 
@@ -546,9 +562,15 @@ function DepositModalContent({
         <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
           <div className="flex flex-col gap-2">
             <h2 className="text-foreground text-[28px] leading-8 font-medium">
-              Choose the deposit method
+              {activeTab === 'crypto'
+                ? 'Choose the deposit method'
+                : 'Buy with credit card and deposit'}
             </h2>
-            <p className="text-muted-foreground text-sm">Choose the deposit method.</p>
+            <p className="text-muted-foreground text-sm">
+              {activeTab === 'crypto'
+                ? 'Choose the deposit method.'
+                : 'Use credit card to buy crypto and deposit'}
+            </p>
           </div>
 
           <MethodTabs activeTab={activeTab} onTabChange={setActiveTab} />
@@ -576,8 +598,11 @@ function DepositModalContent({
             <div className="flex flex-col gap-3">
               <MethodOption
                 title="Moonpay"
-                description="Buy crypto with a card."
-                onClick={onSelectCreditCard}
+                description="on selected address"
+                onClick={() => {
+                  onSelectCreditCard?.()
+                  openDeposit('credit-card')
+                }}
               />
             </div>
           )}
