@@ -460,13 +460,6 @@ interface DepositMethodHandlers {
   defaultTab?: DepositMethodTab
   /** Allowance (shown as a "policy") the host service requests. */
   allowance?: Allowance
-  /**
-   * MoonPay-specific currency identifier for the credit-card flow, e.g. 'usdc_base'
-   * (prod) or 'usdc_base_sepolia' (sandbox) — NOT a plain symbol like 'usdc'.
-   * MoonPay maintains the canonical list at /v3/currencies. Required to render the
-   * embedded MoonPay widget after "Sign Policy and Deposit".
-   */
-  moonpayCurrencyCode?: string
   onSelectConnectedWallet?: () => void
   onSelectExternalWallet?: () => void
   onSelectCreditCard?: () => void
@@ -477,7 +470,6 @@ interface DepositMethodHandlers {
 function DepositModalContent({
   defaultTab = 'crypto',
   allowance,
-  moonpayCurrencyCode,
   onSelectConnectedWallet,
   onSelectExternalWallet,
   onSelectCreditCard,
@@ -648,11 +640,7 @@ function DepositModalContent({
       {view === 'external-deposit' && <ExternalDepositView token={selectedToken} amount={amount} />}
 
       {view === 'credit-card-widget' && (
-        <CreditCardWidgetView
-          token={selectedToken}
-          amount={amount}
-          moonpayCurrencyCode={moonpayCurrencyCode}
-        />
+        <CreditCardWidgetView token={selectedToken} amount={amount} />
       )}
     </>
   )

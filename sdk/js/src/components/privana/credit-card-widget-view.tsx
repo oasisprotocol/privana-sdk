@@ -6,12 +6,12 @@ import { FiatOnRampForm } from './fiat-on-ramp-form'
 export function CreditCardWidgetView({
   token,
   amount,
-  moonpayCurrencyCode,
 }: {
   token: TokenConfig | undefined
   amount: string
-  moonpayCurrencyCode?: string
 }) {
+  const moonpayCurrencyCode = token?.moonpayCurrencyCode
+
   return (
     <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
       <h2 className="text-foreground text-[28px] leading-8 font-medium">Complete your purchase</h2>
@@ -24,7 +24,7 @@ export function CreditCardWidgetView({
         />
       ) : (
         <p className="text-muted-foreground text-sm">
-          MoonPay is not configured. Provide a `moonpayCurrencyCode` to enable card purchases.
+          {token?.symbol ?? 'This token'} isn’t available for card purchases yet.
         </p>
       )}
     </div>
