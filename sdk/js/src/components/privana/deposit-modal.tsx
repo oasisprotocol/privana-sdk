@@ -13,6 +13,7 @@ import { useDepositAddress } from '@/sdk/hooks'
 import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
 import { getTokenIcon } from './token-icons'
 import { TokenSelectorView } from './token-selector-view'
+import { CreditCardWidgetView } from './credit-card-widget-view'
 import {
   CloseIcon,
   ChevronRightIcon,
@@ -29,7 +30,7 @@ type DepositMethodTab = 'crypto' | 'credit-card'
 
 export type DepositSource = 'connected' | 'external' | 'credit-card'
 
-type DepositView = 'method' | 'deposit' | 'select-token' | 'external-deposit'
+type DepositView = 'method' | 'deposit' | 'select-token' | 'external-deposit' | 'credit-card-widget'
 
 function MethodTabs({
   activeTab,
@@ -459,6 +460,13 @@ interface DepositMethodHandlers {
   defaultTab?: DepositMethodTab
   /** Allowance (shown as a "policy") the host service requests. */
   allowance?: Allowance
+  /**
+   * MoonPay-specific currency identifier for the credit-card flow, e.g. 'usdc_base'
+   * (prod) or 'usdc_base_sepolia' (sandbox) — NOT a plain symbol like 'usdc'.
+   * MoonPay maintains the canonical list at /v3/currencies. Required to render the
+   * embedded MoonPay widget after "Sign Policy and Deposit".
+   */
+  moonpayCurrencyCode?: string
   onSelectConnectedWallet?: () => void
   onSelectExternalWallet?: () => void
   onSelectCreditCard?: () => void
@@ -469,6 +477,7 @@ interface DepositMethodHandlers {
 function DepositModalContent({
   defaultTab = 'crypto',
   allowance,
+  moonpayCurrencyCode,
   onSelectConnectedWallet,
   onSelectExternalWallet,
   onSelectCreditCard,
@@ -509,7 +518,10 @@ function DepositModalContent({
       return
     }
     if (args.source === 'credit-card') {
-      console.log('TODO', args)
+      // TODO: sign the DepositLockAuthorization (maxAmount=allowance.value, minAmount,
+      // lockDuration) via useFiatOnRamp's postDepositLock once the deposit-lock-authorization branch lands.
+      console.log('TODO: sign policy and deposit', { ...args, allowance })
+      setView('credit-card-widget')
       return
     }
     onDeposit?.(args)
@@ -518,9 +530,11 @@ function DepositModalContent({
   const back =
     view === 'external-deposit'
       ? { to: 'deposit' as const, label: 'Deposit from External Wallet' }
-      : view === 'select-token'
-        ? { to: 'deposit' as const, label: 'Deposit' }
-        : { to: 'method' as const, label: 'Deposit Method' }
+      : view === 'credit-card-widget'
+        ? { to: 'deposit' as const, label: 'Buy with credit card and deposit' }
+        : view === 'select-token'
+          ? { to: 'deposit' as const, label: 'Deposit' }
+          : { to: 'method' as const, label: 'Deposit Method' }
 
   const goBack = () => {
     if (back.to === 'method') {
@@ -632,6 +646,14 @@ function DepositModalContent({
       )}
 
       {view === 'external-deposit' && <ExternalDepositView token={selectedToken} amount={amount} />}
+
+      {view === 'credit-card-widget' && (
+        <CreditCardWidgetView
+          token={selectedToken}
+          amount={amount}
+          moonpayCurrencyCode={moonpayCurrencyCode}
+        />
+      )}
     </>
   )
 }
