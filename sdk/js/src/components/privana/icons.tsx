@@ -47,12 +47,10 @@ export function ChevronLeftIcon() {
 }
 
 export function ChevronDownIcon({
-  collapsed,
-  up,
+  direction = 'down',
   className,
 }: {
-  collapsed?: boolean
-  up?: boolean
+  direction?: 'up' | 'right' | 'down'
   className?: string
 }) {
   return (
@@ -63,8 +61,8 @@ export function ChevronDownIcon({
       fill="none"
       className={cn(
         'transition-transform',
-        collapsed && '-rotate-90',
-        up && 'rotate-180',
+        direction === 'right' && '-rotate-90',
+        direction === 'up' && 'rotate-180',
         className
       )}
     >

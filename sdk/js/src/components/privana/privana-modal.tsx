@@ -244,7 +244,9 @@ function LockedFundsView({ onBack }: { onBack: () => void }) {
                   className="text-muted-foreground hover:bg-secondary flex w-full cursor-pointer items-center justify-between rounded-lg px-4 py-4 transition-colors"
                 >
                   <span className="text-sm">{section.title}</span>
-                  <ChevronDownIcon collapsed={collapsedSections[section.title]} />
+                  <ChevronDownIcon
+                    direction={collapsedSections[section.title] ? 'right' : 'down'}
+                  />
                 </button>
 
                 {!collapsedSections[section.title] &&

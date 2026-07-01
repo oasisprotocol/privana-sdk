@@ -174,7 +174,10 @@ function AllowancePolicySection({
             <span className="text-muted-foreground text-[10px] leading-[14px] font-medium tracking-[0.2px] whitespace-nowrap uppercase">
               {collapsed ? 'Show details' : 'Hide details'}
             </span>
-            <ChevronDownIcon up={!collapsed} className="text-foreground shrink-0" />
+            <ChevronDownIcon
+              direction={collapsed ? 'down' : 'up'}
+              className="text-foreground shrink-0"
+            />
             <span className="bg-border h-px flex-1" />
           </button>
 
