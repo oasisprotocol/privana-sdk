@@ -1,18 +1,29 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useAccount, useBalance, useReadContract } from 'wagmi'
 import { erc20Abi, zeroAddress } from 'viem'
 import { QRCodeSVG } from 'qrcode.react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { TokenConfig } from '@/sdk/types/tokens'
+import type { Allowance, AllowanceTerm } from '@/sdk/types/allowance'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useDepositAddress } from '@/sdk/hooks'
 import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
 import { getTokenIcon } from './token-icons'
 import { TokenSelectorView } from './token-selector-view'
-import { CloseIcon, ChevronRightIcon, ChevronLeftIcon, CopyIcon } from './icons'
+import {
+  CloseIcon,
+  ChevronRightIcon,
+  ChevronLeftIcon,
+  ChevronDownIcon,
+  CopyIcon,
+  CircleCheckIcon,
+  CircleXIcon,
+  ArrowRightIcon,
+} from './icons'
+import { PrivanaIcon } from './privana-icon'
 
 type DepositMethodTab = 'crypto' | 'credit-card'
 
@@ -85,10 +96,99 @@ function MethodOption({
   )
 }
 
+function PolicyTermRow({
+  term,
+  kind,
+}: {
+  term: AllowanceTerm
+  kind: 'permission' | 'restriction'
+}) {
+  return (
+    <div className="flex gap-2">
+      <div
+        className={cn(
+          'mt-0.5 shrink-0',
+          kind === 'permission' ? 'text-emerald-500' : 'text-orange-500'
+        )}
+      >
+        {kind === 'permission' ? <CircleCheckIcon /> : <CircleXIcon />}
+      </div>
+      <div className="flex flex-col gap-1">
+        <span className="text-foreground text-sm leading-5 font-medium">{term.title}</span>
+        <span className="text-muted-foreground text-sm leading-5">{term.description}</span>
+      </div>
+    </div>
+  )
+}
+
+function AllowancePolicySection({
+  allowance,
+  serviceName,
+  serviceIcon,
+}: {
+  allowance: Allowance
+  serviceName: string
+  serviceIcon?: ReactNode
+}) {
+  const [collapsed, setCollapsed] = useState(false)
+  const permissions = allowance.terms?.permissions ?? []
+  const restrictions = allowance.terms?.restrictions ?? []
+  const hasTerms = permissions.length > 0 || restrictions.length > 0
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-4">
+        <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg">
+          {serviceIcon}
+        </div>
+        <ArrowRightIcon className="text-muted-foreground" />
+        <PrivanaIcon size={32} />
+      </div>
+
+      <p className="text-sm leading-5">
+        <span className="text-foreground font-medium">{serviceName}</span>{' '}
+        <span className="text-muted-foreground">wants a policy on your Privana account.</span>
+      </p>
+
+      {hasTerms && (
+        <>
+          <button
+            type="button"
+            onClick={() => setCollapsed((prev) => !prev)}
+            className="flex w-full cursor-pointer items-center gap-2"
+          >
+            <span className="bg-border h-px flex-1" />
+            <span className="text-muted-foreground text-[10px] leading-[14px] font-medium tracking-[0.2px] whitespace-nowrap uppercase">
+              {collapsed ? 'Show details' : 'Hide details'}
+            </span>
+            <ChevronDownIcon
+              direction={collapsed ? 'down' : 'up'}
+              className="text-foreground shrink-0"
+            />
+            <span className="bg-border h-px flex-1" />
+          </button>
+
+          {!collapsed && (
+            <div className="flex flex-col gap-4">
+              {permissions.map((term, i) => (
+                <PolicyTermRow key={`permission-${i}`} term={term} kind="permission" />
+              ))}
+              {restrictions.map((term, i) => (
+                <PolicyTermRow key={`restriction-${i}`} term={term} kind="restriction" />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 function DepositView({
   source,
   selectedToken,
   amount,
+  allowance,
   onAmountChange,
   onSelectToken,
   onSubmit,
@@ -96,12 +196,14 @@ function DepositView({
   source: DepositSource
   selectedToken: TokenConfig | undefined
   amount: string
+  allowance?: Allowance
   onAmountChange: (value: string) => void
   onSelectToken: () => void
   onSubmit?: (args: { source: DepositSource; tokenId: string; amount: string }) => void
 }) {
-  const { getChainById, chains } = usePrivanaContext()
+  const { getChainById, chains, serviceName, serviceIcon } = usePrivanaContext()
   const { address, isConnected } = useAccount()
+  const appName = serviceName ?? 'Privana'
   const chain = selectedToken ? getChainById(selectedToken.chainId) : undefined
   const targetChain = chain ?? chains[0]
   const sourceLabel = source === 'connected' ? 'Connected Wallet' : 'External Wallet'
@@ -229,7 +331,13 @@ function DepositView({
         {exceedsBalance && <p className="text-destructive text-sm">Insufficient balance</p>}
       </div>
 
-      {/* TODO: policy section (honoroll casino) goes here */}
+      {allowance && (
+        <AllowancePolicySection
+          allowance={allowance}
+          serviceName={appName}
+          serviceIcon={serviceIcon}
+        />
+      )}
 
       <button
         type="button"
@@ -237,7 +345,7 @@ function DepositView({
         onClick={() => selectedToken && onSubmit?.({ source, tokenId: selectedToken.id, amount })}
         className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {needsConnect ? 'Connect Wallet' : 'Deposit'}
+        {needsConnect ? 'Connect Wallet' : allowance ? 'Sign Policy and Deposit' : 'Deposit'}
       </button>
     </div>
   )
@@ -337,6 +445,8 @@ function ExternalDepositView({
 
 interface DepositMethodHandlers {
   defaultTab?: DepositMethodTab
+  /** Allowance (shown as a "policy") the host service requests. */
+  allowance?: Allowance
   onSelectConnectedWallet?: () => void
   onSelectExternalWallet?: () => void
   onSelectCreditCard?: () => void
@@ -346,6 +456,7 @@ interface DepositMethodHandlers {
 
 function DepositModalContent({
   defaultTab = 'crypto',
+  allowance,
   onSelectConnectedWallet,
   onSelectExternalWallet,
   onSelectCreditCard,
@@ -478,6 +589,7 @@ function DepositModalContent({
           source={source}
           selectedToken={selectedToken}
           amount={amount}
+          allowance={allowance}
           onAmountChange={setAmount}
           onSelectToken={() => setView('select-token')}
           onSubmit={handleSubmit}

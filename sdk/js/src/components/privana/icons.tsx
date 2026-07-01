@@ -46,21 +46,32 @@ export function ChevronLeftIcon() {
   )
 }
 
-export function ChevronDownIcon({ collapsed }: { collapsed?: boolean }) {
+export function ChevronDownIcon({
+  direction = 'down',
+  className,
+}: {
+  direction?: 'up' | 'right' | 'down'
+  className?: string
+}) {
   return (
     <svg
-      width="12"
-      height="6"
-      viewBox="0 0 12 6"
-      className={cn('transition-transform', collapsed && '-rotate-90')}
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      className={cn(
+        'transition-transform',
+        direction === 'right' && '-rotate-90',
+        direction === 'up' && 'rotate-180',
+        className
+      )}
     >
       <path
-        d="M0 0l6 6 6-6"
+        d="M4 6l4 4 4-4"
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
-        fill="none"
       />
     </svg>
   )
@@ -80,6 +91,50 @@ export function CopyIcon() {
     >
       <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  )
+}
+
+export function CircleCheckIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <circle cx="10" cy="10" r="9" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M6 10l2.5 2.5L14 7.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+export function CircleXIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <circle cx="10" cy="10" r="9" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M7 7l6 6M13 7l-6 6"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+export function ArrowRightIcon({ className }: { className?: string }) {
+  return (
+    <svg width="24" height="8" viewBox="0 0 24 8" fill="none" className={className}>
+      <path
+        d="M0 4h22m0 0l-4-4m4 4l-4 4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
