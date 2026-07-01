@@ -7,6 +7,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { TokenConfig } from '@/sdk/types/tokens'
+import type { Allowance, AllowanceTerm } from '@/sdk/types/allowance'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useDepositAddress } from '@/sdk/hooks'
 import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
@@ -29,20 +30,6 @@ type DepositMethodTab = 'crypto' | 'credit-card'
 export type DepositSource = 'connected' | 'external'
 
 type DepositView = 'method' | 'deposit' | 'select-token' | 'external-deposit'
-
-export interface AllowanceTerm {
-  title: string
-  description: string
-}
-
-export interface Allowance {
-  /**  Requested allowance amount in the token's base units. */
-  value: string
-  terms?: {
-    permissions?: AllowanceTerm[]
-    restrictions?: AllowanceTerm[]
-  }
-}
 
 function MethodTabs({
   activeTab,

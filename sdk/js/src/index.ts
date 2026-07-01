@@ -14,8 +14,6 @@ export type {
   DepositModalProps,
   DepositInlineModalProps,
   DepositSource,
-  Allowance,
-  AllowanceTerm,
 } from './components/privana/deposit-modal'
 
 export { WithdrawModal, WithdrawInlineModal } from './components/privana/withdraw-modal'

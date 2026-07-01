@@ -1,4 +1,5 @@
 export * from './common'
+export * from './allowance'
 export * from './auth'
 export * from './tokens'
 export * from './chains'
