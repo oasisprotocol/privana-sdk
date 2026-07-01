@@ -10,6 +10,7 @@ import type { TokenConfig } from '@/sdk/types/tokens'
 import type { Allowance, AllowanceTerm } from '@/sdk/types/allowance'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useDepositAddress } from '@/sdk/hooks'
+import { useMoonpayLimits } from '@/sdk/hooks/use-moonpay-limits'
 import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
 import { getTokenIcon } from './token-icons'
 import { TokenSelectorView } from './token-selector-view'
@@ -230,6 +231,14 @@ function DepositView({
       ? formatTokenAmount(walletBalance.toString(), selectedToken.decimals)
       : '0.00'
 
+  // The credit-card amount is a fiat value (MoonPay's baseCurrencyAmount); gate it
+  // against MoonPay's minimum here so the user can't sign the policy for an amount
+  // MoonPay would reject once the widget opens.
+  const { minBuyAmount: moonpayMinBuy } = useMoonpayLimits({
+    currencyCode: selectedToken?.moonpayCurrencyCode,
+    enabled: isCreditCard,
+  })
+
   const hasValidAmount = !!amount && parseFloat(amount) > 0
   const tooManyDecimals =
     !!hasValidAmount &&
@@ -243,10 +252,17 @@ function DepositView({
     !!selectedToken &&
     walletBalance != null &&
     parseTokenAmount(amount, selectedToken.decimals) > walletBalance
+  const belowMoonpayMin =
+    isCreditCard && hasValidAmount && moonpayMinBuy != null && parseFloat(amount) < moonpayMinBuy
   const needsConnect = isConnectedSource && !isConnected
 
   const canDeposit =
-    hasValidAmount && !!selectedToken && !tooManyDecimals && !exceedsBalance && !needsConnect
+    hasValidAmount &&
+    !!selectedToken &&
+    !tooManyDecimals &&
+    !exceedsBalance &&
+    !belowMoonpayMin &&
+    !needsConnect
 
   const handleMax = () => {
     const max = formattedWalletBalance.replace(/\s/g, '')
@@ -342,6 +358,9 @@ function DepositView({
           </p>
         )}
         {exceedsBalance && <p className="text-destructive text-sm">Insufficient balance</p>}
+        {belowMoonpayMin && moonpayMinBuy != null && (
+          <p className="text-destructive text-sm">Minimum purchase is ${moonpayMinBuy}.</p>
+        )}
       </div>
 
       {allowance && (
