@@ -21,6 +21,7 @@ export function CreditCardWidgetView({
           currencyCode={moonpayCurrencyCode}
           defaultBaseCurrencyAmount={amount || undefined}
           variant="embedded"
+          autoStart
         />
       ) : (
         <p className="text-muted-foreground text-sm">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { formatUnits } from 'viem'
 import { useAccount } from 'wagmi'
@@ -38,6 +38,10 @@ export interface FiatOnRampFormProps {
    */
   variant?: 'overlay' | 'embedded'
   /**
+   * Prepare on-ramp intent and mount widget automatically on load. Intended for flows where the purchase was already confirmed.
+   */
+  autoStart?: boolean
+  /**
    * When true, the user cannot edit the fiat amount inside MoonPay.
    * Requires `defaultBaseCurrencyAmount` to take effect — MoonPay silently
    * skips this when no amount is set.
@@ -62,6 +66,7 @@ export function FiatOnRampForm({
   themeId,
   colorCode,
   variant = 'overlay',
+  autoStart = false,
   lockAmount,
   paymentMethod,
   onCredited,
@@ -214,9 +219,18 @@ export function FiatOnRampForm({
     emitFormDebug('moonpay:onReady')
   }, [emitFormDebug])
 
+  const autoStartedRef = useRef(false)
+  useEffect(() => {
+    if (!autoStart || autoStartedRef.current || !canBuy) return
+    autoStartedRef.current = true
+    void handleOpen()
+  }, [autoStart, canBuy, handleOpen])
+
   return (
     <div data-privana className="flex flex-col gap-4">
-      {isInitializing ? (
+      {autoStart ? (
+        !visible && <Skeleton className="h-[656px] w-full rounded-md" />
+      ) : isInitializing ? (
         <Skeleton className="h-9 w-full rounded-md" />
       ) : (
         <Button type="button" onClick={handleOpen} disabled={!canBuy}>
