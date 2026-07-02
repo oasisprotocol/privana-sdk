@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2 } from 'lucide-react'
+import { CircleCheckIcon, Loader2 } from 'lucide-react'
 import { formatUnits } from 'viem'
 import { useAccount } from 'wagmi'
 import { MoonPayBuyWidget } from '@moonpay/moonpay-react'
@@ -82,6 +82,7 @@ export function FiatOnRampForm({
     status,
     activeIntentId,
     pending,
+    activeVerificationId,
     error,
     finalityProgress,
     depositAddress,
@@ -328,7 +329,9 @@ export function FiatOnRampForm({
             const progress = parseFinalityProgress(finalityProgress[record.transaction_id])
             const hasProgress = !!finalityProgress[record.transaction_id]
             const isStalled = !hasProgress && Date.now() / 1000 - (record.updated_at ?? 0) > 60
-            const showRetry = rowError?.id === record.transaction_id || isStalled
+            const isActivelyVerifying = record.transaction_id === activeVerificationId
+            const showRetry =
+              rowError?.id === record.transaction_id || (isStalled && !isActivelyVerifying)
             return (
               <div
                 key={record.transaction_id}
@@ -369,6 +372,16 @@ export function FiatOnRampForm({
               </div>
             )
           })}
+        </div>
+      )}
+
+      {status === 'credited' && (
+        <div className="flex flex-col items-center gap-2 py-8 text-center">
+          <CircleCheckIcon className="text-primary size-8" aria-hidden />
+          <p className="text-sm font-medium">Purchase credited</p>
+          <p className="text-muted-foreground text-sm">
+            Your {displaySymbol} deposit is now available in your balance.
+          </p>
         </div>
       )}
 

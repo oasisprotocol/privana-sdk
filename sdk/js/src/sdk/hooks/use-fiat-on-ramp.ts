@@ -75,6 +75,12 @@ export interface UseFiatOnRampResult {
   activeIntentId: string | null
   /** Completed on-ramps that still need Privana verification. */
   pending: OnRampRecord[]
+  /**
+   * `transaction_id` of the pending row currently going through verification
+   * (receipt fetch → checkDeposit → status polling), or null when idle. Rows
+   * being actively verified shouldn't be offered a manual retry.
+   */
+  activeVerificationId: string | null
   error: Error | null
   /**
    * Per-row finality progress messages (e.g. "Insufficient finality: 4/32 confirmations
@@ -160,6 +166,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
   const [depositAddress, setDepositAddress] = useState<`0x${string}` | undefined>()
   const [minDepositBaseUnits, setMinDepositBaseUnits] = useState<bigint | undefined>()
   const [activeIntentId, setActiveIntentId] = useState<string | null>(null)
+  const [activeVerificationId, setActiveVerificationId] = useState<string | null>(null)
   const [finalityProgress, setFinalityProgress] = useState<Record<string, string>>({})
 
   const onCreditedRef = useRef(onCredited)
@@ -274,6 +281,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
     if (key) triggeredVerificationKeysRef.current.delete(key)
     activeVerificationKeyRef.current = null
     activeVerificationRecordRef.current = null
+    setActiveVerificationId(null)
   }, [])
 
   const { verify } = useDepositVerification({
@@ -326,12 +334,12 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
           emitDebug('onramp:mark-deposit-triggered-error', errorPayload(err))
           console.warn('Failed to mark on-ramp row complete:', err)
         } finally {
+          await refreshPending()
           clearActiveVerification()
           if (record && activeIntentIdRef.current === record.transaction_id) {
             activeIntentIdRef.current = null
             setActiveIntentId(null)
           }
-          void refreshPending()
         }
       })()
       onCreditedRef.current?.(depositTxHash)
@@ -551,6 +559,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
       triggeredVerificationKeysRef.current.add(verificationKey)
       activeVerificationKeyRef.current = verificationKey
       activeVerificationRecordRef.current = record
+      setActiveVerificationId(record.transaction_id)
       setFinalityProgress((prev) => {
         if (!(record.transaction_id in prev)) return prev
         const next = { ...prev }
@@ -626,6 +635,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         if (activeVerificationKeyRef.current === verificationKey) {
           activeVerificationKeyRef.current = null
           activeVerificationRecordRef.current = null
+          setActiveVerificationId(null)
         }
         throw err
       }
@@ -774,6 +784,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
     status,
     activeIntentId,
     pending,
+    activeVerificationId,
     error,
     finalityProgress,
     depositAddress,
