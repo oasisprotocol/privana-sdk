@@ -216,6 +216,7 @@ function DepositView({
   onSelectToken,
   onConnectWallet,
   onSubmit,
+  isSubmitting = false,
 }: {
   source: DepositSource
   selectedToken: TokenConfig | undefined
@@ -225,6 +226,7 @@ function DepositView({
   onSelectToken: () => void
   onConnectWallet?: () => void
   onSubmit: (args: { source: DepositSource; tokenId: string; amount: string }) => void
+  isSubmitting?: boolean
 }) {
   const { getChainById, chains, serviceName, serviceIcon, networkConfig } = usePrivanaContext()
   const { address, isConnected } = useAccount()
@@ -426,7 +428,7 @@ function DepositView({
 
       <button
         type="button"
-        disabled={needsConnect ? !onConnectWallet : !canDeposit}
+        disabled={needsConnect ? !onConnectWallet : !canDeposit || isSubmitting}
         onClick={() => {
           if (needsConnect) {
             onConnectWallet?.()
@@ -651,14 +653,14 @@ function DepositModalContent({
       setView('credit-card-widget')
       return
     }
-    onDeposit?.(args)
     const token = enabledTokens.find((t) => t.id === args.tokenId)
     if (!token) return
+    onDeposit?.(args)
     setCancelled(false)
     // TODO: once the deposit-lock-authorization branch lands, deposit() gains a
     // postDepositLock param that signs the DepositLockAuthorization (EIP-712)
     // before the transfer — pass the allowance as the policy:
-    // void deposit({
+    // deposit({
     //   tokenId: token.id,
     //   amount: parseTokenAmount(args.amount, token.decimals),
     //   postDepositLock: allowance
@@ -669,9 +671,11 @@ function DepositModalContent({
     //       }
     //     : undefined,
     // })
-    void deposit({
+    deposit({
       tokenId: token.id,
       amount: parseTokenAmount(args.amount, token.decimals),
+    }).catch((err: unknown) => {
+      toast.error(err instanceof Error ? err.message : 'Deposit failed')
     })
   }
 
@@ -903,6 +907,7 @@ function DepositModalContent({
             onSelectToken={() => setView('select-token')}
             onConnectWallet={onConnectWallet}
             onSubmit={handleSubmit}
+            isSubmitting={isPending}
           />
         </MoonPayGate>
       )}
