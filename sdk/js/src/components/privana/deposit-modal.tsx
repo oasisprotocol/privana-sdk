@@ -9,13 +9,21 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Skeleton } from '@/components/ui/skeleton'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import type { Allowance, AllowanceTerm } from '@/sdk/types/allowance'
+import { toast } from 'sonner'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
-import { useDepositAddress } from '@/sdk/hooks'
+import { useDeposit, useDepositAddress } from '@/sdk/hooks'
 import { useMoonpayLimits } from '@/sdk/hooks/use-moonpay-limits'
 import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
 import { getTokenIcon } from './token-icons'
 import { TokenSelectorView } from './token-selector-view'
 import { CreditCardWidgetView } from './credit-card-widget-view'
+import {
+  TransactionProgressView,
+  TransactionSuccessView,
+  TransactionWarningView,
+  TransactionErrorView,
+  type Step,
+} from './transaction-steps'
 import {
   CloseIcon,
   ChevronRightIcon,
@@ -518,6 +526,7 @@ interface DepositMethodHandlers {
   onSelectCreditCard?: () => void
   /** Called when the user confirms the amount on the deposit view. */
   onDeposit?: (args: { source: DepositSource; tokenId: string; amount: string }) => void
+  onDepositSuccess?: () => void
 }
 
 function DepositModalContent({
@@ -527,9 +536,15 @@ function DepositModalContent({
   onSelectExternalWallet,
   onSelectCreditCard,
   onDeposit,
+  onDepositSuccess,
   onClose,
-}: DepositMethodHandlers & { onClose?: () => void }) {
-  const { serviceName, enabledTokens, defaultToken, hostedAuthConfig } = usePrivanaContext()
+  onCloseBlockedChange,
+}: DepositMethodHandlers & {
+  onClose?: () => void
+  onCloseBlockedChange?: (blocked: boolean) => void
+}) {
+  const { serviceName, enabledTokens, defaultToken, hostedAuthConfig, getChainById } =
+    usePrivanaContext()
   const { address } = useAccount()
   const appName = serviceName ?? 'Privana'
   const [activeTab, setActiveTab] = useState<DepositMethodTab>(defaultTab)
@@ -557,6 +572,55 @@ function DepositModalContent({
     setView('deposit')
   }
 
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [showTimeout, setShowTimeout] = useState(false)
+  const [cancelled, setCancelled] = useState(false)
+
+  const {
+    txHash,
+    isGettingAddress,
+    isSwitchingChain,
+    isSendingTransaction,
+    isWaitingForConfirmation,
+    isWaitingForProcessing,
+    verificationFailed,
+    isPending,
+    error: depositError,
+    deposit,
+    retryVerification,
+    reset: resetDeposit,
+  } = useDeposit({
+    onCredited: () => {
+      setAmount('')
+      if (onDepositSuccess) {
+        resetDeposit()
+        onDepositSuccess()
+      } else {
+        setShowSuccess(true)
+      }
+    },
+    onCheckTimeout: () => {
+      setAmount('')
+      setShowTimeout(true)
+    },
+  })
+
+  const isUnsafeToClose = (isGettingAddress || isSendingTransaction) && !cancelled
+  useEffect(() => {
+    onCloseBlockedChange?.(isUnsafeToClose)
+  }, [isUnsafeToClose, onCloseBlockedChange])
+
+  useEffect(() => {
+    // Post-transfer verification errors get the dedicated error view below.
+    if (depositError && !verificationFailed) {
+      toast.error(
+        depositError.message.length > 100
+          ? `${depositError.message.slice(0, 100)}...`
+          : depositError.message
+      )
+    }
+  }, [depositError, verificationFailed])
+
   const handleSubmit = (args: { source: DepositSource; tokenId: string; amount: string }) => {
     if (args.source === 'external') {
       setView('external-deposit')
@@ -570,6 +634,84 @@ function DepositModalContent({
       return
     }
     onDeposit?.(args)
+    const token = enabledTokens.find((t) => t.id === args.tokenId)
+    if (!token) return
+    setCancelled(false)
+    void deposit({
+      tokenId: token.id,
+      amount: parseTokenAmount(args.amount, token.decimals),
+    })
+  }
+
+  const targetChain = selectedToken ? getChainById(selectedToken.chainId) : undefined
+  const explorerTxUrl =
+    txHash && targetChain?.explorerUrl ? `${targetChain.explorerUrl}/tx/${txHash}` : undefined
+  const depositSteps: Step[] = [
+    {
+      label: 'Getting deposit address',
+      status: isGettingAddress
+        ? 'active'
+        : isSwitchingChain ||
+            isSendingTransaction ||
+            isWaitingForConfirmation ||
+            isWaitingForProcessing
+          ? 'completed'
+          : 'pending',
+    },
+    {
+      label: `Switching to ${targetChain?.name ?? 'deposit chain'}`,
+      status: isSwitchingChain
+        ? 'active'
+        : isSendingTransaction || isWaitingForConfirmation || isWaitingForProcessing
+          ? 'completed'
+          : 'pending',
+    },
+    {
+      label: 'Confirm in wallet',
+      status: isSendingTransaction
+        ? 'active'
+        : isWaitingForConfirmation || isWaitingForProcessing
+          ? 'completed'
+          : 'pending',
+    },
+    {
+      label: 'Confirming transaction',
+      status: isWaitingForConfirmation
+        ? 'active'
+        : isWaitingForProcessing
+          ? 'completed'
+          : 'pending',
+    },
+    {
+      label: 'Verifying deposit — may take up to a few minutes',
+      status: isWaitingForProcessing ? 'active' : 'pending',
+    },
+  ]
+  const depositFlowActive =
+    showSuccess || showTimeout || verificationFailed || (isPending && !cancelled)
+
+  const handleDepositDone = () => {
+    setShowSuccess(false)
+    setShowTimeout(false)
+    setCancelled(false)
+    resetDeposit()
+  }
+
+  const handleDepositCancel = () => {
+    setCancelled(true)
+    resetDeposit()
+  }
+
+  const handleDismissVerificationError = () => {
+    setAmount('')
+    setCancelled(false)
+    resetDeposit()
+  }
+
+  const handleRetryVerification = () => {
+    retryVerification().catch(() => {
+      // Errors are already surfaced via the hook's error state and onError callback.
+    })
   }
 
   const back =
@@ -595,14 +737,64 @@ function DepositModalContent({
         <button
           data-privana-close
           onClick={onClose}
+          disabled={isUnsafeToClose}
           aria-label="Close"
-          className="text-muted-foreground hover:text-foreground absolute top-6 right-5 z-20 flex h-5 w-5 cursor-pointer items-center justify-center transition-colors"
+          className={cn(
+            'absolute top-6 right-5 z-20 flex h-5 w-5 items-center justify-center transition-colors',
+            isUnsafeToClose
+              ? 'text-muted-foreground/40 cursor-not-allowed'
+              : 'text-muted-foreground hover:text-foreground cursor-pointer'
+          )}
         >
           <CloseIcon />
         </button>
       )}
 
-      {view === 'method' ? (
+      {depositFlowActive ? (
+        <>
+          <div className="flex items-center px-5 py-4">
+            <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
+          </div>
+          <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
+            {showSuccess ? (
+              <TransactionSuccessView
+                title="Deposit Successful"
+                message={`Your ${selectedToken?.symbol ?? ''} deposit has been processed.`}
+                onDone={handleDepositDone}
+              />
+            ) : showTimeout ? (
+              <TransactionWarningView
+                title="Deposit Processing"
+                message="Your transaction was confirmed but the deposit is still being processed. Please check your balance - it should update shortly."
+                onDone={handleDepositDone}
+              />
+            ) : verificationFailed ? (
+              <TransactionErrorView
+                title="Verification failed"
+                message={
+                  depositError?.message
+                    ? `Your transfer was sent on-chain but we could not verify the deposit. The funds are already at the deposit address — retry verification instead of starting a new deposit. (${depositError.message})`
+                    : 'Your transfer was sent on-chain but we could not verify the deposit. The funds are already at the deposit address — retry verification instead of starting a new deposit.'
+                }
+                explorerUrl={explorerTxUrl}
+                explorerLabel="View transaction"
+                onRetry={handleRetryVerification}
+                onDismiss={handleDismissVerificationError}
+              />
+            ) : (
+              <TransactionProgressView
+                title="Depositing..."
+                steps={depositSteps}
+                // Only allow cancel before the transaction is confirmed (during
+                // address fetch / wallet signing).
+                onCancel={
+                  isGettingAddress || isSendingTransaction ? handleDepositCancel : undefined
+                }
+              />
+            )}
+          </div>
+        </>
+      ) : view === 'method' ? (
         <div className="flex items-center px-5 py-4">
           <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
         </div>
@@ -668,7 +860,7 @@ function DepositModalContent({
         </div>
       )}
 
-      {view === 'deposit' && (
+      {!depositFlowActive && view === 'deposit' && (
         <MoonPayGate enabled={source === 'credit-card'}>
           <DepositView
             source={source}
@@ -711,17 +903,24 @@ export interface DepositModalProps extends DepositMethodHandlers {
 export function DepositModal({ open, onClose, ...handlers }: DepositModalProps) {
   const titleId = useId()
   const descId = useId()
+  const [isCloseBlocked, setIsCloseBlocked] = useState(false)
+
+  const handleClose = () => {
+    if (!isCloseBlocked) onClose()
+  }
 
   return (
     <Dialog
       open={open}
       onOpenChange={(isOpen) => {
-        if (!isOpen) onClose()
+        if (!isOpen) handleClose()
       }}
     >
       <DialogContent
         data-privana
         showCloseButton={false}
+        onInteractOutside={isCloseBlocked ? (e) => e.preventDefault() : undefined}
+        onEscapeKeyDown={isCloseBlocked ? (e) => e.preventDefault() : undefined}
         className="bg-card flex w-[560px] max-w-[95vw] flex-col gap-2 rounded-2xl border-0 p-2"
         aria-labelledby={titleId}
         aria-describedby={descId}
@@ -732,7 +931,11 @@ export function DepositModal({ open, onClose, ...handlers }: DepositModalProps) 
         <DialogDescription id={descId} className="sr-only">
           Deposit funds into your account.
         </DialogDescription>
-        <DepositModalContent onClose={onClose} {...handlers} />
+        <DepositModalContent
+          onClose={handleClose}
+          onCloseBlockedChange={setIsCloseBlocked}
+          {...handlers}
+        />
       </DialogContent>
     </Dialog>
   )
