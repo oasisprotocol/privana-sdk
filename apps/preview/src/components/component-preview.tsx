@@ -17,6 +17,8 @@ import { PreviewLayout, SectionLabel } from './preview-layout'
 
 const demoAllowance: Allowance = {
   value: '1000000000',
+  minAmount: '0',
+  lockDuration: 86400,
   terms: {
     permissions: [
       {

@@ -22,6 +22,7 @@ import { HostedAuthRequiredError } from '../client'
 import type { Address, HostedAuthConfig, HostedAuthSession, NetworkConfig } from '../types'
 import { NETWORK_CONFIG, type TokenConfig } from '../types'
 import { SUPPORTED_CHAINS, type ChainConfig } from '../types/chains'
+import { resolveMoonpayCurrencyCode } from '../moonpay-currency-codes'
 import { SiweAuthProvider, type SiweAuthConfig } from './siwe-auth-provider'
 
 export type TokensStatus = 'loading' | 'ready' | 'error'
@@ -217,6 +218,7 @@ export function PrivanaProvider({
             contract: t.token_address ?? zeroAddress,
             name: t.name,
             chainId: t.chain_id,
+            moonpayCurrencyCode: resolveMoonpayCurrencyCode(t.token_id),
           }))
         )
         setTokensStatus('ready')

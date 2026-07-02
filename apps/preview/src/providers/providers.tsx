@@ -43,6 +43,7 @@ function RainbowKitWrapper({ children }: { children: ReactNode }) {
 
 export function Providers({ children, network = 'testnet' }: ProvidersProps) {
   const apiUrl = process.env.NEXT_PUBLIC_PRIVANA_API_URL?.trim() || NETWORK_CONFIG[network].apiUrl
+  const moonpayApiKey = process.env.NEXT_PUBLIC_MOONPAY_API_KEY?.trim()
   const hostedAuthClientId = process.env.NEXT_PUBLIC_PRIVANA_HOSTED_AUTH_CLIENT_ID?.trim()
   const hostedAuthRedirectUri = process.env.NEXT_PUBLIC_PRIVANA_HOSTED_AUTH_REDIRECT_URI?.trim()
   const [queryClient] = useState(
@@ -63,7 +64,7 @@ export function Providers({ children, network = 'testnet' }: ProvidersProps) {
         <QueryClientProvider client={queryClient}>
           <RainbowKitWrapper>
             <PrivanaProvider
-              networkConfig={{ ...NETWORK_CONFIG[network], apiUrl }}
+              networkConfig={{ ...NETWORK_CONFIG[network], apiUrl, moonpayApiKey }}
               serviceName="Honoroll Casino"
               serviceIcon={
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-black font-serif text-base font-bold text-orange-400">

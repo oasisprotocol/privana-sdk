@@ -4,15 +4,18 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useAccount, useBalance, useReadContract } from 'wagmi'
 import { erc20Abi, zeroAddress } from 'viem'
 import { QRCodeSVG } from 'qrcode.react'
+import { MoonPayProvider } from '@moonpay/moonpay-react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import type { Allowance, AllowanceTerm } from '@/sdk/types/allowance'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useDepositAddress } from '@/sdk/hooks'
+import { useMoonpayLimits } from '@/sdk/hooks/use-moonpay-limits'
 import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
 import { getTokenIcon } from './token-icons'
 import { TokenSelectorView } from './token-selector-view'
+import { CreditCardWidgetView } from './credit-card-widget-view'
 import {
   CloseIcon,
   ChevronRightIcon,
@@ -27,9 +30,21 @@ import { PrivanaIcon } from './privana-icon'
 
 type DepositMethodTab = 'crypto' | 'credit-card'
 
-export type DepositSource = 'connected' | 'external'
+// Mounting MoonPayProvider injects MoonPay's web-sdk script from their CDN, so
+// it wraps only the credit-card subtree instead of the app root — the other
+// deposit flows never pay that cost. Without `networkConfig.moonpayApiKey` the
+// children render bare and the credit-card flow stays fail-closed (purchase
+// limits never load, so the deposit button stays disabled).
+function MoonPayGate({ enabled, children }: { enabled: boolean; children: ReactNode }) {
+  const { networkConfig } = usePrivanaContext()
+  const apiKey = networkConfig.moonpayApiKey
+  if (!enabled || !apiKey) return <>{children}</>
+  return <MoonPayProvider apiKey={apiKey}>{children}</MoonPayProvider>
+}
 
-type DepositView = 'method' | 'deposit' | 'select-token' | 'external-deposit'
+export type DepositSource = 'connected' | 'external' | 'credit-card'
+
+type DepositView = 'method' | 'deposit' | 'select-token' | 'external-deposit' | 'credit-card-widget'
 
 function MethodTabs({
   activeTab,
@@ -201,13 +216,14 @@ function DepositView({
   onSelectToken: () => void
   onSubmit?: (args: { source: DepositSource; tokenId: string; amount: string }) => void
 }) {
-  const { getChainById, chains, serviceName, serviceIcon } = usePrivanaContext()
+  const { getChainById, chains, serviceName, serviceIcon, networkConfig } = usePrivanaContext()
   const { address, isConnected } = useAccount()
   const appName = serviceName ?? 'Privana'
   const chain = selectedToken ? getChainById(selectedToken.chainId) : undefined
   const targetChain = chain ?? chains[0]
   const sourceLabel = source === 'connected' ? 'Connected Wallet' : 'External Wallet'
   const isConnectedSource = source === 'connected'
+  const isCreditCard = source === 'credit-card'
   const isNative = selectedToken?.contract === zeroAddress
   const { data: nativeBalanceData } = useBalance({
     address,
@@ -228,12 +244,28 @@ function DepositView({
       ? formatTokenAmount(walletBalance.toString(), selectedToken.decimals)
       : '0.00'
 
+  // The credit-card amount is a fiat value (MoonPay's baseCurrencyAmount); gate it
+  // against MoonPay's minimum here so the user can't sign the policy for an amount
+  // MoonPay would reject once the widget opens.
+  const {
+    minBuyAmount: moonpayMinBuy,
+    isLoading: moonpayLimitsLoading,
+    error: moonpayLimitsError,
+  } = useMoonpayLimits({
+    currencyCode: selectedToken?.moonpayCurrencyCode,
+    apiBaseUrl: networkConfig.moonpayApiUrl,
+    enabled: isCreditCard,
+  })
+
   const hasValidAmount = !!amount && parseFloat(amount) > 0
+  // The credit-card amount is fiat USD (MoonPay's baseCurrencyAmount, max 2
+  // decimals); other sources take a token amount capped by the token's decimals.
+  const maxAmountDecimals = isCreditCard ? 2 : selectedToken?.decimals
   const tooManyDecimals =
-    !!hasValidAmount &&
-    !!selectedToken &&
+    hasValidAmount &&
+    maxAmountDecimals != null &&
     amount.includes('.') &&
-    amount.split('.')[1].length > selectedToken.decimals
+    amount.split('.')[1].length > maxAmountDecimals
   const exceedsBalance =
     isConnectedSource &&
     hasValidAmount &&
@@ -241,10 +273,20 @@ function DepositView({
     !!selectedToken &&
     walletBalance != null &&
     parseTokenAmount(amount, selectedToken.decimals) > walletBalance
+  const belowMoonpayMin =
+    isCreditCard && hasValidAmount && moonpayMinBuy != null && parseFloat(amount) < moonpayMinBuy
+  const moonpayLimitsUnready =
+    isCreditCard && !!selectedToken?.moonpayCurrencyCode && moonpayMinBuy == null
   const needsConnect = isConnectedSource && !isConnected
 
   const canDeposit =
-    hasValidAmount && !!selectedToken && !tooManyDecimals && !exceedsBalance && !needsConnect
+    hasValidAmount &&
+    !!selectedToken &&
+    !tooManyDecimals &&
+    !exceedsBalance &&
+    !belowMoonpayMin &&
+    !moonpayLimitsUnready &&
+    !needsConnect
 
   const handleMax = () => {
     const max = formattedWalletBalance.replace(/\s/g, '')
@@ -253,9 +295,20 @@ function DepositView({
 
   return (
     <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
-      <h2 className="text-foreground text-[28px] leading-8 font-medium">
-        Deposit from {sourceLabel}
-      </h2>
+      {isCreditCard ? (
+        <div className="flex flex-col gap-2">
+          <h2 className="text-foreground text-[28px] leading-8 font-medium">
+            Buy with credit card and deposit
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            Enter your deposit amount and proceed to sign a policy.
+          </p>
+        </div>
+      ) : (
+        <h2 className="text-foreground text-[28px] leading-8 font-medium">
+          Deposit from {sourceLabel}
+        </h2>
+      )}
 
       <div className="flex flex-col gap-3">
         <label className="text-muted-foreground text-sm">Token</label>
@@ -317,18 +370,31 @@ function DepositView({
             >
               MAX
             </button>
+          ) : isCreditCard ? (
+            <span className="text-muted-foreground text-sm">USD</span>
           ) : (
             selectedToken && (
               <span className="text-muted-foreground text-sm">{selectedToken.symbol}</span>
             )
           )}
         </div>
-        {tooManyDecimals && selectedToken && (
+        {tooManyDecimals && (
           <p className="text-destructive text-sm">
-            Too many decimal places (max: {selectedToken.decimals})
+            Too many decimal places (max: {maxAmountDecimals})
           </p>
         )}
         {exceedsBalance && <p className="text-destructive text-sm">Insufficient balance</p>}
+        {belowMoonpayMin && moonpayMinBuy != null && (
+          <p className="text-destructive text-sm">Minimum purchase is ${moonpayMinBuy} USD.</p>
+        )}
+        {isCreditCard && moonpayLimitsError && (
+          <p className="text-destructive text-sm">
+            Couldn’t load purchase limits. Please try again.
+          </p>
+        )}
+        {isCreditCard && moonpayLimitsLoading && (
+          <p className="text-muted-foreground text-sm">Checking purchase limits…</p>
+        )}
       </div>
 
       {allowance && (
@@ -496,15 +562,24 @@ function DepositModalContent({
       setView('external-deposit')
       return
     }
+    if (args.source === 'credit-card') {
+      // TODO: sign the DepositLockAuthorization (maxAmount=allowance.value, minAmount,
+      // lockDuration) via useFiatOnRamp's postDepositLock once the deposit-lock-authorization
+      // branch lands. Until then we just advance to the embedded MoonPay widget.
+      setView('credit-card-widget')
+      return
+    }
     onDeposit?.(args)
   }
 
   const back =
     view === 'external-deposit'
       ? { to: 'deposit' as const, label: 'Deposit from External Wallet' }
-      : view === 'select-token'
-        ? { to: 'deposit' as const, label: 'Deposit' }
-        : { to: 'method' as const, label: 'Deposit Method' }
+      : view === 'credit-card-widget'
+        ? { to: 'deposit' as const, label: 'Buy with credit card and deposit' }
+        : view === 'select-token'
+          ? { to: 'deposit' as const, label: 'Deposit' }
+          : { to: 'method' as const, label: 'Deposit Method' }
 
   const goBack = () => {
     if (back.to === 'method') {
@@ -546,9 +621,15 @@ function DepositModalContent({
         <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
           <div className="flex flex-col gap-2">
             <h2 className="text-foreground text-[28px] leading-8 font-medium">
-              Choose the deposit method
+              {activeTab === 'crypto'
+                ? 'Choose the deposit method'
+                : 'Buy with credit card and deposit'}
             </h2>
-            <p className="text-muted-foreground text-sm">Choose the deposit method.</p>
+            <p className="text-muted-foreground text-sm">
+              {activeTab === 'crypto'
+                ? 'Choose the deposit method.'
+                : 'Use credit card to buy crypto and deposit'}
+            </p>
           </div>
 
           <MethodTabs activeTab={activeTab} onTabChange={setActiveTab} />
@@ -576,8 +657,11 @@ function DepositModalContent({
             <div className="flex flex-col gap-3">
               <MethodOption
                 title="Moonpay"
-                description="Buy crypto with a card."
-                onClick={onSelectCreditCard}
+                description="on selected address"
+                onClick={() => {
+                  onSelectCreditCard?.()
+                  openDeposit('credit-card')
+                }}
               />
             </div>
           )}
@@ -585,15 +669,17 @@ function DepositModalContent({
       )}
 
       {view === 'deposit' && (
-        <DepositView
-          source={source}
-          selectedToken={selectedToken}
-          amount={amount}
-          allowance={allowance}
-          onAmountChange={setAmount}
-          onSelectToken={() => setView('select-token')}
-          onSubmit={handleSubmit}
-        />
+        <MoonPayGate enabled={source === 'credit-card'}>
+          <DepositView
+            source={source}
+            selectedToken={selectedToken}
+            amount={amount}
+            allowance={allowance}
+            onAmountChange={setAmount}
+            onSelectToken={() => setView('select-token')}
+            onSubmit={handleSubmit}
+          />
+        </MoonPayGate>
       )}
 
       {view === 'select-token' && (
@@ -607,6 +693,12 @@ function DepositModalContent({
       )}
 
       {view === 'external-deposit' && <ExternalDepositView token={selectedToken} amount={amount} />}
+
+      {view === 'credit-card-widget' && (
+        <MoonPayGate enabled>
+          <CreditCardWidgetView token={selectedToken} amount={amount} />
+        </MoonPayGate>
+      )}
     </>
   )
 }
