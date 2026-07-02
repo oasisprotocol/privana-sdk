@@ -637,9 +637,8 @@ function DepositModalContent({
       return
     }
     if (args.source === 'credit-card') {
-      // TODO: sign the DepositLockAuthorization (maxAmount=allowance.value, minAmount,
-      // lockDuration) via useFiatOnRamp's postDepositLock once the deposit-lock-authorization
-      // branch lands. Until then we just advance to the embedded MoonPay widget.
+      // The DepositLockAuthorization (policy) for card purchases is signed inside
+      // the on-ramp flow itself — see the postDepositLock TODO in CreditCardWidgetView.
       setView('credit-card-widget')
       return
     }
@@ -647,6 +646,20 @@ function DepositModalContent({
     const token = enabledTokens.find((t) => t.id === args.tokenId)
     if (!token) return
     setCancelled(false)
+    // TODO: once the deposit-lock-authorization branch lands, deposit() gains a
+    // postDepositLock param that signs the DepositLockAuthorization (EIP-712)
+    // before the transfer — pass the allowance as the policy:
+    // void deposit({
+    //   tokenId: token.id,
+    //   amount: parseTokenAmount(args.amount, token.decimals),
+    //   postDepositLock: allowance
+    //     ? {
+    //         maxAmount: BigInt(allowance.value),
+    //         minAmount: allowance.minAmount ? BigInt(allowance.minAmount) : undefined,
+    //         lockDuration: allowance.lockDuration ? BigInt(allowance.lockDuration) : undefined,
+    //       }
+    //     : undefined,
+    // })
     void deposit({
       tokenId: token.id,
       amount: parseTokenAmount(args.amount, token.decimals),
@@ -899,7 +912,7 @@ function DepositModalContent({
 
       {view === 'credit-card-widget' && (
         <MoonPayGate enabled>
-          <CreditCardWidgetView token={selectedToken} amount={amount} />
+          <CreditCardWidgetView token={selectedToken} amount={amount} allowance={allowance} />
         </MoonPayGate>
       )}
     </>
