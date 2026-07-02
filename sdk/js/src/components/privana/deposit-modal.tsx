@@ -244,11 +244,14 @@ function DepositView({
   })
 
   const hasValidAmount = !!amount && parseFloat(amount) > 0
+  // The credit-card amount is fiat USD (MoonPay's baseCurrencyAmount, max 2
+  // decimals); other sources take a token amount capped by the token's decimals.
+  const maxAmountDecimals = isCreditCard ? 2 : selectedToken?.decimals
   const tooManyDecimals =
-    !!hasValidAmount &&
-    !!selectedToken &&
+    hasValidAmount &&
+    maxAmountDecimals != null &&
     amount.includes('.') &&
-    amount.split('.')[1].length > selectedToken.decimals
+    amount.split('.')[1].length > maxAmountDecimals
   const exceedsBalance =
     isConnectedSource &&
     hasValidAmount &&
@@ -353,15 +356,17 @@ function DepositView({
             >
               MAX
             </button>
+          ) : isCreditCard ? (
+            <span className="text-muted-foreground text-sm">USD</span>
           ) : (
             selectedToken && (
               <span className="text-muted-foreground text-sm">{selectedToken.symbol}</span>
             )
           )}
         </div>
-        {tooManyDecimals && selectedToken && (
+        {tooManyDecimals && (
           <p className="text-destructive text-sm">
-            Too many decimal places (max: {selectedToken.decimals})
+            Too many decimal places (max: {maxAmountDecimals})
           </p>
         )}
         {exceedsBalance && <p className="text-destructive text-sm">Insufficient balance</p>}
