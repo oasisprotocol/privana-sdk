@@ -287,6 +287,9 @@ function DepositView({
     isCreditCard && hasValidAmount && moonpayMinBuy != null && parseFloat(amount) < moonpayMinBuy
   const moonpayLimitsUnready =
     isCreditCard && !!selectedToken?.moonpayCurrencyCode && moonpayMinBuy == null
+  // No MoonPay currency mapping for this token.
+  const creditCardUnavailable =
+    isCreditCard && !!selectedToken && !selectedToken.moonpayCurrencyCode
   const needsConnect = isConnectedSource && !isConnected
 
   const canDeposit =
@@ -296,6 +299,7 @@ function DepositView({
     !exceedsBalance &&
     !belowMoonpayMin &&
     !moonpayLimitsUnready &&
+    !creditCardUnavailable &&
     !needsConnect
 
   const handleMax = () => {
@@ -404,6 +408,11 @@ function DepositView({
         )}
         {isCreditCard && moonpayLimitsLoading && (
           <p className="text-muted-foreground text-sm">Checking purchase limits…</p>
+        )}
+        {creditCardUnavailable && (
+          <p className="text-destructive text-sm">
+            {selectedToken?.symbol ?? 'This token'} isn’t available for card purchases yet.
+          </p>
         )}
       </div>
 
