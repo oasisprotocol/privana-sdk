@@ -4,6 +4,8 @@ import { useContext } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { MoonPayContext } from '@moonpay/moonpay-react'
 
+export const DEFAULT_MOONPAY_API_URL = 'https://api.moonpay.com/v3'
+
 export interface MoonpayLimits {
   /** Minimum fiat purchase for the currency/payment-method (fees included). */
   minBuyAmount: number | undefined
@@ -18,6 +20,8 @@ export interface UseMoonpayLimitsOptions {
   baseCurrencyCode?: string
   /** Payment method the limits apply to (default: 'credit_debit_card'). */
   paymentMethod?: string
+  /** Versioned MoonPay REST API base URL (default: 'https://api.moonpay.com/v3'). */
+  apiBaseUrl?: string
   /** Skip the request when false (e.g. non credit-card flows). */
   enabled?: boolean
 }
@@ -31,13 +35,14 @@ export function useMoonpayLimits({
   currencyCode,
   baseCurrencyCode = 'usd',
   paymentMethod = 'credit_debit_card',
+  apiBaseUrl = DEFAULT_MOONPAY_API_URL,
   enabled = true,
 }: UseMoonpayLimitsOptions): UseMoonpayLimitsResult {
   const { apiKey } = useContext(MoonPayContext) ?? {}
   const canFetch = enabled && !!apiKey && !!currencyCode
 
   const query = useQuery({
-    queryKey: ['moonpay-limits', currencyCode, baseCurrencyCode, paymentMethod, apiKey],
+    queryKey: ['moonpay-limits', apiBaseUrl, currencyCode, baseCurrencyCode, paymentMethod, apiKey],
     enabled: canFetch,
     staleTime: 5 * 60_000,
     queryFn: async (): Promise<MoonpayLimits> => {
@@ -48,7 +53,7 @@ export function useMoonpayLimits({
         areFeesIncluded: 'true',
       })
       const res = await fetch(
-        `https://api.moonpay.com/v3/currencies/${currencyCode}/limits?${params.toString()}`
+        `${apiBaseUrl}/currencies/${currencyCode}/limits?${params.toString()}`
       )
       if (!res.ok) {
         throw new Error(`MoonPay limits request failed: ${res.status}`)

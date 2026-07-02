@@ -15,6 +15,8 @@ export interface NetworkConfig {
   name: string
   accountingContract: Address
   apiUrl: string
+  /** Versioned MoonPay REST API base URL (default: 'https://api.moonpay.com/v3'). */
+  moonpayApiUrl?: string
 }
 
 export const NETWORK_CONFIG = {

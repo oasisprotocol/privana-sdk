@@ -203,7 +203,7 @@ function DepositView({
   onSelectToken: () => void
   onSubmit?: (args: { source: DepositSource; tokenId: string; amount: string }) => void
 }) {
-  const { getChainById, chains, serviceName, serviceIcon } = usePrivanaContext()
+  const { getChainById, chains, serviceName, serviceIcon, networkConfig } = usePrivanaContext()
   const { address, isConnected } = useAccount()
   const appName = serviceName ?? 'Privana'
   const chain = selectedToken ? getChainById(selectedToken.chainId) : undefined
@@ -240,6 +240,7 @@ function DepositView({
     error: moonpayLimitsError,
   } = useMoonpayLimits({
     currencyCode: selectedToken?.moonpayCurrencyCode,
+    apiBaseUrl: networkConfig.moonpayApiUrl,
     enabled: isCreditCard,
   })
 
