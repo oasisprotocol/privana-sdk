@@ -428,8 +428,11 @@ export function ThemeEditor() {
         el.style.setProperty(fvVar, value)
       }
       el.style.setProperty('--fv-radius', `${newRadius}rem`)
+      // The SDK reads its effective theme from `color-scheme` (e.g. to match
+      // the MoonPay widget) — declare it alongside the variable overrides.
+      el.style.colorScheme = isDark ? 'dark' : 'light'
     },
-    []
+    [isDark]
   )
 
   const applyTheme = useCallback(
@@ -499,6 +502,7 @@ export function ThemeEditor() {
         }
       }
       el.style.removeProperty('--fv-radius')
+      el.style.removeProperty('color-scheme')
     })
   }
 
