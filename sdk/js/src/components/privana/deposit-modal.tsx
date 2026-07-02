@@ -214,6 +214,7 @@ function DepositView({
   allowance,
   onAmountChange,
   onSelectToken,
+  onConnectWallet,
   onSubmit,
 }: {
   source: DepositSource
@@ -222,7 +223,8 @@ function DepositView({
   allowance?: Allowance
   onAmountChange: (value: string) => void
   onSelectToken: () => void
-  onSubmit?: (args: { source: DepositSource; tokenId: string; amount: string }) => void
+  onConnectWallet?: () => void
+  onSubmit: (args: { source: DepositSource; tokenId: string; amount: string }) => void
 }) {
   const { getChainById, chains, serviceName, serviceIcon, networkConfig } = usePrivanaContext()
   const { address, isConnected } = useAccount()
@@ -415,8 +417,14 @@ function DepositView({
 
       <button
         type="button"
-        disabled={!canDeposit}
-        onClick={() => selectedToken && onSubmit?.({ source, tokenId: selectedToken.id, amount })}
+        disabled={needsConnect ? !onConnectWallet : !canDeposit}
+        onClick={() => {
+          if (needsConnect) {
+            onConnectWallet?.()
+            return
+          }
+          if (selectedToken) onSubmit({ source, tokenId: selectedToken.id, amount })
+        }}
         className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
       >
         {needsConnect ? 'Connect Wallet' : allowance ? 'Sign Policy and Deposit' : 'Deposit'}
@@ -524,6 +532,7 @@ interface DepositMethodHandlers {
   onSelectConnectedWallet?: () => void
   onSelectExternalWallet?: () => void
   onSelectCreditCard?: () => void
+  onConnectWallet?: () => void
   /** Called when the user confirms the amount on the deposit view. */
   onDeposit?: (args: { source: DepositSource; tokenId: string; amount: string }) => void
   onDepositSuccess?: () => void
@@ -535,6 +544,7 @@ function DepositModalContent({
   onSelectConnectedWallet,
   onSelectExternalWallet,
   onSelectCreditCard,
+  onConnectWallet,
   onDeposit,
   onDepositSuccess,
   onClose,
@@ -869,6 +879,7 @@ function DepositModalContent({
             allowance={allowance}
             onAmountChange={setAmount}
             onSelectToken={() => setView('select-token')}
+            onConnectWallet={onConnectWallet}
             onSubmit={handleSubmit}
           />
         </MoonPayGate>
