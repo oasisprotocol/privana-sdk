@@ -324,7 +324,7 @@ export function FiatOnRampForm({
     <div data-privana className="flex flex-col gap-4">
       {pending.length > 0 && (
         <div className="flex flex-col gap-2">
-          <p className="text-sm font-medium">Validating purchases</p>
+          <p className="text-foreground text-sm font-medium">Validating purchases</p>
           {pending.map((record) => {
             const progress = parseFinalityProgress(finalityProgress[record.transaction_id])
             const hasProgress = !!finalityProgress[record.transaction_id]
@@ -378,7 +378,7 @@ export function FiatOnRampForm({
       {status === 'credited' && (
         <div className="flex flex-col items-center gap-2 py-8 text-center">
           <CircleCheckIcon className="text-primary size-8" aria-hidden />
-          <p className="text-sm font-medium">Purchase credited</p>
+          <p className="text-foreground text-sm font-medium">Purchase credited</p>
           <p className="text-muted-foreground text-sm">
             Your {displaySymbol} deposit is now available in your balance.
           </p>
