@@ -17,6 +17,13 @@ export interface NetworkConfig {
   apiUrl: string
   /** Versioned MoonPay REST API base URL (default: 'https://api.moonpay.com/v3'). */
   moonpayApiUrl?: string
+  /**
+   * MoonPay publishable API key ('pk_test_…' / 'pk_live_…' — MoonPay infers the
+   * environment from the prefix). Enables the credit-card deposit flow: the SDK
+   * mounts its own MoonPayProvider around the credit-card subtree, so consumers
+   * don't wrap the app in one (and don't pay MoonPay's CDN script cost at app start).
+   */
+  moonpayApiKey?: string
 }
 
 export const NETWORK_CONFIG = {

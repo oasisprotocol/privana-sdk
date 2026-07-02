@@ -4,7 +4,6 @@ import { useState, type ReactNode } from 'react'
 import { WagmiProvider } from 'wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RainbowKitProvider, darkTheme, lightTheme } from '@rainbow-me/rainbowkit'
-import { MoonPayProvider } from '@moonpay/moonpay-react'
 import { wagmiConfig } from './wagmi-config'
 import { PrivanaProvider, NETWORK_CONFIG, type Network } from '@oasisprotocol/privana-sdk'
 import { ThemeProvider, useTheme } from './theme-provider'
@@ -65,7 +64,7 @@ export function Providers({ children, network = 'testnet' }: ProvidersProps) {
         <QueryClientProvider client={queryClient}>
           <RainbowKitWrapper>
             <PrivanaProvider
-              networkConfig={{ ...NETWORK_CONFIG[network], apiUrl }}
+              networkConfig={{ ...NETWORK_CONFIG[network], apiUrl, moonpayApiKey }}
               serviceName="Honoroll Casino"
               serviceIcon={
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-black font-serif text-base font-bold text-orange-400">
@@ -81,13 +80,7 @@ export function Providers({ children, network = 'testnet' }: ProvidersProps) {
                   : undefined
               }
             >
-              {moonpayApiKey ? (
-                <MoonPayProvider apiKey={moonpayApiKey} debug>
-                  {children}
-                </MoonPayProvider>
-              ) : (
-                children
-              )}
+              {children}
             </PrivanaProvider>
           </RainbowKitWrapper>
         </QueryClientProvider>

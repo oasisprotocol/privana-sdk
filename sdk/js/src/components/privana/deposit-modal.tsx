@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useAccount, useBalance, useReadContract } from 'wagmi'
 import { erc20Abi, zeroAddress } from 'viem'
 import { QRCodeSVG } from 'qrcode.react'
+import { MoonPayProvider } from '@moonpay/moonpay-react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { TokenConfig } from '@/sdk/types/tokens'
@@ -28,6 +29,18 @@ import {
 import { PrivanaIcon } from './privana-icon'
 
 type DepositMethodTab = 'crypto' | 'credit-card'
+
+// Mounting MoonPayProvider injects MoonPay's web-sdk script from their CDN, so
+// it wraps only the credit-card subtree instead of the app root — the other
+// deposit flows never pay that cost. Without `networkConfig.moonpayApiKey` the
+// children render bare and the credit-card flow stays fail-closed (purchase
+// limits never load, so the deposit button stays disabled).
+function MoonPayGate({ enabled, children }: { enabled: boolean; children: ReactNode }) {
+  const { networkConfig } = usePrivanaContext()
+  const apiKey = networkConfig.moonpayApiKey
+  if (!enabled || !apiKey) return <>{children}</>
+  return <MoonPayProvider apiKey={apiKey}>{children}</MoonPayProvider>
+}
 
 export type DepositSource = 'connected' | 'external' | 'credit-card'
 
@@ -656,15 +669,17 @@ function DepositModalContent({
       )}
 
       {view === 'deposit' && (
-        <DepositView
-          source={source}
-          selectedToken={selectedToken}
-          amount={amount}
-          allowance={allowance}
-          onAmountChange={setAmount}
-          onSelectToken={() => setView('select-token')}
-          onSubmit={handleSubmit}
-        />
+        <MoonPayGate enabled={source === 'credit-card'}>
+          <DepositView
+            source={source}
+            selectedToken={selectedToken}
+            amount={amount}
+            allowance={allowance}
+            onAmountChange={setAmount}
+            onSelectToken={() => setView('select-token')}
+            onSubmit={handleSubmit}
+          />
+        </MoonPayGate>
       )}
 
       {view === 'select-token' && (
@@ -680,7 +695,9 @@ function DepositModalContent({
       {view === 'external-deposit' && <ExternalDepositView token={selectedToken} amount={amount} />}
 
       {view === 'credit-card-widget' && (
-        <CreditCardWidgetView token={selectedToken} amount={amount} />
+        <MoonPayGate enabled>
+          <CreditCardWidgetView token={selectedToken} amount={amount} />
+        </MoonPayGate>
       )}
     </>
   )
