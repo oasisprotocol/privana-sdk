@@ -10,6 +10,8 @@ import { cn, formatTimeRemaining, formatTokenAmount, parseTokenAmount } from '@/
 import { CloseIcon } from './icons'
 import { AllowancePolicySection } from './allowance-policy-section'
 import { DepositModalContent, type DepositMethodHandlers } from './deposit-modal'
+import { WithdrawModalContent } from './withdraw-modal'
+import { TransactionProgressView, TransactionErrorView } from './transaction-steps'
 
 const AVAILABLE_COLOR = 'bg-[#007bff]'
 const IN_USE_COLOR = 'bg-[#4fc77f]'
@@ -318,12 +320,13 @@ function WalletBalanceView({
   )
 }
 
-type WalletView = 'balance' | 'deposit'
+type WalletView = 'balance' | 'deposit' | 'ending-session' | 'end-session-error' | 'withdraw'
 
 function WalletModalContent({
   session,
   allowance,
   onPlay,
+  onEndSession,
   onDepositSuccess,
   onClose,
   onCloseBlockedChange,
@@ -338,6 +341,8 @@ function WalletModalContent({
   const [view, setView] = useState<WalletView>('balance')
   const [amount, setAmount] = useState('')
   const [depositBlocked, setDepositBlocked] = useState(false)
+  const [withdrawPending, setWithdrawPending] = useState(false)
+  const [endSessionError, setEndSessionError] = useState<string | null>(null)
 
   const prevAddressRef = useRef(address)
   useEffect(() => {
@@ -350,7 +355,7 @@ function WalletModalContent({
     }
   }, [address, hostedAuthConfig])
 
-  const closeBlocked = depositBlocked
+  const closeBlocked = depositBlocked || withdrawPending || view === 'ending-session'
   useEffect(() => {
     onCloseBlockedChange?.(closeBlocked)
   }, [closeBlocked, onCloseBlockedChange])
@@ -358,6 +363,44 @@ function WalletModalContent({
   const exitDeposit = () => {
     // The embedded content unmounts, so its onCloseBlockedChange(false) never fires.
     setDepositBlocked(false)
+    setView('balance')
+  }
+
+  const exitWithdraw = () => {
+    setWithdrawPending(false)
+    setView('balance')
+  }
+
+  const endSessionRunRef = useRef(0)
+  const startEndSession = () => {
+    if (!onEndSession) return
+    const run = ++endSessionRunRef.current
+    setEndSessionError(null)
+    setView('ending-session')
+    onEndSession().then(
+      () => {
+        if (endSessionRunRef.current !== run) return
+        setView('withdraw')
+      },
+      (err: unknown) => {
+        if (endSessionRunRef.current !== run) return
+        setEndSessionError(err instanceof Error ? err.message : null)
+        setView('end-session-error')
+      }
+    )
+  }
+
+  const handleWithdraw = () => {
+    if (session && onEndSession) {
+      startEndSession()
+    } else {
+      setView('withdraw')
+    }
+  }
+
+  const dismissEndSessionError = () => {
+    endSessionRunRef.current++
+    setEndSessionError(null)
     setView('balance')
   }
 
@@ -380,21 +423,50 @@ function WalletModalContent({
         </button>
       )}
 
-      {view === 'balance' && (
-        <>
-          <div className="flex items-center px-5 py-4">
-            <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
-          </div>
+      {(view === 'balance' || view === 'ending-session' || view === 'end-session-error') && (
+        <div className="flex items-center px-5 py-4">
+          <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
+        </div>
+      )}
 
-          <WalletBalanceView
-            session={session}
-            allowance={allowance}
-            amount={amount}
-            onAmountChange={setAmount}
-            onPlay={onPlay}
-            onAddFunds={() => setView('deposit')}
+      {view === 'balance' && (
+        <WalletBalanceView
+          session={session}
+          allowance={allowance}
+          amount={amount}
+          onAmountChange={setAmount}
+          onPlay={onPlay}
+          onAddFunds={() => setView('deposit')}
+          onWithdraw={handleWithdraw}
+        />
+      )}
+
+      {view === 'ending-session' && (
+        <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
+          <TransactionProgressView
+            title="Ending game session..."
+            steps={[{ label: 'Waiting for the game session to settle', status: 'active' }]}
           />
-        </>
+        </div>
+      )}
+
+      {view === 'end-session-error' && (
+        <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
+          <TransactionErrorView
+            title="Could not end session"
+            message={
+              endSessionError
+                ? `Your game session could not be ended, so the funds committed to it are not available to withdraw yet. (${endSessionError})`
+                : 'Your game session could not be ended, so the funds committed to it are not available to withdraw yet.'
+            }
+            onRetry={startEndSession}
+            onDismiss={dismissEndSessionError}
+          />
+        </div>
+      )}
+
+      {view === 'withdraw' && (
+        <WithdrawModalContent onBack={exitWithdraw} onPendingChange={setWithdrawPending} />
       )}
 
       {view === 'deposit' && (
