@@ -8,7 +8,7 @@ import { MoonPayProvider } from '@moonpay/moonpay-react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { TokenConfig } from '@/sdk/types/tokens'
-import type { Allowance, AllowanceTerm } from '@/sdk/types/allowance'
+import type { Allowance } from '@/sdk/types/allowance'
 import { toast } from 'sonner'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useDeposit, useDepositAddress } from '@/sdk/hooks'
@@ -24,17 +24,8 @@ import {
   TransactionErrorView,
   type Step,
 } from './transaction-steps'
-import {
-  CloseIcon,
-  ChevronRightIcon,
-  ChevronLeftIcon,
-  ChevronDownIcon,
-  CopyIcon,
-  CircleCheckIcon,
-  CircleXIcon,
-  ArrowRightIcon,
-} from './icons'
-import { PrivanaIcon } from './privana-icon'
+import { CloseIcon, ChevronRightIcon, ChevronLeftIcon, CopyIcon } from './icons'
+import { AllowancePolicySection } from './allowance-policy-section'
 
 type DepositMethodTab = 'crypto' | 'credit-card'
 
@@ -118,94 +109,6 @@ function MethodOption({
         <ChevronRightIcon />
       </div>
     </button>
-  )
-}
-
-function PolicyTermRow({
-  term,
-  kind,
-}: {
-  term: AllowanceTerm
-  kind: 'permission' | 'restriction'
-}) {
-  return (
-    <div className="flex gap-2">
-      <div
-        className={cn(
-          'mt-0.5 shrink-0',
-          kind === 'permission' ? 'text-emerald-500' : 'text-orange-500'
-        )}
-      >
-        {kind === 'permission' ? <CircleCheckIcon /> : <CircleXIcon />}
-      </div>
-      <div className="flex flex-col gap-1">
-        <span className="text-foreground text-sm leading-5 font-medium">{term.title}</span>
-        <span className="text-muted-foreground text-sm leading-5">{term.description}</span>
-      </div>
-    </div>
-  )
-}
-
-function AllowancePolicySection({
-  allowance,
-  serviceName,
-  serviceIcon,
-}: {
-  allowance: Allowance
-  serviceName: string
-  serviceIcon?: ReactNode
-}) {
-  const [collapsed, setCollapsed] = useState(false)
-  const permissions = allowance.terms?.permissions ?? []
-  const restrictions = allowance.terms?.restrictions ?? []
-  const hasTerms = permissions.length > 0 || restrictions.length > 0
-
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-4">
-        <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg">
-          {serviceIcon}
-        </div>
-        <ArrowRightIcon className="text-muted-foreground" />
-        <PrivanaIcon size={32} />
-      </div>
-
-      <p className="text-sm leading-5">
-        <span className="text-foreground font-medium">{serviceName}</span>{' '}
-        <span className="text-muted-foreground">wants a policy on your Privana account.</span>
-      </p>
-
-      {hasTerms && (
-        <>
-          <button
-            type="button"
-            onClick={() => setCollapsed((prev) => !prev)}
-            className="flex w-full cursor-pointer items-center gap-2"
-          >
-            <span className="bg-border h-px flex-1" />
-            <span className="text-muted-foreground text-[10px] leading-[14px] font-medium tracking-[0.2px] whitespace-nowrap uppercase">
-              {collapsed ? 'Show details' : 'Hide details'}
-            </span>
-            <ChevronDownIcon
-              direction={collapsed ? 'down' : 'up'}
-              className="text-foreground shrink-0"
-            />
-            <span className="bg-border h-px flex-1" />
-          </button>
-
-          {!collapsed && (
-            <div className="flex flex-col gap-4">
-              {permissions.map((term, i) => (
-                <PolicyTermRow key={`permission-${i}`} term={term} kind="permission" />
-              ))}
-              {restrictions.map((term, i) => (
-                <PolicyTermRow key={`restriction-${i}`} term={term} kind="restriction" />
-              ))}
-            </div>
-          )}
-        </>
-      )}
-    </div>
   )
 }
 
@@ -538,7 +441,7 @@ function ExternalDepositView({
   )
 }
 
-interface DepositMethodHandlers {
+export interface DepositMethodHandlers {
   defaultTab?: DepositMethodTab
   /** Allowance (shown as a "policy") the host service requests. */
   allowance?: Allowance
@@ -551,7 +454,7 @@ interface DepositMethodHandlers {
   onDepositSuccess?: () => void
 }
 
-function DepositModalContent({
+export function DepositModalContent({
   defaultTab = 'crypto',
   allowance,
   onSelectConnectedWallet,
@@ -562,9 +465,12 @@ function DepositModalContent({
   onDepositSuccess,
   onClose,
   onCloseBlockedChange,
+  onExit,
 }: DepositMethodHandlers & {
   onClose?: () => void
   onCloseBlockedChange?: (blocked: boolean) => void
+  /** Renders a back chevron on the root method view (for embedding, e.g. WalletModal). */
+  onExit?: () => void
 }) {
   const { serviceName, enabledTokens, defaultToken, hostedAuthConfig, getChainById } =
     usePrivanaContext()
@@ -796,18 +702,18 @@ function DepositModalContent({
         </button>
       )}
 
-      {flowView || activeView === 'method' ? (
+      {flowView || (activeView === 'method' && !onExit) ? (
         <div className="flex items-center px-5 py-4">
           <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
         </div>
       ) : (
         <button
           type="button"
-          onClick={goBack}
+          onClick={activeView === 'method' ? onExit : goBack}
           className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
         >
           <ChevronLeftIcon />
-          {back.label}
+          {activeView === 'method' ? appName : back.label}
         </button>
       )}
 
