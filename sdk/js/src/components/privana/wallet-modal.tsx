@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { useAccount } from 'wagmi'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
@@ -8,7 +9,7 @@ import { useBalance } from '@/sdk/hooks'
 import { cn, formatTimeRemaining, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
 import { CloseIcon } from './icons'
 import { AllowancePolicySection } from './allowance-policy-section'
-import type { DepositMethodHandlers } from './deposit-modal'
+import { DepositModalContent, type DepositMethodHandlers } from './deposit-modal'
 
 const AVAILABLE_COLOR = 'bg-[#007bff]'
 const IN_USE_COLOR = 'bg-[#4fc77f]'
@@ -317,17 +318,48 @@ function WalletBalanceView({
   )
 }
 
+type WalletView = 'balance' | 'deposit'
+
 function WalletModalContent({
   session,
   allowance,
   onPlay,
+  onDepositSuccess,
   onClose,
+  onCloseBlockedChange,
+  ...depositHandlers
 }: WalletModalHandlers & {
   onClose?: () => void
+  onCloseBlockedChange?: (blocked: boolean) => void
 }) {
-  const { serviceName } = usePrivanaContext()
+  const { serviceName, hostedAuthConfig } = usePrivanaContext()
+  const { address } = useAccount()
   const appName = serviceName ?? 'Privana'
+  const [view, setView] = useState<WalletView>('balance')
   const [amount, setAmount] = useState('')
+  const [depositBlocked, setDepositBlocked] = useState(false)
+
+  const prevAddressRef = useRef(address)
+  useEffect(() => {
+    const prev = prevAddressRef.current
+    prevAddressRef.current = address
+    if (hostedAuthConfig) return
+    if (prev && address && prev !== address) {
+      setView('balance')
+      setAmount('')
+    }
+  }, [address, hostedAuthConfig])
+
+  const closeBlocked = depositBlocked
+  useEffect(() => {
+    onCloseBlockedChange?.(closeBlocked)
+  }, [closeBlocked, onCloseBlockedChange])
+
+  const exitDeposit = () => {
+    // The embedded content unmounts, so its onCloseBlockedChange(false) never fires.
+    setDepositBlocked(false)
+    setView('balance')
+  }
 
   return (
     <>
@@ -335,24 +367,48 @@ function WalletModalContent({
         <button
           data-privana-close
           onClick={onClose}
+          disabled={closeBlocked}
           aria-label="Close"
-          className="text-muted-foreground hover:text-foreground absolute top-6 right-5 z-20 flex h-5 w-5 cursor-pointer items-center justify-center transition-colors"
+          className={cn(
+            'absolute top-6 right-5 z-20 flex h-5 w-5 items-center justify-center transition-colors',
+            closeBlocked
+              ? 'text-muted-foreground/40 cursor-not-allowed'
+              : 'text-muted-foreground hover:text-foreground cursor-pointer'
+          )}
         >
           <CloseIcon />
         </button>
       )}
 
-      <div className="flex items-center px-5 py-4">
-        <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
-      </div>
+      {view === 'balance' && (
+        <>
+          <div className="flex items-center px-5 py-4">
+            <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
+          </div>
 
-      <WalletBalanceView
-        session={session}
-        allowance={allowance}
-        amount={amount}
-        onAmountChange={setAmount}
-        onPlay={onPlay}
-      />
+          <WalletBalanceView
+            session={session}
+            allowance={allowance}
+            amount={amount}
+            onAmountChange={setAmount}
+            onPlay={onPlay}
+            onAddFunds={() => setView('deposit')}
+          />
+        </>
+      )}
+
+      {view === 'deposit' && (
+        <DepositModalContent
+          {...depositHandlers}
+          allowance={allowance}
+          onExit={exitDeposit}
+          onCloseBlockedChange={setDepositBlocked}
+          onDepositSuccess={() => {
+            exitDeposit()
+            onDepositSuccess?.()
+          }}
+        />
+      )}
     </>
   )
 }
@@ -365,17 +421,24 @@ export interface WalletModalProps extends WalletModalHandlers {
 export function WalletModal({ open, onClose, ...handlers }: WalletModalProps) {
   const titleId = useId()
   const descId = useId()
+  const [isCloseBlocked, setIsCloseBlocked] = useState(false)
+
+  const handleClose = () => {
+    if (!isCloseBlocked) onClose()
+  }
 
   return (
     <Dialog
       open={open}
       onOpenChange={(isOpen) => {
-        if (!isOpen) onClose()
+        if (!isOpen) handleClose()
       }}
     >
       <DialogContent
         data-privana
         showCloseButton={false}
+        onInteractOutside={isCloseBlocked ? (e) => e.preventDefault() : undefined}
+        onEscapeKeyDown={isCloseBlocked ? (e) => e.preventDefault() : undefined}
         className="bg-card flex w-[560px] max-w-[95vw] flex-col gap-2 rounded-2xl border-0 p-2"
         aria-labelledby={titleId}
         aria-describedby={descId}
@@ -386,7 +449,11 @@ export function WalletModal({ open, onClose, ...handlers }: WalletModalProps) {
         <DialogDescription id={descId} className="sr-only">
           Manage your account balance.
         </DialogDescription>
-        <WalletModalContent onClose={onClose} {...handlers} />
+        <WalletModalContent
+          onClose={handleClose}
+          onCloseBlockedChange={setIsCloseBlocked}
+          {...handlers}
+        />
       </DialogContent>
     </Dialog>
   )
