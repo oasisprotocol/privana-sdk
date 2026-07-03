@@ -54,6 +54,8 @@ export type DepositSource = 'connected' | 'external' | 'credit-card'
 
 type DepositView = 'method' | 'deposit' | 'select-token' | 'external-deposit' | 'credit-card-widget'
 
+type DepositFlowView = 'depositing' | 'deposit-success' | 'deposit-timeout' | 'deposit-error'
+
 function MethodTabs({
   activeTab,
   onTabChange,
@@ -723,8 +725,16 @@ function DepositModalContent({
       status: isWaitingForProcessing ? 'active' : 'pending',
     },
   ]
-  const depositFlowActive =
-    showSuccess || showTimeout || verificationFailed || (isPending && !cancelled)
+  const flowView: DepositFlowView | null = showSuccess
+    ? 'deposit-success'
+    : showTimeout
+      ? 'deposit-timeout'
+      : verificationFailed
+        ? 'deposit-error'
+        : isPending && !cancelled
+          ? 'depositing'
+          : null
+  const activeView: DepositView | DepositFlowView = flowView ?? view
 
   const handleDepositDone = () => {
     setShowSuccess(false)
@@ -786,51 +796,7 @@ function DepositModalContent({
         </button>
       )}
 
-      {depositFlowActive ? (
-        <>
-          <div className="flex items-center px-5 py-4">
-            <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
-          </div>
-          <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
-            {showSuccess ? (
-              <TransactionSuccessView
-                title="Deposit Successful"
-                message={`Your ${selectedToken?.symbol ?? ''} deposit has been processed.`}
-                onDone={handleDepositDone}
-              />
-            ) : showTimeout ? (
-              <TransactionWarningView
-                title="Deposit Processing"
-                message="Your transaction was confirmed but the deposit is still being processed. Please check your balance - it should update shortly."
-                onDone={handleDepositDone}
-              />
-            ) : verificationFailed ? (
-              <TransactionErrorView
-                title="Verification failed"
-                message={
-                  depositError?.message
-                    ? `Your transfer was sent on-chain but we could not verify the deposit. The funds are already at the deposit address — retry verification instead of starting a new deposit. (${depositError.message})`
-                    : 'Your transfer was sent on-chain but we could not verify the deposit. The funds are already at the deposit address — retry verification instead of starting a new deposit.'
-                }
-                explorerUrl={explorerTxUrl}
-                explorerLabel="View transaction"
-                onRetry={handleRetryVerification}
-                onDismiss={handleDismissVerificationError}
-              />
-            ) : (
-              <TransactionProgressView
-                title="Depositing..."
-                steps={depositSteps}
-                // Only allow cancel before the transaction is confirmed (during
-                // address fetch / wallet signing).
-                onCancel={
-                  isGettingAddress || isSendingTransaction ? handleDepositCancel : undefined
-                }
-              />
-            )}
-          </div>
-        </>
-      ) : view === 'method' ? (
+      {flowView || activeView === 'method' ? (
         <div className="flex items-center px-5 py-4">
           <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
         </div>
@@ -845,7 +811,49 @@ function DepositModalContent({
         </button>
       )}
 
-      {view === 'method' && (
+      {flowView && (
+        <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
+          {activeView === 'deposit-success' && (
+            <TransactionSuccessView
+              title="Deposit Successful"
+              message={`Your ${selectedToken?.symbol ?? ''} deposit has been processed.`}
+              onDone={handleDepositDone}
+            />
+          )}
+          {activeView === 'deposit-timeout' && (
+            <TransactionWarningView
+              title="Deposit Processing"
+              message="Your transaction was confirmed but the deposit is still being processed. Please check your balance - it should update shortly."
+              onDone={handleDepositDone}
+            />
+          )}
+          {activeView === 'deposit-error' && (
+            <TransactionErrorView
+              title="Verification failed"
+              message={
+                depositError?.message
+                  ? `Your transfer was sent on-chain but we could not verify the deposit. The funds are already at the deposit address — retry verification instead of starting a new deposit. (${depositError.message})`
+                  : 'Your transfer was sent on-chain but we could not verify the deposit. The funds are already at the deposit address — retry verification instead of starting a new deposit.'
+              }
+              explorerUrl={explorerTxUrl}
+              explorerLabel="View transaction"
+              onRetry={handleRetryVerification}
+              onDismiss={handleDismissVerificationError}
+            />
+          )}
+          {activeView === 'depositing' && (
+            <TransactionProgressView
+              title="Depositing..."
+              steps={depositSteps}
+              // Only allow cancel before the transaction is confirmed (during
+              // address fetch / wallet signing).
+              onCancel={isGettingAddress || isSendingTransaction ? handleDepositCancel : undefined}
+            />
+          )}
+        </div>
+      )}
+
+      {activeView === 'method' && (
         <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
           <div className="flex flex-col gap-2">
             <h2 className="text-foreground text-[28px] leading-8 font-medium">
@@ -896,7 +904,7 @@ function DepositModalContent({
         </div>
       )}
 
-      {!depositFlowActive && view === 'deposit' && (
+      {activeView === 'deposit' && (
         <MoonPayGate enabled={source === 'credit-card'}>
           <DepositView
             source={source}
@@ -912,7 +920,7 @@ function DepositModalContent({
         </MoonPayGate>
       )}
 
-      {view === 'select-token' && (
+      {activeView === 'select-token' && (
         <TokenSelectorView
           selectedTokenId={selectedToken?.id}
           onSelect={(id) => {
@@ -922,9 +930,11 @@ function DepositModalContent({
         />
       )}
 
-      {view === 'external-deposit' && <ExternalDepositView token={selectedToken} amount={amount} />}
+      {activeView === 'external-deposit' && (
+        <ExternalDepositView token={selectedToken} amount={amount} />
+      )}
 
-      {view === 'credit-card-widget' && (
+      {activeView === 'credit-card-widget' && (
         <MoonPayGate enabled>
           <CreditCardWidgetView token={selectedToken} amount={amount} allowance={allowance} />
         </MoonPayGate>
