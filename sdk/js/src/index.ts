@@ -22,6 +22,14 @@ export type {
   WithdrawInlineModalProps,
 } from './components/privana/withdraw-modal'
 
+export { WalletModal, WalletInlineModal } from './components/privana/wallet-modal'
+export type {
+  WalletModalProps,
+  WalletInlineModalProps,
+  WalletModalHandlers,
+  WalletSession,
+} from './components/privana/wallet-modal'
+
 export { Button, buttonVariants } from './components/ui/button'
 
 export { Skeleton } from './components/ui/skeleton'
