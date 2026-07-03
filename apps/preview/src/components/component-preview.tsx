@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useAccount } from 'wagmi'
+import { useConnectModal } from '@rainbow-me/rainbowkit'
+import { toast } from 'sonner'
 import {
   PrivanaButton,
   PrivanaInlineModal,
@@ -38,6 +40,7 @@ const demoAllowance: Allowance = {
 
 export function ComponentPreview() {
   const { isConnected } = useAccount()
+  const { openConnectModal } = useConnectModal()
   const [depositModalOpen, setDepositModalOpen] = useState(false)
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false)
 
@@ -67,6 +70,12 @@ export function ComponentPreview() {
             open={depositModalOpen}
             onClose={() => setDepositModalOpen(false)}
             allowance={demoAllowance}
+            onConnectWallet={openConnectModal}
+            onDeposit={(args) => console.log('DepositModal onDeposit', args)}
+            onDepositSuccess={() => {
+              setDepositModalOpen(false)
+              toast.success('Deposit credited')
+            }}
           />
           <WithdrawModal open={withdrawModalOpen} onClose={() => setWithdrawModalOpen(false)} />
         </div>
