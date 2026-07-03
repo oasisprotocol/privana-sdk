@@ -11,9 +11,12 @@ import {
   DepositInlineModal,
   WithdrawModal,
   WithdrawInlineModal,
+  WalletModal,
+  WalletInlineModal,
   usePrivanaContext,
   useHostedRedirectAuth,
   type Allowance,
+  type WalletSession,
 } from '@oasisprotocol/privana-sdk'
 import { PreviewLayout, SectionLabel } from './preview-layout'
 
@@ -43,6 +46,37 @@ export function ComponentPreview() {
   const { openConnectModal } = useConnectModal()
   const [depositModalOpen, setDepositModalOpen] = useState(false)
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false)
+  const [walletModalOpen, setWalletModalOpen] = useState(false)
+  const [sessionMode, setSessionMode] = useState<'none' | 'zero' | 'mixed'>('none')
+  const [failEndSession, setFailEndSession] = useState(false)
+  const [sessionExpiry] = useState(() => Math.floor(Date.now() / 1000) + 20 * 3600 + 34 * 60)
+
+  const demoSession: WalletSession | undefined =
+    sessionMode === 'none'
+      ? undefined
+      : { inUse: sessionMode === 'zero' ? '0' : '500000000', expiry: sessionExpiry }
+
+  const walletHandlers = {
+    session: demoSession,
+    allowance: demoAllowance,
+    onConnectWallet: openConnectModal,
+    onPlay: (args: { tokenId: string; amount: string }) => {
+      console.log('WalletModal onPlay', args)
+      toast.success(`Play with ${args.amount}`)
+    },
+    onEndSession: () =>
+      new Promise<void>((resolve, reject) => {
+        setTimeout(() => {
+          if (failEndSession) {
+            reject(new Error('Demo settlement failure'))
+          } else {
+            setSessionMode('none')
+            resolve()
+          }
+        }, 1500)
+      }),
+    onDepositSuccess: () => toast.success('Deposit credited'),
+  }
 
   return (
     <PreviewLayout>
@@ -65,6 +99,34 @@ export function ComponentPreview() {
             >
               Open Withdraw Modal
             </button>
+            <button
+              type="button"
+              className="rounded border px-3 py-2 text-sm"
+              onClick={() => setWalletModalOpen(true)}
+            >
+              Open Wallet Modal
+            </button>
+          </div>
+          <div className="mt-3 flex items-center justify-center gap-3 text-sm">
+            <span>Demo session:</span>
+            {(['none', 'zero', 'mixed'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                className={`rounded border px-2 py-1 ${sessionMode === mode ? 'font-bold underline' : ''}`}
+                onClick={() => setSessionMode(mode)}
+              >
+                {mode}
+              </button>
+            ))}
+            <label className="flex items-center gap-1">
+              <input
+                type="checkbox"
+                checked={failEndSession}
+                onChange={(e) => setFailEndSession(e.target.checked)}
+              />
+              Fail end session
+            </label>
           </div>
           <DepositModal
             open={depositModalOpen}
@@ -78,6 +140,11 @@ export function ComponentPreview() {
             }}
           />
           <WithdrawModal open={withdrawModalOpen} onClose={() => setWithdrawModalOpen(false)} />
+          <WalletModal
+            open={walletModalOpen}
+            onClose={() => setWalletModalOpen(false)}
+            {...walletHandlers}
+          />
         </div>
       )}
 
@@ -86,6 +153,7 @@ export function ComponentPreview() {
       <div>
         <SectionLabel>Live SDK Modal</SectionLabel>
         <div className="flex flex-col items-center gap-6">
+          <WalletInlineModal {...walletHandlers} />
           <DepositInlineModal allowance={demoAllowance} />
           <WithdrawInlineModal />
           <PrivanaInlineModal />
