@@ -34,13 +34,18 @@ export interface WalletModalHandlers extends DepositMethodHandlers {
 }
 
 function toInUseWei(value: string | bigint): bigint {
-  if (typeof value === 'bigint') return value
+  let parsed: bigint
   try {
-    return BigInt(value)
+    parsed = typeof value === 'bigint' ? value : BigInt(value)
   } catch {
     console.warn(`[privana-sdk] Invalid session.inUse value: ${value}`)
     return 0n
   }
+  if (parsed < 0n) {
+    console.warn(`[privana-sdk] Negative session.inUse value: ${value}`)
+    return 0n
+  }
+  return parsed
 }
 
 function useNow(intervalMs: number, enabled: boolean) {
@@ -189,6 +194,8 @@ function WalletBalanceView({
         </div>
         {isBalanceLoading ? (
           <Skeleton className="h-9 w-40" />
+        ) : isBalanceError ? (
+          <span className="text-muted-foreground text-[32px] leading-9 font-medium">—</span>
         ) : (
           <span className="text-foreground text-[32px] leading-9 font-medium">
             {totalFormatted}
@@ -344,6 +351,8 @@ function WalletModalContent({
   const [withdrawPending, setWithdrawPending] = useState(false)
   const [endSessionError, setEndSessionError] = useState<string | null>(null)
 
+  const endSessionRunRef = useRef(0)
+
   const prevAddressRef = useRef(address)
   useEffect(() => {
     const prev = prevAddressRef.current
@@ -352,6 +361,10 @@ function WalletModalContent({
     if (prev && address && prev !== address) {
       setView('balance')
       setAmount('')
+      setDepositBlocked(false)
+      setWithdrawPending(false)
+      setEndSessionError(null)
+      endSessionRunRef.current++
     }
   }, [address, hostedAuthConfig])
 
@@ -371,7 +384,6 @@ function WalletModalContent({
     setView('balance')
   }
 
-  const endSessionRunRef = useRef(0)
   const startEndSession = () => {
     if (!onEndSession) return
     const run = ++endSessionRunRef.current
