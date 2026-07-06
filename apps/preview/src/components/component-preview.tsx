@@ -6,11 +6,8 @@ import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { toast } from 'sonner'
 import {
   PrivanaButton,
-  PrivanaInlineModal,
   DepositModal,
-  DepositInlineModal,
   WithdrawModal,
-  WithdrawInlineModal,
   WalletModal,
   WalletInlineModal,
   usePrivanaContext,
@@ -90,21 +87,21 @@ export function ComponentPreview() {
               className="rounded border px-3 py-2 text-sm"
               onClick={() => setDepositModalOpen(true)}
             >
-              Open Deposit Modal
+              Deposit Modal
             </button>
             <button
               type="button"
               className="rounded border px-3 py-2 text-sm"
               onClick={() => setWithdrawModalOpen(true)}
             >
-              Open Withdraw Modal
+              Withdraw Modal
             </button>
             <button
               type="button"
               className="rounded border px-3 py-2 text-sm"
               onClick={() => setWalletModalOpen(true)}
             >
-              Open Wallet Modal
+              Wallet Modal
             </button>
           </div>
           <div className="mt-3 flex items-center justify-center gap-3 text-sm">
@@ -154,9 +151,6 @@ export function ComponentPreview() {
         <SectionLabel>Live SDK Modal</SectionLabel>
         <div className="flex flex-col items-center gap-6">
           <WalletInlineModal {...walletHandlers} />
-          <DepositInlineModal allowance={demoAllowance} />
-          <WithdrawInlineModal />
-          <PrivanaInlineModal />
         </div>
       </div>
     </PreviewLayout>
