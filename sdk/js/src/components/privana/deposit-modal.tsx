@@ -11,7 +11,7 @@ import type { TokenConfig } from '@/sdk/types/tokens'
 import type { Allowance } from '@/sdk/types/allowance'
 import { toast } from 'sonner'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
-import { useDeposit, useDepositAddress } from '@/sdk/hooks'
+import { useDeposit, useDepositAddress, type PostDepositLockError } from '@/sdk/hooks'
 import { useMoonpayLimits } from '@/sdk/hooks/use-moonpay-limits'
 import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
 import { getTokenIcon } from './token-icons'
@@ -45,7 +45,12 @@ export type DepositSource = 'connected' | 'external' | 'credit-card'
 
 type DepositView = 'method' | 'deposit' | 'select-token' | 'external-deposit' | 'credit-card-widget'
 
-type DepositFlowView = 'depositing' | 'deposit-success' | 'deposit-timeout' | 'deposit-error'
+type DepositFlowView =
+  | 'depositing'
+  | 'deposit-success'
+  | 'deposit-timeout'
+  | 'deposit-error'
+  | 'lock-error'
 
 function MethodTabs({
   activeTab,
@@ -453,7 +458,10 @@ export interface DepositMethodHandlers {
   onConnectWallet?: () => void
   /** Called when the user confirms the amount on the deposit view. */
   onDeposit?: (args: { source: DepositSource; tokenId: string; amount: string }) => void
+  /** With an allowance this fires only after the pre-signed lock is accepted. */
   onDepositSuccess?: () => void
+  /** The deposit credited but the pre-signed lock failed — re-prompt. */
+  onLockFailed?: (error: PostDepositLockError) => void
 }
 
 export function DepositModalContent({
@@ -465,6 +473,7 @@ export function DepositModalContent({
   onConnectWallet,
   onDeposit,
   onDepositSuccess,
+  onLockFailed,
   onClose,
   onCloseBlockedChange,
   onExit,
@@ -506,6 +515,18 @@ export function DepositModalContent({
   const [showSuccess, setShowSuccess] = useState(false)
   const [showTimeout, setShowTimeout] = useState(false)
   const [cancelled, setCancelled] = useState(false)
+  const [isSubmittingLock, setIsSubmittingLock] = useState(false)
+  const [lockFailedMessage, setLockFailedMessage] = useState<string | null>(null)
+
+  const finishDeposit = () => {
+    setAmount('')
+    if (onDepositSuccess) {
+      resetDeposit()
+      onDepositSuccess()
+    } else {
+      setShowSuccess(true)
+    }
+  }
 
   const {
     txHash,
@@ -521,23 +542,30 @@ export function DepositModalContent({
     retryVerification,
     reset: resetDeposit,
   } = useDeposit({
-    onCredited: () => {
-      setAmount('')
-      if (onDepositSuccess) {
-        resetDeposit()
-        onDepositSuccess()
-      } else {
-        setShowSuccess(true)
+    onCredited: (_txHash, _response, lockPending) => {
+      // With an allowance the flow's promise is locked funds, not just a
+      // credit — hold the progress view until the pre-signed lock settles.
+      if (lockPending) {
+        setIsSubmittingLock(true)
+        return
       }
+      finishDeposit()
+    },
+    onLockSubmitted: () => {
+      setIsSubmittingLock(false)
+      finishDeposit()
+    },
+    // The deposit credited; only the policy lock failed. Success must not
+    // fire (the host would act on unlocked funds) — show the dedicated
+    // error view and let the host re-prompt for a fresh lock.
+    onLockFailed: (err) => {
+      setIsSubmittingLock(false)
+      setLockFailedMessage(err.message)
+      onLockFailed?.(err)
     },
     onCheckTimeout: () => {
       setAmount('')
       setShowTimeout(true)
-    },
-    // The deposit credited; only the policy lock failed. Surface it without
-    // downgrading the credited state — the host re-prompts for a fresh lock.
-    onLockFailed: (err) => {
-      toast.error(err.message)
     },
   })
 
@@ -597,7 +625,8 @@ export function DepositModalContent({
         : isSwitchingChain ||
             isSendingTransaction ||
             isWaitingForConfirmation ||
-            isWaitingForProcessing
+            isWaitingForProcessing ||
+            isSubmittingLock
           ? 'completed'
           : 'pending',
     },
@@ -605,7 +634,10 @@ export function DepositModalContent({
       label: `Switching to ${targetChain?.name ?? 'deposit chain'}`,
       status: isSwitchingChain
         ? 'active'
-        : isSendingTransaction || isWaitingForConfirmation || isWaitingForProcessing
+        : isSendingTransaction ||
+            isWaitingForConfirmation ||
+            isWaitingForProcessing ||
+            isSubmittingLock
           ? 'completed'
           : 'pending',
     },
@@ -613,7 +645,7 @@ export function DepositModalContent({
       label: 'Confirm in wallet',
       status: isSendingTransaction
         ? 'active'
-        : isWaitingForConfirmation || isWaitingForProcessing
+        : isWaitingForConfirmation || isWaitingForProcessing || isSubmittingLock
           ? 'completed'
           : 'pending',
     },
@@ -621,24 +653,34 @@ export function DepositModalContent({
       label: 'Confirming transaction',
       status: isWaitingForConfirmation
         ? 'active'
-        : isWaitingForProcessing
+        : isWaitingForProcessing || isSubmittingLock
           ? 'completed'
           : 'pending',
     },
     {
       label: 'Verifying deposit — may take up to a few minutes',
-      status: isWaitingForProcessing ? 'active' : 'pending',
+      status: isWaitingForProcessing ? 'active' : isSubmittingLock ? 'completed' : 'pending',
     },
+    ...(allowance
+      ? [
+          {
+            label: `Locking funds for ${appName}`,
+            status: isSubmittingLock ? 'active' : 'pending',
+          } as Step,
+        ]
+      : []),
   ]
   const flowView: DepositFlowView | null = showSuccess
     ? 'deposit-success'
-    : showTimeout
-      ? 'deposit-timeout'
-      : verificationFailed
-        ? 'deposit-error'
-        : isPending && !cancelled
-          ? 'depositing'
-          : null
+    : lockFailedMessage
+      ? 'lock-error'
+      : showTimeout
+        ? 'deposit-timeout'
+        : verificationFailed
+          ? 'deposit-error'
+          : (isPending && !cancelled) || isSubmittingLock
+            ? 'depositing'
+            : null
   const activeView: DepositView | DepositFlowView = flowView ?? view
 
   const handleDepositDone = () => {
@@ -650,6 +692,13 @@ export function DepositModalContent({
 
   const handleDepositCancel = () => {
     setCancelled(true)
+    resetDeposit()
+  }
+
+  const handleLockFailedDone = () => {
+    setLockFailedMessage(null)
+    setAmount('')
+    setCancelled(false)
     resetDeposit()
   }
 
@@ -723,6 +772,13 @@ export function DepositModalContent({
               title="Deposit Successful"
               message={`Your ${selectedToken?.symbol ?? ''} deposit has been processed.`}
               onDone={handleDepositDone}
+            />
+          )}
+          {activeView === 'lock-error' && (
+            <TransactionWarningView
+              title="Deposit credited, lock failed"
+              message={`Your deposit was credited but locking the funds for ${appName} failed: ${lockFailedMessage}`}
+              onDone={handleLockFailedDone}
             />
           )}
           {activeView === 'deposit-timeout' && (

@@ -34,7 +34,9 @@ import type {
 export interface UseDepositOptions {
   onDepositAddressReceived?: (response: DepositAddressResponse) => void
   onDepositSuccess?: (txHash: string) => void
-  onCredited?: (txHash: string, response: DepositCheckResponse) => void
+  /** `lockPending` is true when a pre-signed lock is being submitted after
+   * this credit — `onLockSubmitted` or `onLockFailed` will follow. */
+  onCredited?: (txHash: string, response: DepositCheckResponse, lockPending?: boolean) => void
   /** Fired when the pre-signed post-deposit lock is accepted by the API. */
   onLockSubmitted?: (response: TransactionSubmissionResponse) => void
   /**
@@ -253,7 +255,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
       } else if (address) {
         clearPendingDeposit(address)
       }
-      onCreditedRef.current?.(hash, response)
+      onCreditedRef.current?.(hash, response, signedLock !== null)
     },
     onCheckTimeout: (hash) => {
       onCheckTimeoutRef.current?.(hash)
