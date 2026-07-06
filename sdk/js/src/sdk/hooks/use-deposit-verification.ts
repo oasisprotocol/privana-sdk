@@ -14,6 +14,8 @@ export interface VerificationContext {
   chainId: number
   /** Transferred amount in base units (matches the deposit's token decimals). */
   amount: bigint
+  /** Log index of the exact Transfer event within the tx (default: 0). */
+  logIndex?: number
 }
 
 export interface UseDepositVerificationOptions {
@@ -124,7 +126,7 @@ export function useDepositVerification(
   const runVerification = useCallback(
     async (ctx: VerificationContext, generation: number): Promise<void> => {
       const isStale = () => generation !== generationRef.current
-      const { hash, chainId, amount } = ctx
+      const { hash, chainId, amount, logIndex } = ctx
 
       setVerificationFailed(false)
       setError(null)
@@ -161,6 +163,7 @@ export function useDepositVerification(
                 chain_id: chainId,
                 tx_hash: hash,
                 amount: amount.toString(),
+                log_index: logIndex,
               })
             )
             if (result.status === 'error' && isInsufficientFinalityMessage(result.detail)) {
