@@ -161,9 +161,11 @@ function DepositView({
       ? formatTokenAmount(walletBalance.toString(), selectedToken.decimals)
       : '0.00'
 
-  // The credit-card amount is a fiat value (MoonPay's baseCurrencyAmount); gate it
-  // against MoonPay's minimum here so the user can't sign the policy for an amount
-  // MoonPay would reject once the widget opens.
+  // The credit-card amount is the token amount MoonPay should deliver
+  // (quoteCurrencyAmount — the pre-signed lock needs an exact crypto target).
+  // Gate it against MoonPay's fiat minimum so the user can't sign the policy
+  // for an amount MoonPay would reject once the widget opens; the ~1:1
+  // comparison holds because card purchases are limited to USD-stable tokens.
   const {
     minBuyAmount: moonpayMinBuy,
     isLoading: moonpayLimitsLoading,
@@ -175,8 +177,8 @@ function DepositView({
   })
 
   const hasValidAmount = !!amount && parseFloat(amount) > 0
-  // The credit-card amount is fiat USD (MoonPay's baseCurrencyAmount, max 2
-  // decimals); other sources take a token amount capped by the token's decimals.
+  // Card purchases keep a 2-decimal cap so the quote string stays simple for
+  // MoonPay; other sources take a token amount capped by the token's decimals.
   const maxAmountDecimals = isCreditCard ? 2 : selectedToken?.decimals
   const tooManyDecimals =
     hasValidAmount &&
@@ -292,7 +294,7 @@ function DepositView({
               MAX
             </button>
           ) : isCreditCard ? (
-            <span className="text-muted-foreground text-sm">USD</span>
+            <span className="text-muted-foreground text-sm">{selectedToken?.symbol ?? 'USD'}</span>
           ) : (
             selectedToken && (
               <span className="text-muted-foreground text-sm">{selectedToken.symbol}</span>
@@ -532,6 +534,11 @@ export function DepositModalContent({
       setAmount('')
       setShowTimeout(true)
     },
+    // The deposit credited; only the policy lock failed. Surface it without
+    // downgrading the credited state — the host re-prompts for a fresh lock.
+    onLockFailed: (err) => {
+      toast.error(err.message)
+    },
   })
 
   const isUnsafeToClose = (isGettingAddress || isSendingTransaction) && !cancelled
@@ -556,8 +563,8 @@ export function DepositModalContent({
       return
     }
     if (args.source === 'credit-card') {
-      // The DepositLockAuthorization (policy) for card purchases is signed inside
-      // the on-ramp flow itself — see the postDepositLock TODO in CreditCardWidgetView.
+      // The pre-signed lock for card purchases is created inside the on-ramp
+      // flow itself — see the postDepositLock wiring in CreditCardWidgetView.
       setView('credit-card-widget')
       return
     }
@@ -565,23 +572,15 @@ export function DepositModalContent({
     if (!token) return
     onDeposit?.(args)
     setCancelled(false)
-    // TODO: once the deposit-lock-authorization branch lands, deposit() gains a
-    // postDepositLock param that signs the DepositLockAuthorization (EIP-712)
-    // before the transfer — pass the allowance as the policy:
-    // deposit({
-    //   tokenId: token.id,
-    //   amount: parseTokenAmount(args.amount, token.decimals),
-    //   postDepositLock: allowance
-    //     ? {
-    //         maxAmount: BigInt(allowance.value),
-    //         minAmount: allowance.minAmount ? BigInt(allowance.minAmount) : undefined,
-    //         lockDuration: allowance.lockDuration ? BigInt(allowance.lockDuration) : undefined,
-    //       }
-    //     : undefined,
-    // })
     deposit({
       tokenId: token.id,
       amount: parseTokenAmount(args.amount, token.decimals),
+      postDepositLock: allowance
+        ? {
+            maxAmount: BigInt(allowance.value),
+            lockDuration: allowance.lockDuration,
+          }
+        : undefined,
     }).catch((err: unknown) => {
       toast.error(err instanceof Error ? err.message : 'Deposit failed')
     })

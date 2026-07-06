@@ -2,16 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CircleCheckIcon, Loader2 } from 'lucide-react'
-import { formatUnits } from 'viem'
+import { formatUnits, parseUnits } from 'viem'
 import { useAccount } from 'wagmi'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  useFiatOnRamp,
-  type FiatOnRampDebugEvent,
-  type FiatOnRampPostDepositLockConfig,
-} from '@/sdk/hooks/use-fiat-on-ramp'
-import type { Bytes32 } from '@/sdk/types'
+import { useFiatOnRamp, type FiatOnRampDebugEvent } from '@/sdk/hooks/use-fiat-on-ramp'
+import type { OnRampPostDepositLockConfig, PostDepositLockError } from '@/sdk/hooks/pending-lock'
+import type { Bytes32, TransactionSubmissionResponse } from '@/sdk/types'
 import { useMoonPayBuyWidget } from './use-moonpay-buy-widget'
 
 export interface FiatOnRampFormProps {
@@ -26,6 +23,12 @@ export interface FiatOnRampFormProps {
   baseCurrencyCode?: string
   /** Pre-filled fiat amount the user can still edit in MoonPay (default: '100'). */
   defaultBaseCurrencyAmount?: string
+  /**
+   * Exact crypto amount (human units) the purchase should deliver. Takes
+   * precedence over `defaultBaseCurrencyAmount` inside MoonPay. Required when
+   * `postDepositLock` is set.
+   */
+  quoteCurrencyAmount?: string
   /** Override the display symbol. Defaults to the resolved token's symbol, then `currencyCode`. */
   tokenSymbol?: string
   /** Enable dark mode or light mode as the default appearance for the widget. Possible values are dark, light. */
@@ -53,10 +56,17 @@ export interface FiatOnRampFormProps {
   lockAmount?: boolean
   /** Pre-selects a payment method tab in MoonPay */
   paymentMethod?: string
-  /** Optional signed cap that locks the delivered on-ramp amount after Privana credits it. */
-  postDepositLock?: FiatOnRampPostDepositLockConfig
+  /**
+   * Pre-sign a `Lock` for the buffered `quoteCurrencyAmount` before the
+   * purchase; the SDK submits it once the delivered deposit credits.
+   */
+  postDepositLock?: OnRampPostDepositLockConfig
   /** Fired when the resulting Privana deposit is credited. */
   onCredited?: (depositTxHash: string) => void
+  /** Fired when the pre-signed post-deposit lock is accepted by the API. */
+  onLockSubmitted?: (response: TransactionSubmissionResponse) => void
+  /** Fired when the deposit credited but the pre-signed lock failed — re-prompt. */
+  onLockFailed?: (error: PostDepositLockError) => void
   onError?: (error: Error) => void
   /** Optional diagnostic event stream for previews/tests. */
   onDebugEvent?: (event: FiatOnRampDebugEvent) => void
@@ -67,6 +77,7 @@ export function FiatOnRampForm({
   currencyCode,
   baseCurrencyCode = 'usd',
   defaultBaseCurrencyAmount = '100',
+  quoteCurrencyAmount,
   tokenSymbol,
   theme,
   themeId,
@@ -77,6 +88,8 @@ export function FiatOnRampForm({
   paymentMethod,
   postDepositLock,
   onCredited,
+  onLockSubmitted,
+  onLockFailed,
   onError,
   onDebugEvent,
 }: FiatOnRampFormProps) {
@@ -84,6 +97,9 @@ export function FiatOnRampForm({
   const [visible, setVisible] = useState(false)
   const [isPreparing, setIsPreparing] = useState(false)
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null)
+  // The purchase credited but the pre-signed lock didn't apply — rendered
+  // inline so the failure is visible even when the host wires no callback.
+  const [lockError, setLockError] = useState<string | null>(null)
 
   const {
     status,
@@ -102,7 +118,21 @@ export function FiatOnRampForm({
     finishPendingVerification,
     handleWidgetClosed,
     refreshPending,
-  } = useFiatOnRamp({ tokenId, postDepositLock, onCredited, onError, onDebugEvent })
+  } = useFiatOnRamp({
+    tokenId,
+    postDepositLock,
+    onCredited,
+    onLockSubmitted: (response) => {
+      setLockError(null)
+      onLockSubmitted?.(response)
+    },
+    onLockFailed: (err) => {
+      setLockError(err.message)
+      onLockFailed?.(err)
+    },
+    onError,
+    onDebugEvent,
+  })
 
   const decimals = selectedToken?.decimals
   const displaySymbol = tokenSymbol ?? selectedToken?.symbol ?? currencyCode.toUpperCase()
@@ -130,7 +160,22 @@ export function FiatOnRampForm({
     minDepositBaseUnits !== undefined && decimals !== undefined
       ? Number(formatUnits(minDepositBaseUnits, decimals)) * 1.05
       : undefined
-  const isBelowMin = minFiatGate !== undefined && Number(defaultBaseCurrencyAmount) < minFiatGate
+  // Quote-driven purchases target the exact crypto amount (fees come out of
+  // the fiat total), so the minimum check compares base units directly. A
+  // quote that fails to parse must block the purchase, not silently fall back
+  // to the fiat gate — MoonPay would receive the malformed quote as-is.
+  const { units: quoteBaseUnits, failed: quoteParseFailed } = (() => {
+    if (!quoteCurrencyAmount || decimals === undefined) return { units: undefined, failed: false }
+    try {
+      return { units: parseUnits(quoteCurrencyAmount, decimals), failed: false }
+    } catch {
+      return { units: undefined, failed: true }
+    }
+  })()
+  const isBelowMin =
+    quoteBaseUnits !== undefined && minDepositBaseUnits !== undefined
+      ? quoteBaseUnits < minDepositBaseUnits
+      : minFiatGate !== undefined && Number(defaultBaseCurrencyAmount) < minFiatGate
   const isBusy = isPreparing || status === 'awaiting-purchase'
   const isInitializing = !!address && !depositAddress
   const isPrePurchase = status === 'idle' || status === 'awaiting-purchase'
@@ -143,8 +188,9 @@ export function FiatOnRampForm({
         isBusy ? `busy:${isPreparing ? 'preparing' : status}` : null,
         visible ? 'widget-open' : null,
         isBelowMin ? 'below-minimum' : null,
+        quoteParseFailed ? 'invalid-quote-amount' : null,
       ].filter((reason): reason is string => Boolean(reason)),
-    [address, depositAddress, isBelowMin, isBusy, isPreparing, status, visible]
+    [address, depositAddress, isBelowMin, isBusy, isPreparing, quoteParseFailed, status, visible]
   )
   const canBuy = blockReasons.length === 0
 
@@ -179,6 +225,7 @@ export function FiatOnRampForm({
         currencyCode,
         baseCurrencyCode,
         baseCurrencyAmount: defaultBaseCurrencyAmount,
+        quoteCurrencyAmount,
       })
       emitFormDebug('form:intent-ready', {
         transactionId: intent.transaction_id,
@@ -203,6 +250,7 @@ export function FiatOnRampForm({
     decimals,
     displaySymbol,
     defaultBaseCurrencyAmount,
+    quoteCurrencyAmount,
     depositAddress,
     emitFormDebug,
     prepareOnRampIntent,
@@ -237,6 +285,7 @@ export function FiatOnRampForm({
     colorCode,
     baseCurrencyCode,
     baseCurrencyAmount: defaultBaseCurrencyAmount,
+    quoteCurrencyAmount,
     lockAmount,
     paymentMethod,
     currencyCode,
@@ -343,6 +392,12 @@ export function FiatOnRampForm({
       {error && (
         <p className="text-destructive text-sm" role="alert">
           {error.message}
+        </p>
+      )}
+
+      {lockError && (
+        <p className="text-destructive text-sm" role="alert">
+          Purchase credited, but locking the funds failed: {lockError}
         </p>
       )}
 

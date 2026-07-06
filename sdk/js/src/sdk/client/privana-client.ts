@@ -77,7 +77,6 @@ export class PrivanaClient {
   }
 
   async checkDeposit(request: DepositCheckRequest): Promise<DepositCheckResponse> {
-    const lockAuthorization = request.lock_authorization
     return this.http.post<DepositCheckResponse>('/v1/accounting/deposits/check', {
       chain_type: request.chain_type ?? 'evm',
       chain_id: request.chain_id,
@@ -85,20 +84,6 @@ export class PrivanaClient {
       amount: String(request.amount),
       log_index: request.log_index ?? 0,
       version: request.version ?? 0,
-      ...(lockAuthorization
-        ? {
-            lock_authorization: {
-              service_address: normalizeAddress(lockAuthorization.service_address),
-              token_id: normalizeHex(lockAuthorization.token_id),
-              max_amount: String(lockAuthorization.max_amount),
-              min_amount: String(lockAuthorization.min_amount ?? 0),
-              lock_duration: String(lockAuthorization.lock_duration),
-              authorization_deadline: String(lockAuthorization.authorization_deadline),
-              intent_id: normalizeHex(lockAuthorization.intent_id),
-              signature: normalizeHex(lockAuthorization.signature),
-            },
-          }
-        : {}),
     })
   }
 
@@ -367,7 +352,6 @@ export class PrivanaClient {
     transactionId: string,
     request: UpdateOnRampRequest
   ): Promise<UpdateOnRampResponse> {
-    const lockAuthorization = request.lock_authorization
     return this.http.post<UpdateOnRampResponse>(
       `/v1/accounting/onramp/${encodeURIComponent(transactionId)}`,
       {
@@ -386,20 +370,6 @@ export class PrivanaClient {
         deposit_tx_hash: request.deposit_tx_hash
           ? normalizeHex(request.deposit_tx_hash)
           : undefined,
-        ...(lockAuthorization
-          ? {
-              lock_authorization: {
-                service_address: normalizeAddress(lockAuthorization.service_address),
-                token_id: normalizeHex(lockAuthorization.token_id),
-                max_amount: String(lockAuthorization.max_amount),
-                min_amount: String(lockAuthorization.min_amount ?? 0),
-                lock_duration: String(lockAuthorization.lock_duration),
-                authorization_deadline: String(lockAuthorization.authorization_deadline),
-                intent_id: normalizeHex(lockAuthorization.intent_id),
-                signature: normalizeHex(lockAuthorization.signature),
-              },
-            }
-          : {}),
       }
     )
   }

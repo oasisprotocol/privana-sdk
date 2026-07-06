@@ -16,21 +16,34 @@ import {
   setBrowserStorageItem,
 } from './browser-storage'
 import {
-  createSignedDepositLockAuthorization,
-  type DepositLockAuthorizationConfig,
-} from './deposit-lock-authorization'
+  createSignedLockRequest,
+  isSignedLockUsable,
+  submitPendingLock,
+  PostDepositLockError,
+  type PostDepositLockConfig,
+} from './pending-lock'
 import type {
   Address,
   Bytes32,
   DepositAddressResponse,
   DepositCheckResponse,
-  DepositLockAuthorizationRequest,
+  LockFundsRequest,
+  TransactionSubmissionResponse,
 } from '../types'
 
 export interface UseDepositOptions {
   onDepositAddressReceived?: (response: DepositAddressResponse) => void
   onDepositSuccess?: (txHash: string) => void
   onCredited?: (txHash: string, response: DepositCheckResponse) => void
+  /** Fired when the pre-signed post-deposit lock is accepted by the API. */
+  onLockSubmitted?: (response: TransactionSubmissionResponse) => void
+  /**
+   * Fired when the deposit credited but the pre-signed lock could not be
+   * submitted (expired, short credit, stale nonce). The funds sit in the
+   * user's available balance — re-prompt a fresh lock signature at the
+   * credited amount. Falls back to `onError` when not provided.
+   */
+  onLockFailed?: (error: PostDepositLockError) => void
   /** Called when deposit check polling times out - deposit may still be processing */
   onCheckTimeout?: (txHash: string) => void
   onError?: (error: Error) => void
@@ -45,7 +58,11 @@ export interface UseDepositOptions {
 export interface DepositParams {
   tokenId: Bytes32
   amount: bigint
-  postDepositLock?: DepositLockAuthorizationConfig
+  /**
+   * Pre-sign a `Lock` for the deposited amount (capped by `maxAmount`) before
+   * the transfer; the SDK submits it once the deposit credits.
+   */
+  postDepositLock?: PostDepositLockConfig
 }
 
 export interface UseDepositResult {
@@ -80,7 +97,7 @@ interface PersistedDeposit {
   chainId: number
   amount: string
   depositAddress: DepositAddressResponse
-  lockAuthorization?: DepositLockAuthorizationRequest
+  signedLock?: LockFundsRequest
   savedAt: number
 }
 
@@ -92,7 +109,7 @@ function storageKey(address: string): string {
 
 function savePendingDeposit(address: string, data: PersistedDeposit): void {
   const stored = setBrowserStorageItem(storageKey(address), JSON.stringify(data))
-  if (!stored && data.lockAuthorization) {
+  if (!stored && data.signedLock) {
     throw new Error('Unable to persist pending locked deposit for recovery')
   }
 }
@@ -102,7 +119,13 @@ function loadPendingDeposit(address: string): PersistedDeposit | null {
     const raw = getBrowserStorageItem(storageKey(address))
     if (!raw) return null
     const data: PersistedDeposit = JSON.parse(raw)
-    if (Date.now() - data.savedAt > STALE_MS) {
+    // A still-usable signed lock keeps the record alive past STALE_MS: the
+    // lock's own expiry is the real deadline, and dropping the record here
+    // would silently orphan a lock the user already signed.
+    if (
+      Date.now() - data.savedAt > STALE_MS &&
+      !(data.signedLock && isSignedLockUsable(data.signedLock))
+    ) {
       clearPendingDeposit(address)
       return null
     }
@@ -146,21 +169,64 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   const onDepositAddressReceivedRef = useRef(options.onDepositAddressReceived)
   const onDepositSuccessRef = useRef(options.onDepositSuccess)
   const onCreditedRef = useRef(options.onCredited)
+  const onLockSubmittedRef = useRef(options.onLockSubmitted)
+  const onLockFailedRef = useRef(options.onLockFailed)
   const onCheckTimeoutRef = useRef(options.onCheckTimeout)
   const onErrorRef = useRef(options.onError)
   useEffect(() => {
     onDepositAddressReceivedRef.current = options.onDepositAddressReceived
     onDepositSuccessRef.current = options.onDepositSuccess
     onCreditedRef.current = options.onCredited
+    onLockSubmittedRef.current = options.onLockSubmitted
+    onLockFailedRef.current = options.onLockFailed
     onCheckTimeoutRef.current = options.onCheckTimeout
     onErrorRef.current = options.onError
   }, [
     options.onDepositAddressReceived,
     options.onDepositSuccess,
     options.onCredited,
+    options.onLockSubmitted,
+    options.onLockFailed,
     options.onCheckTimeout,
     options.onError,
   ])
+
+  // Signed lock waiting for the deposit to credit. Mirrors the persisted copy
+  // so a resumed session can still submit it.
+  const pendingLockRef = useRef<LockFundsRequest | null>(null)
+
+  // The deposit is credited either way; only the lock half can fail here, so
+  // route failures to the dedicated callback (or onError as fallback) instead
+  // of the deposit error state.
+  const submitPendingLockAfterCredit = useCallback(
+    async (signedLock: LockFundsRequest, response: DepositCheckResponse) => {
+      try {
+        const result = await submitPendingLock({
+          client,
+          payload: signedLock,
+          creditedAmount: response.amount !== undefined ? BigInt(response.amount) : undefined,
+        })
+        queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
+        queryClient.invalidateQueries({ queryKey: ['accounting-locked-funds'] })
+        queryClient.invalidateQueries({ queryKey: ['accounting-total-locked-balance'] })
+        queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
+        onLockSubmittedRef.current?.(result)
+      } catch (err) {
+        const error =
+          err instanceof PostDepositLockError
+            ? err
+            : new PostDepositLockError(
+                err instanceof Error ? err.message : 'Lock submission failed',
+                'submission-failed',
+                BigInt(signedLock.amount),
+                undefined,
+                { cause: err }
+              )
+        ;(onLockFailedRef.current ?? onErrorRef.current)?.(error)
+      }
+    },
+    [client, queryClient]
+  )
 
   const {
     isVerifying,
@@ -174,7 +240,19 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     pollTimeout: options.pollTimeout,
     onCredited: (hash, response) => {
       verificationContextRef.current = null
-      if (address) clearPendingDeposit(address)
+      const signedLock = pendingLockRef.current
+      pendingLockRef.current = null
+      // Kick off the lock submission before the host callback: a throwing
+      // onCredited must not be able to strand the signed lock. Keep the
+      // persisted record (it carries the signed lock) until the attempt
+      // settles, so a tab close mid-submission can retry next session.
+      if (signedLock) {
+        void submitPendingLockAfterCredit(signedLock, response).finally(() => {
+          if (address) clearPendingDeposit(address)
+        })
+      } else if (address) {
+        clearPendingDeposit(address)
+      }
       onCreditedRef.current?.(hash, response)
     },
     onCheckTimeout: (hash) => {
@@ -236,6 +314,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     resetVerification()
     if (address) clearPendingDeposit(address)
     verificationContextRef.current = null
+    pendingLockRef.current = null
     setDepositAddress(null)
     setTxHash(undefined)
     setIsSwitchingChain(false)
@@ -258,11 +337,11 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     setTxHash(hash)
     setDepositAddress(persisted.depositAddress)
     setIsWaitingForConfirmation(true)
+    pendingLockRef.current = persisted.signedLock ?? null
     const ctx: VerificationContext = {
       hash,
       chainId: persisted.chainId,
       amount: BigInt(persisted.amount),
-      lockAuthorization: persisted.lockAuthorization,
     }
     verificationContextRef.current = ctx
 
@@ -364,19 +443,23 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
         if (params.postDepositLock && !canUseBrowserStorage()) {
           throw new Error('Browser storage is required for locked deposit recovery')
         }
-        const lockServiceAddress = params.postDepositLock?.serviceAddress ?? serviceAddress
-        const lockAuthorization = params.postDepositLock
-          ? await createSignedDepositLockAuthorization({
+        // Sign the exact-amount Lock before any funds move, so the transfer
+        // never proceeds without a submittable lock payload in hand.
+        const maxAmount = params.postDepositLock?.maxAmount
+        const lockAmount =
+          maxAmount !== undefined && maxAmount < params.amount ? maxAmount : params.amount
+        const signedLock = params.postDepositLock
+          ? await createSignedLockRequest({
+              client,
               walletClient,
               userAddress: address as Address,
               networkConfig,
+              serviceAddress: requireServiceAddress(
+                params.postDepositLock.serviceAddress ?? serviceAddress
+              ),
               tokenId: params.tokenId,
-              serviceAddress: requireServiceAddress(lockServiceAddress),
-              maxAmount: params.postDepositLock.maxAmount ?? params.amount,
-              minAmount: params.postDepositLock.minAmount,
+              amount: lockAmount,
               lockDuration: params.postDepositLock.lockDuration,
-              authorizationDeadline: params.postDepositLock.authorizationDeadline,
-              intentId: params.postDepositLock.intentId,
             })
           : undefined
         if (isStale()) return
@@ -406,16 +489,16 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
           hash,
           chainId: sourceChain.id,
           amount: params.amount,
-          lockAuthorization,
         }
         verificationContextRef.current = ctx
+        pendingLockRef.current = signedLock ?? null
         try {
           savePendingDeposit(address, {
             txHash: hash,
             chainId: sourceChain.id,
             amount: params.amount.toString(),
             depositAddress: addrResponse,
-            lockAuthorization,
+            signedLock,
             savedAt: Date.now(),
           })
         } catch (err) {
@@ -465,6 +548,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
       address,
       walletClient,
       addressMutation,
+      client,
       getChainById,
       config,
       confirmations,

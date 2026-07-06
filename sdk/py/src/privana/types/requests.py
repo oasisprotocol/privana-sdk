@@ -15,18 +15,6 @@ class DepositAddressRequest:
 
 
 @dataclass
-class DepositLockAuthorization:
-    service_address: Address
-    token_id: Bytes32
-    max_amount: int | str
-    lock_duration: int | str
-    authorization_deadline: int | str
-    intent_id: Bytes32
-    signature: HexString
-    min_amount: int | str = 0
-
-
-@dataclass
 class DepositCheckRequest:
     chain_id: int
     tx_hash: HexString
@@ -34,7 +22,6 @@ class DepositCheckRequest:
     chain_type: str = "evm"
     log_index: int = 0
     version: int = 0
-    lock_authorization: DepositLockAuthorization | None = None
 
 
 @dataclass

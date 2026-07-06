@@ -26,19 +26,6 @@ export const LOCK_TYPES = {
   ],
 } as const
 
-export const DEPOSIT_LOCK_AUTHORIZATION_TYPES = {
-  DepositLockAuthorization: [
-    { name: 'userAddress', type: 'address' },
-    { name: 'serviceAddress', type: 'address' },
-    { name: 'tokenId', type: 'bytes32' },
-    { name: 'maxAmount', type: 'uint256' },
-    { name: 'minAmount', type: 'uint256' },
-    { name: 'lockDuration', type: 'uint256' },
-    { name: 'authorizationDeadline', type: 'uint256' },
-    { name: 'intentId', type: 'bytes32' },
-  ],
-} as const
-
 export const TRANSFER_TYPES = {
   Transfer: [
     { name: 'toAddress', type: 'address' },
@@ -92,17 +79,6 @@ export interface LockMessage {
   amount: bigint
   expiry: bigint
   nonce: bigint
-}
-
-export interface DepositLockAuthorizationMessage {
-  userAddress: Address
-  serviceAddress: Address
-  tokenId: Bytes32
-  maxAmount: bigint
-  minAmount: bigint
-  lockDuration: bigint
-  authorizationDeadline: bigint
-  intentId: Bytes32
 }
 
 export interface TransferMessage {

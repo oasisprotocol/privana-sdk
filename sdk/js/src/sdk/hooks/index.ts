@@ -1,5 +1,5 @@
 export * from './use-privana-client'
-export * from './deposit-lock-authorization'
+export * from './pending-lock'
 export * from './use-hosted-redirect-auth'
 export * from './use-balance'
 export * from './use-batch-balances'
