@@ -11,13 +11,19 @@ import type { TokenConfig } from '@/sdk/types/tokens'
 import type { Allowance } from '@/sdk/types/allowance'
 import { toast } from 'sonner'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
-import { useDeposit, useDepositAddress, type PostDepositLockError } from '@/sdk/hooks'
+import {
+  useDeposit,
+  useDepositAddress,
+  usePendingDeposits,
+  type PostDepositLockError,
+} from '@/sdk/hooks'
 import { useMoonpayLimits } from '@/sdk/hooks/use-moonpay-limits'
-import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
+import { cn, formatCountdown, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
 import { getTokenIcon } from './token-icons'
 import { TokenSelectorView } from './token-selector-view'
 import { CreditCardWidgetView } from './credit-card-widget-view'
 import {
+  Spinner,
   TransactionProgressView,
   TransactionSuccessView,
   TransactionWarningView,
@@ -365,6 +371,56 @@ function SummaryRow({ value, label }: { value: string; label: string }) {
   )
 }
 
+const LISTENING_WINDOW_MS = 3_600_000
+
+function remainingSeconds(deadline: number): number {
+  return Math.max(0, Math.round((deadline - Date.now()) / 1000))
+}
+
+function useCountdown(deadline: number): number {
+  const [secondsLeft, setSecondsLeft] = useState(() => remainingSeconds(deadline))
+  useEffect(() => {
+    if (remainingSeconds(deadline) <= 0) return
+    const id = setInterval(() => {
+      const left = remainingSeconds(deadline)
+      setSecondsLeft(left)
+      if (left <= 0) clearInterval(id)
+    }, 1000)
+    return () => clearInterval(id)
+  }, [deadline])
+  return secondsLeft
+}
+
+function AwaitingDepositStatus({
+  title,
+  subtitle,
+  remaining,
+}: {
+  title: string
+  subtitle: string
+  remaining?: string
+}) {
+  return (
+    <div className="flex flex-col items-center gap-3 text-center">
+      <div className="text-foreground">
+        <Spinner size={32} />
+      </div>
+      <div className="flex flex-col gap-2">
+        <h3 className="text-foreground text-xl leading-6 font-medium">{title}</h3>
+        <p className="text-muted-foreground text-sm leading-[18px]">
+          {subtitle}
+          {remaining && (
+            <>
+              <br />
+              Remaining time: {remaining}
+            </>
+          )}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function ExternalDepositView({
   token,
   amount,
@@ -376,6 +432,31 @@ function ExternalDepositView({
   const { depositAddress, isReady, isLoading } = useDepositAddress()
   const chain = token ? getChainById(token.chainId) : undefined
   const [copied, setCopied] = useState(false)
+
+  const [deadline] = useState(() => Date.now() + LISTENING_WINDOW_MS)
+  const secondsLeft = useCountdown(deadline)
+  const listening = secondsLeft > 0
+  const [nothingFound, setNothingFound] = useState(false)
+
+  const {
+    isFetching: isScanning,
+    isError: isScanError,
+    isRateLimited,
+    refetch: refetchPendingDeposits,
+  } = usePendingDeposits({
+    chainId: token?.chainId,
+    enabled: isReady && !!depositAddress && !!token,
+    refetchInterval: listening ? 30_000 : false,
+  })
+
+  const handleRefresh = () => {
+    void refetchPendingDeposits().then((result) => {
+      if (!result || result.pending.length === 0) {
+        setNothingFound(true)
+        setTimeout(() => setNothingFound(false), 4000)
+      }
+    })
+  }
 
   const handleCopy = () => {
     if (!depositAddress) return
@@ -443,7 +524,39 @@ function ExternalDepositView({
         </div>
       </div>
 
-      {/* Awaiting-deposit + refresh-status intentionally omitted for now. */}
+      <AwaitingDepositStatus
+        title="Awaiting Deposit"
+        subtitle={
+          listening
+            ? 'We are listening for your incoming transaction for the next hour.'
+            : "We've stopped listening automatically. Use the button below to check for your deposit."
+        }
+        remaining={listening ? formatCountdown(secondsLeft) : undefined}
+      />
+
+      <div className="flex flex-col gap-3">
+        <button
+          type="button"
+          onClick={handleRefresh}
+          disabled={!depositAddress || isScanning}
+          className="bg-secondary text-foreground hover:bg-secondary/80 flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          Refresh deposit status
+        </button>
+        {isRateLimited ? (
+          <p className="text-muted-foreground text-center text-sm">
+            Checked too recently — try again in a moment.
+          </p>
+        ) : isScanError ? (
+          <p className="text-muted-foreground text-center text-sm">
+            Chain temporarily unreachable — retrying automatically.
+          </p>
+        ) : nothingFound ? (
+          <p className="text-muted-foreground text-center text-sm">
+            No incoming transaction found yet.
+          </p>
+        ) : null}
+      </div>
     </div>
   )
 }

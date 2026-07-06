@@ -33,7 +33,7 @@ function ExternalLinkIcon() {
   )
 }
 
-function Spinner({ size = 20 }: { size?: number }) {
+export function Spinner({ size = 20 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" fill="none" className="animate-spin">
       <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="2" opacity="0.15" />

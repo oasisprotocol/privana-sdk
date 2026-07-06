@@ -26,7 +26,7 @@ export interface UsePendingDepositsResult {
   isError: boolean
   error: Error | null
   isRateLimited: boolean
-  refetch: () => Promise<unknown>
+  refetch: () => Promise<PendingDepositsResponse | undefined>
 }
 
 function statusCodeOf(error: unknown): number | undefined {
@@ -90,6 +90,6 @@ export function usePendingDeposits(
     isError: query.isError,
     error: query.error,
     isRateLimited: statusCodeOf(query.error) === 429,
-    refetch: query.refetch,
+    refetch: async () => (await query.refetch()).data,
   }
 }

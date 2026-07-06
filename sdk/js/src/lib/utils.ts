@@ -59,6 +59,13 @@ export function formatTimeRemaining(expiryTimestamp: number): string {
   return `${minutes}m left`
 }
 
+export function formatCountdown(secondsLeft: number): string {
+  const clamped = Math.max(0, secondsLeft)
+  const minutes = Math.floor(clamped / 60)
+  const seconds = clamped % 60
+  return `${minutes}m:${String(seconds).padStart(2, '0')}s`
+}
+
 export function formatRelativeTime(timestamp: string | number): string {
   const date = typeof timestamp === 'string' ? new Date(timestamp) : new Date(timestamp * 1000)
   const now = new Date()
