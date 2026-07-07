@@ -17,11 +17,7 @@ const AVAILABLE_COLOR = 'bg-[#007bff]'
 const IN_USE_COLOR = 'bg-[#4fc77f]'
 
 export interface WalletSession {
-  /**
-   * Funds committed to the active game session, in the display token's base
-   * units. Host-computed — must already reflect the session's wins/losses,
-   * which never exist on-chain until settlement.
-   */
+  /** Funds committed to the active session, in the display token's base units. */
   inUse: string | bigint
   /** Unix timestamp (seconds) when the session lock expires; shows the countdown. */
   expiry?: number
