@@ -385,17 +385,19 @@ function WalletModalContent({
     const run = ++endSessionRunRef.current
     setEndSessionError(null)
     setView('ending-session')
-    onEndSession().then(
-      () => {
-        if (endSessionRunRef.current !== run) return
-        setView('withdraw')
-      },
-      (err: unknown) => {
-        if (endSessionRunRef.current !== run) return
-        setEndSessionError(err instanceof Error ? err.message : null)
-        setView('end-session-error')
-      }
-    )
+    Promise.resolve()
+      .then(() => onEndSession())
+      .then(
+        () => {
+          if (endSessionRunRef.current !== run) return
+          setView('withdraw')
+        },
+        (err: unknown) => {
+          if (endSessionRunRef.current !== run) return
+          setEndSessionError(err instanceof Error ? err.message : null)
+          setView('end-session-error')
+        }
+      )
   }
 
   const handleWithdraw = () => {
