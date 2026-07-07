@@ -100,6 +100,9 @@ export function FiatOnRampForm({
   // The purchase credited but the pre-signed lock didn't apply — rendered
   // inline so the failure is visible even when the host wires no callback.
   const [lockError, setLockError] = useState<string | null>(null)
+  // With a lock configured the flow's promise is locked funds, not just a
+  // credit — hold the terminal success panel until the lock settles.
+  const [lockSettled, setLockSettled] = useState(false)
 
   const {
     status,
@@ -122,8 +125,12 @@ export function FiatOnRampForm({
     tokenId,
     postDepositLock,
     onCredited,
+    // Lock callbacks aren't intent-keyed, so a resumed background row's lock
+    // can settle these flags while a newer purchase is still locking — a
+    // transient overpromise that the newer lock's own outcome then corrects.
     onLockSubmitted: (response) => {
       setLockError(null)
+      setLockSettled(true)
       onLockSubmitted?.(response)
     },
     onLockFailed: (err) => {
@@ -177,6 +184,9 @@ export function FiatOnRampForm({
       ? quoteBaseUnits < minDepositBaseUnits
       : minFiatGate !== undefined && Number(defaultBaseCurrencyAmount) < minFiatGate
   const isBusy = isPreparing || status === 'awaiting-purchase'
+  // Credited with a lock configured but neither settled nor failed yet: the
+  // submission is in flight, so the terminal success panel would overpromise.
+  const lockPending = !!postDepositLock && status === 'credited' && !lockSettled && !lockError
   const isInitializing = !!address && !depositAddress
   const isPrePurchase = status === 'idle' || status === 'awaiting-purchase'
   const isVerifying = status === 'awaiting-delivery' || status === 'verifying'
@@ -211,6 +221,9 @@ export function FiatOnRampForm({
     }
 
     setIsPreparing(true)
+    // A fresh purchase gets a fresh lock — drop the previous one's outcome.
+    setLockError(null)
+    setLockSettled(false)
     emitFormDebug('form:open-click', {
       currencyCode,
       tokenSymbol: displaySymbol,
@@ -366,7 +379,7 @@ export function FiatOnRampForm({
         </div>
       )}
 
-      {status === 'credited' && (
+      {status === 'credited' && !lockPending && !lockError && (
         <div className="flex flex-col items-center gap-2 py-8 text-center">
           <CircleCheckIcon className="text-primary size-8" aria-hidden />
           <p className="text-foreground text-sm font-medium">Purchase credited</p>
@@ -374,6 +387,13 @@ export function FiatOnRampForm({
             Your {displaySymbol} deposit is now available in your balance.
           </p>
         </div>
+      )}
+
+      {lockPending && (
+        <p className="text-muted-foreground flex items-center gap-2 text-sm">
+          <Loader2 className="size-4 animate-spin" aria-hidden />
+          Purchase credited — locking your funds…
+        </p>
       )}
 
       {autoStart ? (

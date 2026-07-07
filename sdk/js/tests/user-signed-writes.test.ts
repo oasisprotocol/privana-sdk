@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import { PrivanaClient } from '../src/sdk/client'
 import {
   applyLockBuffer,
+  clampLockAmount,
   clearPendingLock,
   createSignedLockRequest,
   isSignedLockUsable,
@@ -253,6 +254,19 @@ describe('applyLockBuffer', () => {
     // floor(1_000_000 × (1 − 0.0200004)) = 979_999; rounding the shave to the
     // nearest ppm (20_000) would sign 980_000 — more than the buffer allows.
     expect(applyLockBuffer(1_000_000n, 0.0200004)).toBe(979_999n)
+  })
+})
+
+describe('clampLockAmount', () => {
+  it('caps the signed amount at the allowance, never exceeding it', () => {
+    expect(clampLockAmount(100_000_000n, 60_000_000n)).toBe(60_000_000n)
+    expect(clampLockAmount(100_000_000n, 100_000_000n)).toBe(100_000_000n)
+    expect(clampLockAmount(50_000_000n, 60_000_000n)).toBe(50_000_000n)
+  })
+
+  it('passes the amount through when no cap is configured', () => {
+    expect(clampLockAmount(100_000_000n)).toBe(100_000_000n)
+    expect(clampLockAmount(100_000_000n, undefined)).toBe(100_000_000n)
   })
 })
 

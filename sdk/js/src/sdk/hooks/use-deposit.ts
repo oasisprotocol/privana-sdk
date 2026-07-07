@@ -16,6 +16,7 @@ import {
   setBrowserStorageItem,
 } from './browser-storage'
 import {
+  clampLockAmount,
   createSignedLockRequest,
   isSignedLockUsable,
   submitPendingLock,
@@ -137,7 +138,20 @@ function loadPendingDeposit(address: string): PersistedDeposit | null {
   }
 }
 
-function clearPendingDeposit(address: string): void {
+// `onlyForTxHash` guards the deferred post-lock cleanup: a new deposit may
+// have persisted its own record for this address by the time the previous
+// deposit's lock submission settles, and that record must survive.
+function clearPendingDeposit(address: string, onlyForTxHash?: string): void {
+  if (onlyForTxHash) {
+    try {
+      const raw = getBrowserStorageItem(storageKey(address))
+      // Records without a txHash are corrupt, not a successor's — clear them.
+      const recordTxHash = raw ? (JSON.parse(raw) as PersistedDeposit).txHash : undefined
+      if (recordTxHash && recordTxHash !== onlyForTxHash) return
+    } catch {
+      // Unreadable record — fall through and clear it.
+    }
+  }
   removeBrowserStorageItem(storageKey(address))
 }
 
@@ -248,9 +262,13 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
       // onCredited must not be able to strand the signed lock. Keep the
       // persisted record (it carries the signed lock) until the attempt
       // settles, so a tab close mid-submission can retry next session.
+      // At-least-once edge: if the tab dies after the API accepted the lock
+      // but before the response arrived, the retry re-submits a consumed
+      // nonce and surfaces as a (fund-safe) spurious 'lock failed' — the
+      // client cannot distinguish that from a submission that never landed.
       if (signedLock) {
         void submitPendingLockAfterCredit(signedLock, response).finally(() => {
-          if (address) clearPendingDeposit(address)
+          if (address) clearPendingDeposit(address, hash)
         })
       } else if (address) {
         clearPendingDeposit(address)
@@ -447,9 +465,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
         }
         // Sign the exact-amount Lock before any funds move, so the transfer
         // never proceeds without a submittable lock payload in hand.
-        const maxAmount = params.postDepositLock?.maxAmount
-        const lockAmount =
-          maxAmount !== undefined && maxAmount < params.amount ? maxAmount : params.amount
+        const lockAmount = clampLockAmount(params.amount, params.postDepositLock?.maxAmount)
         const signedLock = params.postDepositLock
           ? await createSignedLockRequest({
               client,

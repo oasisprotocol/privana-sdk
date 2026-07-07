@@ -528,6 +528,14 @@ export function DepositModalContent({
     }
   }
 
+  // Card purchases surface success inline in the on-ramp form (the crypto
+  // success view would show transfer steps that never happened), so without
+  // a host callback there is nothing to do here.
+  const finishCardPurchase = () => {
+    setAmount('')
+    onDepositSuccess?.()
+  }
+
   const {
     txHash,
     isGettingAddress,
@@ -897,7 +905,22 @@ export function DepositModalContent({
 
       {activeView === 'credit-card-widget' && (
         <MoonPayGate enabled>
-          <CreditCardWidgetView token={selectedToken} amount={amount} allowance={allowance} />
+          <CreditCardWidgetView
+            token={selectedToken}
+            amount={amount}
+            allowance={allowance}
+            // Mirrors the crypto path's lock gating: with an allowance the
+            // host learns of success only once the lock is accepted. The
+            // on-ramp hook also reports resumed background rows through these
+            // same callbacks, which at worst ends the deposit view early or
+            // surfaces an earlier purchase's lock failure — both re-promptable.
+            onCredited={allowance ? undefined : finishCardPurchase}
+            onLockSubmitted={finishCardPurchase}
+            onLockFailed={(err) => {
+              setLockFailedMessage(err.message)
+              onLockFailed?.(err)
+            }}
+          />
         </MoonPayGate>
       )}
     </>

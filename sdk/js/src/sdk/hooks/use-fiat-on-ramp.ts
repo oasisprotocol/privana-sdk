@@ -17,6 +17,7 @@ type OnTransactionCreatedProps = Parameters<NonNullable<MoonPayBuyProps['onTrans
 import { usePrivanaContext } from '../context/privana-provider'
 import {
   applyLockBuffer,
+  clampLockAmount,
   clearPendingLock,
   createSignedLockRequest,
   loadPendingLock,
@@ -408,7 +409,9 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
       } finally {
         // One attempt per stored lock, but clear only after the attempt
         // settles so a tab close mid-submission leaves the payload for the
-        // next session to retry.
+        // next session to retry. At-least-once edge: a tab death after the
+        // API accepted but before it responded makes that retry re-submit a
+        // consumed nonce, surfacing as a (fund-safe) spurious 'lock failed'.
         clearPendingLock(userAddress, transactionId)
       }
     },
@@ -557,8 +560,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
             parseUnits(quoteCurrencyAmount, token.decimals),
             postDepositLock.buffer
           )
-          const maxAmount = postDepositLock.maxAmount
-          lockAmount = maxAmount !== undefined && maxAmount < buffered ? maxAmount : buffered
+          lockAmount = clampLockAmount(buffered, postDepositLock.maxAmount)
           if (lockAmount <= 0n) {
             throw new Error(`Post-deposit lock amount must be positive, got ${lockAmount}`)
           }

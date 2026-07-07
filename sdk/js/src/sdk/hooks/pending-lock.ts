@@ -75,6 +75,14 @@ export function applyLockBuffer(
   return (amount * (BUFFER_SCALE - shave)) / BUFFER_SCALE
 }
 
+/**
+ * `min(amount, maxAmount)` — the allowance cap the service requested. The
+ * signed lock must never exceed it, no matter what the flow computed.
+ */
+export function clampLockAmount(amount: bigint, maxAmount?: bigint): bigint {
+  return maxAmount !== undefined && maxAmount < amount ? maxAmount : amount
+}
+
 export interface CreateSignedLockRequestParams {
   client: PrivanaClient
   walletClient: WalletClient

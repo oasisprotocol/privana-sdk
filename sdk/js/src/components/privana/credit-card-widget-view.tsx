@@ -3,16 +3,23 @@
 import { useEffect, useRef, useState } from 'react'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import type { Allowance } from '@/sdk/types/allowance'
+import type { PostDepositLockError } from '@/sdk/hooks/pending-lock'
 import { FiatOnRampForm } from './fiat-on-ramp-form'
 
 export function CreditCardWidgetView({
   token,
   amount,
   allowance,
+  onCredited,
+  onLockSubmitted,
+  onLockFailed,
 }: {
   token: TokenConfig | undefined
   amount: string
   allowance?: Allowance
+  onCredited?: () => void
+  onLockSubmitted?: () => void
+  onLockFailed?: (error: PostDepositLockError) => void
 }) {
   const moonpayCurrencyCode = token?.moonpayCurrencyCode
   const containerRef = useRef<HTMLDivElement>(null)
@@ -43,6 +50,9 @@ export function CreditCardWidgetView({
                 }
               : undefined
           }
+          onCredited={onCredited}
+          onLockSubmitted={onLockSubmitted}
+          onLockFailed={onLockFailed}
         />
       ) : (
         <p className="text-muted-foreground text-sm">
