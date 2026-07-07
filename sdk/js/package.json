@@ -1,6 +1,6 @@
 {
   "name": "@oasisprotocol/privana-sdk",
-  "version": "0.4.4",
+  "version": "0.5.0",
   "description": "React SDK for Privana - manage deposits, withdrawals, locks, and transfers",
   "author": "Oasis Protocol Foundation <security@oasisprotocol.org>",
   "license": "Apache-2.0",
@@ -56,7 +56,7 @@
   "scripts": {
     "build": "bun run build:css && tsup",
     "build:css": "bunx @tailwindcss/cli -i src/globals.css -o src/compiled.css --minify && bun run scripts/scope-css.ts",
-    "dev": "tsup --watch",
+    "dev": "bun run build:css && tsup --watch",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "clean": "rm -rf dist"

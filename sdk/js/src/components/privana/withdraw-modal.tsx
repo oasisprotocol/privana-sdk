@@ -257,12 +257,15 @@ function WithdrawView({
   )
 }
 
-function WithdrawModalContent({
+export function WithdrawModalContent({
   onClose,
   onPendingChange,
+  onBack,
 }: {
   onClose?: () => void
   onPendingChange?: (pending: boolean) => void
+  /** Renders a back chevron on the form view (for embedding, e.g. WalletModal). */
+  onBack?: () => void
 }) {
   const { serviceName, enabledTokens, defaultToken, hostedAuthConfig } = usePrivanaContext()
   const { address } = useAccount()
@@ -312,6 +315,15 @@ function WithdrawModalContent({
         >
           <ChevronLeftIcon />
           Withdraw
+        </button>
+      ) : onBack && !isPending ? (
+        <button
+          type="button"
+          onClick={onBack}
+          className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
+        >
+          <ChevronLeftIcon />
+          {appName}
         </button>
       ) : (
         <div className="flex items-center px-5 py-4">
