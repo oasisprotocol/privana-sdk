@@ -220,7 +220,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
         const result = await submitPendingLock({
           client,
           payload: signedLock,
-          creditedAmount: response.amount !== undefined ? BigInt(response.amount) : undefined,
+          creditedAmount: response.amount != null ? BigInt(response.amount) : undefined,
         })
         queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
         queryClient.invalidateQueries({ queryKey: ['accounting-locked-funds'] })

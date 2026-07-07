@@ -14,10 +14,10 @@ export interface DepositAddressResponse {
 
 export interface DepositCheckResponse {
   status: 'credited' | 'pending' | 'error'
-  deposit_id?: string
-  amount?: string
-  token_address?: Address
-  detail?: string
+  deposit_id?: string | null
+  amount?: string | null
+  token_address?: Address | null
+  detail?: string | null
 }
 
 export interface TransactionSubmissionResponse {
