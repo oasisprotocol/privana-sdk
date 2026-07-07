@@ -17,7 +17,7 @@
     "testnet": {
       "chainId": 23295,
       "name": "Sapphire Testnet",
-      "accountingContract": "0xaF8e5de153A584528B57DD4B9B0195956BBDF571",
+      "accountingContract": "0xad3C76e4E621C0cfF7540479Ee9B0A945723A642",
       "apiUrl": "https://api.testnet.privana.finance"
     },
     "mainnet": {
