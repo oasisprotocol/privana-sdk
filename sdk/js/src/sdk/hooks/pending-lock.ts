@@ -27,7 +27,7 @@ export interface PostDepositLockConfig {
   /** Service the funds get locked to. Defaults to the provider's `serviceAddress`. */
   serviceAddress?: Address
   /**
-   * Lock lifetime in seconds from signing (default 3600). The `Lock` expiry is
+   * Lock lifetime in seconds from signing (default 259200, 3 days). The `Lock` expiry is
    * an absolute timestamp baked into the signature, so it runs from signing
    * time, not from credit time — budget for the expected delivery delay.
    */
@@ -51,7 +51,10 @@ export interface OnRampPostDepositLockConfig extends PostDepositLockConfig {
   buffer?: number
 }
 
-export const DEFAULT_LOCK_DURATION_SECONDS = 3600
+// 3 days: on-ramp purchases can sit in manual KYC review or bank-rail
+// settlement for more than a day, and a lock that expires before credit
+// strands the purchase as credited-without-lock.
+export const DEFAULT_LOCK_DURATION_SECONDS = 259200
 export const DEFAULT_ONRAMP_LOCK_BUFFER = 0.02
 
 /** Fixed-point scale for the buffer so the shave is integer math (floor). */

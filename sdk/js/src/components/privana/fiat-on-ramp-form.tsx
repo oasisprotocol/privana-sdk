@@ -417,7 +417,7 @@ export function FiatOnRampForm({
 
       {lockError && (
         <p className="text-destructive text-sm" role="alert">
-          Purchase credited, but locking the funds failed: {lockError}
+          Purchase credited to your account, but locking the funds to a service failed: {lockError}
         </p>
       )}
 

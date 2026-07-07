@@ -17,7 +17,7 @@ export interface Allowance {
   minAmount?: string
   /**
    * Lock lifetime in seconds, applied from signing time (the `Lock` expiry is
-   * an absolute timestamp). Defaults to the SDK default (3600) when omitted.
+   * an absolute timestamp). Defaults to the SDK default (259200, 3 days) when omitted.
    */
   lockDuration?: number
   terms?: {
