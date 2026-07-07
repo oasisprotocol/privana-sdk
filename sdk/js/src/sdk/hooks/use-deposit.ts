@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAccount, useWalletClient, useWriteContract, useSendTransaction, useConfig } from 'wagmi'
-import { getTransactionReceipt, waitForTransactionReceipt } from '@wagmi/core'
+import { getTransactionReceipt, getWalletClient, waitForTransactionReceipt } from '@wagmi/core'
 import { erc20Abi, zeroAddress } from 'viem'
 import { usePrivanaContext } from '../context/privana-provider'
 import { useEnsureCorrectChain } from './use-ensure-correct-chain'
@@ -433,22 +433,13 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
         const addrResponse = await addressMutation.mutateAsync()
         if (isStale()) return
 
-        // 2. Switch to source chain
-        setIsSwitchingChain(true)
-        try {
-          await ensureCorrectChain(sourceChain.id)
-        } finally {
-          if (!isStale()) setIsSwitchingChain(false)
-        }
-        if (isStale()) return
-
-        // 3. Validate deposit address
+        // 2. Validate deposit address
         const depositAddr = addrResponse.deposit_address
         if (!depositAddr || depositAddr === zeroAddress) {
           throw new Error('Invalid deposit address received from API')
         }
 
-        // 3b. Validate amount against the backend minimum. Below this the
+        // 3. Validate amount against the backend minimum. Below this the
         // deposit processor refuses to credit and funds would be stranded
         // at the per-user deposit address.
         const isNative = token.contract === zeroAddress
@@ -463,26 +454,51 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
         if (params.postDepositLock && !canUseBrowserStorage()) {
           throw new Error('Browser storage is required for locked deposit recovery')
         }
-        // Sign the exact-amount Lock before any funds move, so the transfer
-        // never proceeds without a submittable lock payload in hand.
+        // 4. Sign the exact-amount Lock before any funds move, so the transfer
+        // never proceeds without a submittable lock payload in hand. The Lock
+        // domain lives on the Accounting chain and wallets reject typed data
+        // whose domain chainId differs from the active chain, so switch there
+        // before signing.
         const lockAmount = clampLockAmount(params.amount, params.postDepositLock?.maxAmount)
-        const signedLock = params.postDepositLock
-          ? await createSignedLockRequest({
-              client,
-              walletClient,
-              userAddress: address as Address,
-              networkConfig,
-              serviceAddress: requireServiceAddress(
-                params.postDepositLock.serviceAddress ?? serviceAddress
-              ),
-              tokenId: params.tokenId,
-              amount: lockAmount,
-              lockDuration: params.postDepositLock.lockDuration,
-            })
-          : undefined
+        let signedLock: LockFundsRequest | undefined
+        if (params.postDepositLock) {
+          setIsSwitchingChain(true)
+          try {
+            await ensureCorrectChain(networkConfig.chainId)
+          } finally {
+            if (!isStale()) setIsSwitchingChain(false)
+          }
+          if (isStale()) return
+          // Re-fetch the wallet client bound to the signing chain: the
+          // render-time client can go stale across the chain switch above and
+          // wagmi then rejects the signature with a chain mismatch.
+          const signingWalletClient = await getWalletClient(config, {
+            chainId: networkConfig.chainId,
+          })
+          signedLock = await createSignedLockRequest({
+            client,
+            walletClient: signingWalletClient,
+            userAddress: address as Address,
+            networkConfig,
+            serviceAddress: requireServiceAddress(
+              params.postDepositLock.serviceAddress ?? serviceAddress
+            ),
+            tokenId: params.tokenId,
+            amount: lockAmount,
+            lockDuration: params.postDepositLock.lockDuration,
+          })
+        }
         if (isStale()) return
 
-        // 4. Send transfer to the deposit address (native or ERC-20)
+        // 5. Switch to the source chain and send the transfer to the deposit
+        // address (native or ERC-20)
+        setIsSwitchingChain(true)
+        try {
+          await ensureCorrectChain(sourceChain.id)
+        } finally {
+          if (!isStale()) setIsSwitchingChain(false)
+        }
+        if (isStale()) return
         const hash =
           token.contract === zeroAddress
             ? await sendTransactionAsync({
@@ -524,7 +540,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
         }
 
         try {
-          // 5. Wait for on-chain confirmation
+          // 6. Wait for on-chain confirmation
           setIsWaitingForConfirmation(true)
           try {
             await waitForTransactionReceipt(config, {

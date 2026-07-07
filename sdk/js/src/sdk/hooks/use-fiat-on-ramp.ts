@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { decodeEventLog, parseAbiItem, parseUnits, zeroAddress } from 'viem'
-import { waitForTransactionReceipt } from '@wagmi/core'
+import { getWalletClient, waitForTransactionReceipt } from '@wagmi/core'
 import { useAccount, useConfig, useWalletClient } from 'wagmi'
 import type { MoonPayBuyWidget } from '@moonpay/moonpay-react'
 
@@ -28,6 +28,7 @@ import {
 } from './pending-lock'
 import { canUseBrowserStorage } from './browser-storage'
 import { useDepositVerification } from './use-deposit-verification'
+import { useEnsureCorrectChain } from './use-ensure-correct-chain'
 import { usePrivateReadRequest } from './use-private-read-request'
 import type {
   Address,
@@ -206,6 +207,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
   const { data: walletClient } = useWalletClient()
   const { client, enabledTokens, networkConfig, serviceAddress } = usePrivanaContext()
   const { executePrivateRead, privateReadReady } = usePrivateReadRequest()
+  const { ensureCorrectChain } = useEnsureCorrectChain()
   const wagmiConfig = useConfig()
   const queryClient = useQueryClient()
 
@@ -564,6 +566,10 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
           if (lockAmount <= 0n) {
             throw new Error(`Post-deposit lock amount must be positive, got ${lockAmount}`)
           }
+          // The Lock domain lives on the Accounting chain and wallets reject
+          // typed data whose domain chainId differs from the active chain, so
+          // switch there while a failure still precedes the intent.
+          await ensureCorrectChain(networkConfig.chainId)
         }
 
         emitDebug('intent:create-request', {
@@ -586,9 +592,15 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
           })
         )
         if (postDepositLock && address && walletClient && lockAmount !== undefined) {
+          // Re-fetch the wallet client bound to the signing chain: the
+          // render-time client can go stale across the chain switch above and
+          // wagmi then rejects the signature with a chain mismatch.
+          const signingWalletClient = await getWalletClient(wagmiConfig, {
+            chainId: networkConfig.chainId,
+          })
           const signedLock = await createSignedLockRequest({
             client,
-            walletClient,
+            walletClient: signingWalletClient,
             userAddress: address as Address,
             networkConfig,
             serviceAddress: requireServiceAddress(postDepositLock.serviceAddress ?? serviceAddress),
@@ -625,11 +637,13 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
       depositAddress,
       emitDebug,
       enabledTokens,
+      ensureCorrectChain,
       executePrivateRead,
       networkConfig,
       postDepositLock,
       serviceAddress,
       tokenId,
+      wagmiConfig,
       walletClient,
     ]
   )
