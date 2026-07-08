@@ -11,7 +11,7 @@ import type { TokenConfig } from '@/sdk/types/tokens'
 import type { Allowance } from '@/sdk/types/allowance'
 import { toast } from 'sonner'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
-import { useDeposit, useDepositAddress } from '@/sdk/hooks'
+import { useDeposit, useDepositAddress, type PostDepositLockError } from '@/sdk/hooks'
 import { useMoonpayLimits } from '@/sdk/hooks/use-moonpay-limits'
 import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
 import { getTokenIcon } from './token-icons'
@@ -45,7 +45,12 @@ export type DepositSource = 'connected' | 'external' | 'credit-card'
 
 type DepositView = 'method' | 'deposit' | 'select-token' | 'external-deposit' | 'credit-card-widget'
 
-type DepositFlowView = 'depositing' | 'deposit-success' | 'deposit-timeout' | 'deposit-error'
+type DepositFlowView =
+  | 'depositing'
+  | 'deposit-success'
+  | 'deposit-timeout'
+  | 'deposit-error'
+  | 'lock-error'
 
 function MethodTabs({
   activeTab,
@@ -161,9 +166,11 @@ function DepositView({
       ? formatTokenAmount(walletBalance.toString(), selectedToken.decimals)
       : '0.00'
 
-  // The credit-card amount is a fiat value (MoonPay's baseCurrencyAmount); gate it
-  // against MoonPay's minimum here so the user can't sign the policy for an amount
-  // MoonPay would reject once the widget opens.
+  // The credit-card amount is the token amount MoonPay should deliver
+  // (quoteCurrencyAmount — the pre-signed lock needs an exact crypto target).
+  // Gate it against MoonPay's fiat minimum so the user can't sign the policy
+  // for an amount MoonPay would reject once the widget opens; the ~1:1
+  // comparison holds because card purchases are limited to USD-stable tokens.
   const {
     minBuyAmount: moonpayMinBuy,
     isLoading: moonpayLimitsLoading,
@@ -175,8 +182,8 @@ function DepositView({
   })
 
   const hasValidAmount = !!amount && parseFloat(amount) > 0
-  // The credit-card amount is fiat USD (MoonPay's baseCurrencyAmount, max 2
-  // decimals); other sources take a token amount capped by the token's decimals.
+  // Card purchases keep a 2-decimal cap so the quote string stays simple for
+  // MoonPay; other sources take a token amount capped by the token's decimals.
   const maxAmountDecimals = isCreditCard ? 2 : selectedToken?.decimals
   const tooManyDecimals =
     hasValidAmount &&
@@ -292,7 +299,7 @@ function DepositView({
               MAX
             </button>
           ) : isCreditCard ? (
-            <span className="text-muted-foreground text-sm">USD</span>
+            <span className="text-muted-foreground text-sm">{selectedToken?.symbol ?? 'USD'}</span>
           ) : (
             selectedToken && (
               <span className="text-muted-foreground text-sm">{selectedToken.symbol}</span>
@@ -451,7 +458,10 @@ export interface DepositMethodHandlers {
   onConnectWallet?: () => void
   /** Called when the user confirms the amount on the deposit view. */
   onDeposit?: (args: { source: DepositSource; tokenId: string; amount: string }) => void
+  /** With an allowance this fires only after the pre-signed lock is accepted. */
   onDepositSuccess?: () => void
+  /** The deposit credited but the pre-signed lock failed — re-prompt. */
+  onLockFailed?: (error: PostDepositLockError) => void
 }
 
 export function DepositModalContent({
@@ -463,6 +473,7 @@ export function DepositModalContent({
   onConnectWallet,
   onDeposit,
   onDepositSuccess,
+  onLockFailed,
   onClose,
   onCloseBlockedChange,
   onExit,
@@ -504,6 +515,26 @@ export function DepositModalContent({
   const [showSuccess, setShowSuccess] = useState(false)
   const [showTimeout, setShowTimeout] = useState(false)
   const [cancelled, setCancelled] = useState(false)
+  const [isSubmittingLock, setIsSubmittingLock] = useState(false)
+  const [lockFailedMessage, setLockFailedMessage] = useState<string | null>(null)
+
+  const finishDeposit = () => {
+    setAmount('')
+    if (onDepositSuccess) {
+      resetDeposit()
+      onDepositSuccess()
+    } else {
+      setShowSuccess(true)
+    }
+  }
+
+  // Card purchases surface success inline in the on-ramp form (the crypto
+  // success view would show transfer steps that never happened), so without
+  // a host callback there is nothing to do here.
+  const finishCardPurchase = () => {
+    setAmount('')
+    onDepositSuccess?.()
+  }
 
   const {
     txHash,
@@ -519,14 +550,26 @@ export function DepositModalContent({
     retryVerification,
     reset: resetDeposit,
   } = useDeposit({
-    onCredited: () => {
-      setAmount('')
-      if (onDepositSuccess) {
-        resetDeposit()
-        onDepositSuccess()
-      } else {
-        setShowSuccess(true)
+    onCredited: (_txHash, _response, lockPending) => {
+      // With an allowance the flow's promise is locked funds, not just a
+      // credit — hold the progress view until the pre-signed lock settles.
+      if (lockPending) {
+        setIsSubmittingLock(true)
+        return
       }
+      finishDeposit()
+    },
+    onLockSubmitted: () => {
+      setIsSubmittingLock(false)
+      finishDeposit()
+    },
+    // The deposit credited; only the policy lock failed. Success must not
+    // fire (the host would act on unlocked funds) — show the dedicated
+    // error view and let the host re-prompt for a fresh lock.
+    onLockFailed: (err) => {
+      setIsSubmittingLock(false)
+      setLockFailedMessage(err.message)
+      onLockFailed?.(err)
     },
     onCheckTimeout: () => {
       setAmount('')
@@ -556,8 +599,8 @@ export function DepositModalContent({
       return
     }
     if (args.source === 'credit-card') {
-      // The DepositLockAuthorization (policy) for card purchases is signed inside
-      // the on-ramp flow itself — see the postDepositLock TODO in CreditCardWidgetView.
+      // The pre-signed lock for card purchases is created inside the on-ramp
+      // flow itself — see the postDepositLock wiring in CreditCardWidgetView.
       setView('credit-card-widget')
       return
     }
@@ -565,23 +608,15 @@ export function DepositModalContent({
     if (!token) return
     onDeposit?.(args)
     setCancelled(false)
-    // TODO: once the deposit-lock-authorization branch lands, deposit() gains a
-    // postDepositLock param that signs the DepositLockAuthorization (EIP-712)
-    // before the transfer — pass the allowance as the policy:
-    // deposit({
-    //   tokenId: token.id,
-    //   amount: parseTokenAmount(args.amount, token.decimals),
-    //   postDepositLock: allowance
-    //     ? {
-    //         maxAmount: BigInt(allowance.value),
-    //         minAmount: allowance.minAmount ? BigInt(allowance.minAmount) : undefined,
-    //         lockDuration: allowance.lockDuration ? BigInt(allowance.lockDuration) : undefined,
-    //       }
-    //     : undefined,
-    // })
     deposit({
       tokenId: token.id,
       amount: parseTokenAmount(args.amount, token.decimals),
+      postDepositLock: allowance
+        ? {
+            maxAmount: BigInt(allowance.value),
+            lockDuration: allowance.lockDuration,
+          }
+        : undefined,
     }).catch((err: unknown) => {
       toast.error(err instanceof Error ? err.message : 'Deposit failed')
     })
@@ -598,7 +633,8 @@ export function DepositModalContent({
         : isSwitchingChain ||
             isSendingTransaction ||
             isWaitingForConfirmation ||
-            isWaitingForProcessing
+            isWaitingForProcessing ||
+            isSubmittingLock
           ? 'completed'
           : 'pending',
     },
@@ -606,7 +642,10 @@ export function DepositModalContent({
       label: `Switching to ${targetChain?.name ?? 'deposit chain'}`,
       status: isSwitchingChain
         ? 'active'
-        : isSendingTransaction || isWaitingForConfirmation || isWaitingForProcessing
+        : isSendingTransaction ||
+            isWaitingForConfirmation ||
+            isWaitingForProcessing ||
+            isSubmittingLock
           ? 'completed'
           : 'pending',
     },
@@ -614,7 +653,7 @@ export function DepositModalContent({
       label: 'Confirm in wallet',
       status: isSendingTransaction
         ? 'active'
-        : isWaitingForConfirmation || isWaitingForProcessing
+        : isWaitingForConfirmation || isWaitingForProcessing || isSubmittingLock
           ? 'completed'
           : 'pending',
     },
@@ -622,24 +661,34 @@ export function DepositModalContent({
       label: 'Confirming transaction',
       status: isWaitingForConfirmation
         ? 'active'
-        : isWaitingForProcessing
+        : isWaitingForProcessing || isSubmittingLock
           ? 'completed'
           : 'pending',
     },
     {
       label: 'Verifying deposit — may take up to a few minutes',
-      status: isWaitingForProcessing ? 'active' : 'pending',
+      status: isWaitingForProcessing ? 'active' : isSubmittingLock ? 'completed' : 'pending',
     },
+    ...(allowance
+      ? [
+          {
+            label: `Locking funds for ${appName}`,
+            status: isSubmittingLock ? 'active' : 'pending',
+          } as Step,
+        ]
+      : []),
   ]
   const flowView: DepositFlowView | null = showSuccess
     ? 'deposit-success'
-    : showTimeout
-      ? 'deposit-timeout'
-      : verificationFailed
-        ? 'deposit-error'
-        : isPending && !cancelled
-          ? 'depositing'
-          : null
+    : lockFailedMessage
+      ? 'lock-error'
+      : showTimeout
+        ? 'deposit-timeout'
+        : verificationFailed
+          ? 'deposit-error'
+          : (isPending && !cancelled) || isSubmittingLock
+            ? 'depositing'
+            : null
   const activeView: DepositView | DepositFlowView = flowView ?? view
 
   const handleDepositDone = () => {
@@ -651,6 +700,13 @@ export function DepositModalContent({
 
   const handleDepositCancel = () => {
     setCancelled(true)
+    resetDeposit()
+  }
+
+  const handleLockFailedDone = () => {
+    setLockFailedMessage(null)
+    setAmount('')
+    setCancelled(false)
     resetDeposit()
   }
 
@@ -724,6 +780,13 @@ export function DepositModalContent({
               title="Deposit Successful"
               message={`Your ${selectedToken?.symbol ?? ''} deposit has been processed.`}
               onDone={handleDepositDone}
+            />
+          )}
+          {activeView === 'lock-error' && (
+            <TransactionWarningView
+              title="Deposit credited, lock failed"
+              message={`Your deposit was credited but locking the funds for ${appName} failed: ${lockFailedMessage}`}
+              onDone={handleLockFailedDone}
             />
           )}
           {activeView === 'deposit-timeout' && (
@@ -842,7 +905,22 @@ export function DepositModalContent({
 
       {activeView === 'credit-card-widget' && (
         <MoonPayGate enabled>
-          <CreditCardWidgetView token={selectedToken} amount={amount} allowance={allowance} />
+          <CreditCardWidgetView
+            token={selectedToken}
+            amount={amount}
+            allowance={allowance}
+            // Mirrors the crypto path's lock gating: with an allowance the
+            // host learns of success only once the lock is accepted. The
+            // on-ramp hook also reports resumed background rows through these
+            // same callbacks, which at worst ends the deposit view early or
+            // surfaces an earlier purchase's lock failure — both re-promptable.
+            onCredited={allowance ? undefined : finishCardPurchase}
+            onLockSubmitted={finishCardPurchase}
+            onLockFailed={(err) => {
+              setLockFailedMessage(err.message)
+              onLockFailed?.(err)
+            }}
+          />
         </MoonPayGate>
       )}
     </>

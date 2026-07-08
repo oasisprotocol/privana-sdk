@@ -3,20 +3,24 @@
 import { useEffect, useRef, useState } from 'react'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import type { Allowance } from '@/sdk/types/allowance'
+import type { PostDepositLockError } from '@/sdk/hooks/pending-lock'
 import { FiatOnRampForm } from './fiat-on-ramp-form'
 
 export function CreditCardWidgetView({
   token,
   amount,
   allowance,
+  onCredited,
+  onLockSubmitted,
+  onLockFailed,
 }: {
   token: TokenConfig | undefined
   amount: string
   allowance?: Allowance
+  onCredited?: () => void
+  onLockSubmitted?: () => void
+  onLockFailed?: (error: PostDepositLockError) => void
 }) {
-  // Consumed by the commented postDepositLock wiring below until the
-  // deposit-lock-authorization branch lands.
-  void allowance
   const moonpayCurrencyCode = token?.moonpayCurrencyCode
   const containerRef = useRef<HTMLDivElement>(null)
   const [widgetTheme, setWidgetTheme] = useState<'light' | 'dark'>()
@@ -31,26 +35,24 @@ export function CreditCardWidgetView({
         <FiatOnRampForm
           tokenId={token.id}
           currencyCode={moonpayCurrencyCode}
-          defaultBaseCurrencyAmount={amount || undefined}
+          // The user typed a crypto amount — quote-driven so MoonPay targets
+          // it as the delivery amount, locked inside the widget.
+          quoteCurrencyAmount={amount || undefined}
+          lockAmount
           variant="embedded"
           autoStart
           theme={widgetTheme}
-          // TODO: once the deposit-lock-authorization branch lands, FiatOnRampForm
-          // gains a postDepositLock prop — useFiatOnRamp signs the policy right
-          // after the on-ramp intent is created (intentId derived from the
-          // transaction id, serviceAddress from the provider context) and attaches
-          // it to the on-ramp record:
-          // postDepositLock={
-          //   allowance
-          //     ? {
-          //         maxAmount: BigInt(allowance.value),
-          //         minAmount: allowance.minAmount ? BigInt(allowance.minAmount) : undefined,
-          //         lockDuration: allowance.lockDuration
-          //           ? BigInt(allowance.lockDuration)
-          //           : undefined,
-          //       }
-          //     : undefined
-          // }
+          postDepositLock={
+            allowance
+              ? {
+                  maxAmount: BigInt(allowance.value),
+                  lockDuration: allowance.lockDuration,
+                }
+              : undefined
+          }
+          onCredited={onCredited}
+          onLockSubmitted={onLockSubmitted}
+          onLockFailed={onLockFailed}
         />
       ) : (
         <p className="text-muted-foreground text-sm">

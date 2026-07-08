@@ -5,18 +5,19 @@ export interface AllowanceTerm {
 
 export interface Allowance {
   /**
-   * Hard cap the service is allowed to lock (`maxAmount`), in the token's base units.
-   * Signed into the deposit-lock authorization.
+   * Hard cap the service is allowed to lock (`maxAmount`), in the token's base
+   * units. The pre-signed lock amount is capped to this value.
    */
   value: string
   /**
-   * Minimum amount the delivered deposit must reach for the lock to be created
-   * (`minAmount`), in the token's base units. Defaults to `0` when omitted.
+   * Minimum amount the delivered deposit must reach, in the token's base units.
+   * Display-only: with a pre-signed exact-amount lock, a short delivery means
+   * no lock is created at all, which is stricter than any minimum.
    */
   minAmount?: string
   /**
-   * Lock lifetime in seconds. The accounting module adds this to `block.timestamp`
-   * to derive the lock expiry. Defaults to the SDK default (3600) when omitted.
+   * Lock lifetime in seconds, applied from signing time (the `Lock` expiry is
+   * an absolute timestamp). Defaults to the SDK default (259200, 3 days) when omitted.
    */
   lockDuration?: number
   terms?: {

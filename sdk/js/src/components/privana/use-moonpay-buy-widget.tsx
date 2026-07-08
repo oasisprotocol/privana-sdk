@@ -18,6 +18,12 @@ export interface UseMoonPayBuyWidgetOptions {
   colorCode?: string
   baseCurrencyCode: string
   baseCurrencyAmount: string
+  /**
+   * Exact crypto amount the purchase should deliver. Takes precedence over
+   * `baseCurrencyAmount` inside MoonPay — the widget derives the fiat total
+   * (including fees) so the delivered amount matches the quote.
+   */
+  quoteCurrencyAmount?: string
   lockAmount?: boolean
   paymentMethod?: string
   currencyCode: string
@@ -60,6 +66,7 @@ export function useMoonPayBuyWidget({
   colorCode,
   baseCurrencyCode,
   baseCurrencyAmount,
+  quoteCurrencyAmount,
   lockAmount,
   paymentMethod,
   currencyCode,
@@ -123,6 +130,7 @@ export function useMoonPayBuyWidget({
         overlayNode={overlayNode}
         baseCurrencyCode={baseCurrencyCode}
         baseCurrencyAmount={baseCurrencyAmount}
+        quoteCurrencyAmount={quoteCurrencyAmount}
         lockAmount={lockAmount ? 'true' : undefined}
         paymentMethod={paymentMethod}
         currencyCode={currencyCode}
@@ -148,6 +156,7 @@ export function useMoonPayBuyWidget({
     overlayNode,
     baseCurrencyCode,
     baseCurrencyAmount,
+    quoteCurrencyAmount,
     lockAmount,
     paymentMethod,
     currencyCode,

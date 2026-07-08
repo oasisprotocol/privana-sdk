@@ -347,6 +347,6 @@ function isInsufficientFinalityError(error: unknown): boolean {
   return error instanceof Error && isInsufficientFinalityMessage(error.message)
 }
 
-function isInsufficientFinalityMessage(message: string | undefined): boolean {
+function isInsufficientFinalityMessage(message: string | null | undefined): boolean {
   return message?.includes('Insufficient finality') ?? false
 }
