@@ -65,8 +65,9 @@ export function Providers({ children, network = 'testnet' }: ProvidersProps) {
           <RainbowKitWrapper>
             <PrivanaProvider
               networkConfig={{ ...NETWORK_CONFIG[network], apiUrl, moonpayApiKey }}
+              // Honoroll's registered service account on the testnet Accounting contract
               serviceAddress="0xDCFF0891F0Aea40b0ae4A7Ca3e00AD1012Fc2d16"
-              serviceName="Honoroll Casino"
+              serviceName="Honoroll Casino Testnet"
               serviceIcon={
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-black font-serif text-base font-bold text-orange-400">
                   H
