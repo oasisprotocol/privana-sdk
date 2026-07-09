@@ -11,13 +11,26 @@ import type { TokenConfig } from '@/sdk/types/tokens'
 import type { Allowance } from '@/sdk/types/allowance'
 import { toast } from 'sonner'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
-import { useDeposit, useDepositAddress, type PostDepositLockError } from '@/sdk/hooks'
+import {
+  useDeposit,
+  useDepositAddress,
+  useDepositVerification,
+  usePendingDeposits,
+  type PostDepositLockError,
+} from '@/sdk/hooks'
 import { useMoonpayLimits } from '@/sdk/hooks/use-moonpay-limits'
-import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
+import {
+  cn,
+  formatCountdown,
+  formatTokenAmount,
+  parseTokenAmount,
+  shortenAddress,
+} from '@/lib/utils'
 import { getTokenIcon } from './token-icons'
 import { TokenSelectorView } from './token-selector-view'
 import { CreditCardWidgetView } from './credit-card-widget-view'
 import {
+  Spinner,
   TransactionProgressView,
   TransactionSuccessView,
   TransactionWarningView,
@@ -365,17 +378,131 @@ function SummaryRow({ value, label }: { value: string; label: string }) {
   )
 }
 
+const LISTENING_WINDOW_MS = 3_600_000
+
+function remainingSeconds(deadline: number): number {
+  return Math.max(0, Math.round((deadline - Date.now()) / 1000))
+}
+
+function useCountdown(deadline: number): number {
+  const [secondsLeft, setSecondsLeft] = useState(() => remainingSeconds(deadline))
+  useEffect(() => {
+    if (remainingSeconds(deadline) <= 0) return
+    const id = setInterval(() => {
+      const left = remainingSeconds(deadline)
+      setSecondsLeft(left)
+      if (left <= 0) clearInterval(id)
+    }, 1000)
+    return () => clearInterval(id)
+  }, [deadline])
+  return secondsLeft
+}
+
+function AwaitingDepositStatus({
+  title,
+  subtitle,
+  remaining,
+}: {
+  title: string
+  subtitle: string
+  remaining?: string
+}) {
+  return (
+    <div className="flex flex-col items-center gap-3 text-center">
+      <div className="text-foreground">
+        <Spinner size={32} />
+      </div>
+      <div className="flex flex-col gap-2">
+        <h3 className="text-foreground text-xl leading-6 font-medium">{title}</h3>
+        <p className="text-muted-foreground text-sm leading-[18px]">
+          {subtitle}
+          {remaining && (
+            <>
+              <br />
+              Remaining time: {remaining}
+            </>
+          )}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function ExternalDepositView({
   token,
   amount,
+  onCredited,
 }: {
   token: TokenConfig | undefined
   amount: string
+  /** When set, the host owns the success UX — the inline success view is skipped. */
+  onCredited?: () => void
 }) {
   const { getChainById } = usePrivanaContext()
   const { depositAddress, isReady, isLoading } = useDepositAddress()
   const chain = token ? getChainById(token.chainId) : undefined
   const [copied, setCopied] = useState(false)
+
+  const [deadline] = useState(() => Date.now() + LISTENING_WINDOW_MS)
+  const secondsLeft = useCountdown(deadline)
+  const listening = secondsLeft > 0
+  const [nothingFound, setNothingFound] = useState(false)
+  const [credited, setCredited] = useState<{ txHash: string } | null>(null)
+
+  const verification = useDepositVerification({
+    onCredited: (txHash) => {
+      if (onCredited) {
+        onCredited()
+        return
+      }
+      setCredited({ txHash })
+    },
+  })
+  const { isVerifying, verificationFailed, didTimeout, verify } = verification
+  const scanPaused = isVerifying || verificationFailed || didTimeout || !!credited
+
+  const {
+    pending,
+    isFetching: isScanning,
+    isError: isScanError,
+    isRateLimited,
+    isUnavailable,
+    refetch: refetchPendingDeposits,
+  } = usePendingDeposits({
+    chainId: token?.chainId,
+    enabled: isReady && !!depositAddress && !!token,
+    refetchInterval: listening && !scanPaused ? 30_000 : false,
+  })
+
+  const processedRef = useRef(new Set<string>())
+  useEffect(() => {
+    if (scanPaused) return
+    const next = [...pending]
+      .sort((a, b) => a.block_number - b.block_number)
+      .find((d) => !processedRef.current.has(`${d.tx_hash}:${d.log_index}`))
+    if (!next) return
+    processedRef.current.add(`${next.tx_hash}:${next.log_index}`)
+    void verify({
+      hash: next.tx_hash,
+      chainId: next.chain_id,
+      amount: BigInt(next.amount),
+      logIndex: next.log_index,
+    })
+  }, [pending, scanPaused, verify])
+
+  const nothingFoundTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(nothingFoundTimerRef.current), [])
+
+  const handleRefresh = () => {
+    processedRef.current.clear()
+    void refetchPendingDeposits().then((result) => {
+      if (!result || result.pending.length === 0) {
+        setNothingFound(true)
+        clearTimeout(nothingFoundTimerRef.current)
+        nothingFoundTimerRef.current = setTimeout(() => setNothingFound(false), 4000)
+      }
+    })
+  }
 
   const handleCopy = () => {
     if (!depositAddress) return
@@ -443,7 +570,75 @@ function ExternalDepositView({
         </div>
       </div>
 
-      {/* Awaiting-deposit + refresh-status intentionally omitted for now. */}
+      {credited ? (
+        <TransactionSuccessView
+          title="Deposit Credited"
+          message={`Transfer ${shortenAddress(credited.txHash)} has been credited to your Privana balance.`}
+          onDone={() => {
+            setCredited(null)
+            verification.reset()
+            void refetchPendingDeposits()
+          }}
+        />
+      ) : verificationFailed || didTimeout ? (
+        <TransactionErrorView
+          title="Could not verify deposit"
+          message={
+            didTimeout
+              ? 'Verification timed out — your deposit may still be credited in the background.'
+              : (verification.error?.message ??
+                'Your transfer was found but could not be verified.')
+          }
+          onRetry={() => void verification.retryVerification()}
+          onDismiss={() => verification.reset()}
+          isRetrying={isVerifying}
+        />
+      ) : isVerifying ? (
+        <AwaitingDepositStatus
+          title="Deposit detected"
+          subtitle="Crediting the incoming transaction to your Privana balance..."
+        />
+      ) : (
+        <>
+          <AwaitingDepositStatus
+            title="Awaiting Deposit"
+            subtitle={
+              listening
+                ? 'We are listening for your incoming transaction for the next hour.'
+                : "We've stopped listening automatically. Use the button below to check for your deposit."
+            }
+            remaining={listening ? formatCountdown(secondsLeft) : undefined}
+          />
+
+          <div className="flex flex-col gap-3">
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={!depositAddress || isScanning}
+              className="bg-secondary text-foreground hover:bg-secondary/80 flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Refresh deposit status
+            </button>
+            {isRateLimited ? (
+              <p className="text-muted-foreground text-center text-sm">
+                Checked too recently — try again in a moment.
+              </p>
+            ) : isUnavailable ? (
+              <p className="text-muted-foreground text-center text-sm">
+                Deposit discovery is unavailable for this chain.
+              </p>
+            ) : isScanError ? (
+              <p className="text-muted-foreground text-center text-sm">
+                Chain temporarily unreachable — retrying automatically.
+              </p>
+            ) : nothingFound ? (
+              <p className="text-muted-foreground text-center text-sm">
+                No incoming transaction found yet.
+              </p>
+            ) : null}
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -900,7 +1095,11 @@ export function DepositModalContent({
       )}
 
       {activeView === 'external-deposit' && (
-        <ExternalDepositView token={selectedToken} amount={amount} />
+        <ExternalDepositView
+          token={selectedToken}
+          amount={amount}
+          onCredited={allowance ? undefined : onDepositSuccess}
+        />
       )}
 
       {activeView === 'credit-card-widget' && (

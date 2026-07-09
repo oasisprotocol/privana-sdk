@@ -20,6 +20,29 @@ export interface DepositCheckResponse {
   detail?: string | null
 }
 
+export type PendingDepositStatus = 'discovered' | 'processing'
+
+export interface PendingDeposit {
+  chain_id: number
+  tx_hash: HexString
+  log_index: number
+  /** Base units. */
+  amount: string
+  token_address: Address
+  token_id: Bytes32
+  block_number: number
+  version: number
+  status: PendingDepositStatus
+  /** Set only when status is 'processing'. */
+  deposit_id: string | null
+}
+
+export interface PendingDepositsResponse {
+  pending: PendingDeposit[]
+  scanned_from_block: number
+  scanned_to_block: number
+}
+
 export interface TransactionSubmissionResponse {
   submission_id: string
   status: string
