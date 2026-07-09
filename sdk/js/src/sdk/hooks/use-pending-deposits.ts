@@ -26,6 +26,8 @@ export interface UsePendingDepositsResult {
   isError: boolean
   error: Error | null
   isRateLimited: boolean
+  /** Discovery is not configured for this chain server-side (503) — a deployment fault, not transient. */
+  isUnavailable: boolean
   refetch: () => Promise<PendingDepositsResponse | undefined>
 }
 
@@ -74,11 +76,14 @@ export function usePendingDeposits(
       !!privateReadAddress &&
       !!chainId &&
       !!client,
-    refetchInterval: options.refetchInterval ?? 30_000,
+    // A 503 means discovery is not configured for this chain server-side —
+    // polling can't fix that, so stop until a manual refetch succeeds.
+    refetchInterval: (query) =>
+      statusCodeOf(query.state.error) === 503 ? false : (options.refetchInterval ?? 30_000),
     staleTime: 25_000,
     retry: (failureCount, error) => {
       const status = statusCodeOf(error)
-      if (status === 429 || status === 404) return false
+      if (status === 429 || status === 404 || status === 503) return false
       return failureCount < 2
     },
   })
@@ -90,6 +95,7 @@ export function usePendingDeposits(
     isError: query.isError,
     error: query.error,
     isRateLimited: statusCodeOf(query.error) === 429,
+    isUnavailable: statusCodeOf(query.error) === 503,
     refetch: async () => (await query.refetch()).data,
   }
 }

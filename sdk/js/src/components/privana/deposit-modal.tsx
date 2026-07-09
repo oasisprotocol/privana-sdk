@@ -457,6 +457,7 @@ function ExternalDepositView({
     isFetching: isScanning,
     isError: isScanError,
     isRateLimited,
+    isUnavailable,
     refetch: refetchPendingDeposits,
   } = usePendingDeposits({
     chainId: token?.chainId,
@@ -480,12 +481,16 @@ function ExternalDepositView({
     })
   }, [pending, scanPaused, verify])
 
+  const nothingFoundTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(nothingFoundTimerRef.current), [])
+
   const handleRefresh = () => {
     processedRef.current.clear()
     void refetchPendingDeposits().then((result) => {
       if (!result || result.pending.length === 0) {
         setNothingFound(true)
-        setTimeout(() => setNothingFound(false), 4000)
+        clearTimeout(nothingFoundTimerRef.current)
+        nothingFoundTimerRef.current = setTimeout(() => setNothingFound(false), 4000)
       }
     })
   }
@@ -608,6 +613,10 @@ function ExternalDepositView({
             {isRateLimited ? (
               <p className="text-muted-foreground text-center text-sm">
                 Checked too recently — try again in a moment.
+              </p>
+            ) : isUnavailable ? (
+              <p className="text-muted-foreground text-center text-sm">
+                Deposit discovery is unavailable for this chain.
               </p>
             ) : isScanError ? (
               <p className="text-muted-foreground text-center text-sm">
