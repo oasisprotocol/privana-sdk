@@ -431,9 +431,12 @@ function AwaitingDepositStatus({
 function ExternalDepositView({
   token,
   amount,
+  onCredited,
 }: {
   token: TokenConfig | undefined
   amount: string
+  /** When set, the host owns the success UX — the inline success view is skipped. */
+  onCredited?: () => void
 }) {
   const { getChainById } = usePrivanaContext()
   const { depositAddress, isReady, isLoading } = useDepositAddress()
@@ -447,7 +450,13 @@ function ExternalDepositView({
   const [credited, setCredited] = useState<{ txHash: string } | null>(null)
 
   const verification = useDepositVerification({
-    onCredited: (txHash) => setCredited({ txHash }),
+    onCredited: (txHash) => {
+      if (onCredited) {
+        onCredited()
+        return
+      }
+      setCredited({ txHash })
+    },
   })
   const { isVerifying, verificationFailed, didTimeout, verify } = verification
   const scanPaused = isVerifying || verificationFailed || didTimeout || !!credited
@@ -1086,7 +1095,11 @@ export function DepositModalContent({
       )}
 
       {activeView === 'external-deposit' && (
-        <ExternalDepositView token={selectedToken} amount={amount} />
+        <ExternalDepositView
+          token={selectedToken}
+          amount={amount}
+          onCredited={allowance ? undefined : onDepositSuccess}
+        />
       )}
 
       {activeView === 'credit-card-widget' && (
