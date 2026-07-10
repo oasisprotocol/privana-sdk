@@ -424,10 +424,10 @@ export function ThemeEditor() {
   const applyThemeToElement = useCallback(
     (el: HTMLElement, newColors: Record<string, string>, newRadius: number) => {
       for (const [variable, value] of Object.entries(newColors)) {
-        const fvVar = variable.replace('--', '--fv-')
-        el.style.setProperty(fvVar, value)
+        const privanaVar = variable.replace('--', '--privana-')
+        el.style.setProperty(privanaVar, value)
       }
-      el.style.setProperty('--fv-radius', `${newRadius}rem`)
+      el.style.setProperty('--privana-radius', `${newRadius}rem`)
       // The SDK reads its effective theme from `color-scheme` (e.g. to match
       // the MoonPay widget) — declare it alongside the variable overrides.
       el.style.colorScheme = isDark ? 'dark' : 'light'
@@ -498,10 +498,10 @@ export function ThemeEditor() {
     targets.forEach((el) => {
       for (const group of THEME_GROUPS) {
         for (const color of group.colors) {
-          el.style.removeProperty(color.variable.replace('--', '--fv-'))
+          el.style.removeProperty(color.variable.replace('--', '--privana-'))
         }
       }
-      el.style.removeProperty('--fv-radius')
+      el.style.removeProperty('--privana-radius')
       el.style.removeProperty('color-scheme')
     })
   }
@@ -517,12 +517,12 @@ export function ThemeEditor() {
 
   const generateCSS = () => {
     const selector = isDark ? '[data-privana].dark, .dark [data-privana]' : '[data-privana]'
-    const lines = [`${selector} {`, `  --fv-radius: ${radius}rem;`]
+    const lines = [`${selector} {`, `  --privana-radius: ${radius}rem;`]
     for (const group of THEME_GROUPS) {
       for (const color of group.colors) {
         const hex = colors[color.variable]
-        const fvVar = color.variable.replace('--', '--fv-')
-        lines.push(`  ${fvVar}: ${hex?.startsWith('#') ? hexToOklch(hex) : hex};`)
+        const privanaVar = color.variable.replace('--', '--privana-')
+        lines.push(`  ${privanaVar}: ${hex?.startsWith('#') ? hexToOklch(hex) : hex};`)
       }
     }
     lines.push('}')
