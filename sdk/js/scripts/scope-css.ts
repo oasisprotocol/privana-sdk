@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'fs'
 import { resolve } from 'path'
 
 const SCOPE = '[data-privana]'
-const CSS_VAR_PREFIX = '--fv-'
+const CSS_VAR_PREFIX = '--privana-'
 
 const SDK_VARS = [
   'background',
@@ -31,7 +31,7 @@ const SDK_VARS = [
   'radius-xl',
 ]
 
-const SCOPED_BASE = `@layer base{${SCOPE},${SCOPE} *,${SCOPE} ::before,${SCOPE} ::after{box-sizing:border-box;border-width:0;border-style:solid;border-color:var(--fv-border,currentColor)}}`
+const SCOPED_BASE = `@layer base{${SCOPE},${SCOPE} *,${SCOPE} ::before,${SCOPE} ::after{box-sizing:border-box;border-width:0;border-style:solid;border-color:var(--privana-border,currentColor)}}`
 
 // Prefix all utility selectors to scope them to [data-privana]
 // Uses :is() to match both the element with the attribute AND its descendants
