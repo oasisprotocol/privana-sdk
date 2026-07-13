@@ -3,7 +3,12 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAccount, useWalletClient, useWriteContract, useSendTransaction, useConfig } from 'wagmi'
-import { getTransactionReceipt, getWalletClient, waitForTransactionReceipt } from '@wagmi/core'
+import {
+  getBlockNumber,
+  getTransactionReceipt,
+  getWalletClient,
+  waitForTransactionReceipt,
+} from '@wagmi/core'
 import { erc20Abi, zeroAddress } from 'viem'
 import { usePrivanaContext } from '../context/privana-provider'
 import { useEnsureCorrectChain } from './use-ensure-correct-chain'
@@ -377,8 +382,14 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
         // isn't fully initialised yet on mount.
         let confirmed = false
         try {
-          await getTransactionReceipt(config, { hash, chainId: persisted.chainId })
-          confirmed = true
+          const receipt = await getTransactionReceipt(config, {
+            hash,
+            chainId: persisted.chainId,
+          })
+          // A receipt exists from the first block, so accepting it alone would
+          // confirm a resumed deposit at 1 block where a live one waits 15.
+          const blockNumber = await getBlockNumber(config, { chainId: persisted.chainId })
+          confirmed = blockNumber - receipt.blockNumber + 1n >= BigInt(confirmations)
         } catch {
           // Receipt not available yet — fall back to polling
         }
