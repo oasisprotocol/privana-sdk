@@ -25,7 +25,10 @@ export interface WalletSession {
 
 export interface WalletModalHandlers extends DepositMethodHandlers {
   session?: WalletSession
-  onPlay?: (args: { tokenId: string; amount: string }) => void
+  // `unknown` (rather than `void | Promise<void>`) preserves the void-return-callback
+  // leniency: callers may pass value-returning async handlers (e.g. `async () => receipt`).
+  // The runtime return value is inspected internally to decide whether to show progress.
+  onFundSession?: (args: { tokenId: string; amount: string }) => unknown
   onEndSession?: () => Promise<void>
 }
 
@@ -100,7 +103,7 @@ function WalletBalanceView({
   allowance,
   amount,
   onAmountChange,
-  onPlay,
+  onFundSession,
   onAddFunds,
   onWithdraw,
 }: {
@@ -108,7 +111,7 @@ function WalletBalanceView({
   allowance?: WalletModalHandlers['allowance']
   amount: string
   onAmountChange: (value: string) => void
-  onPlay?: WalletModalHandlers['onPlay']
+  onFundSession?: WalletModalHandlers['onFundSession']
   onAddFunds?: () => void
   onWithdraw?: () => void
 }) {
@@ -157,7 +160,7 @@ function WalletBalanceView({
     !isBalanceError &&
     parseTokenAmount(amount, token.decimals) > availableWei
 
-  const canPlay =
+  const canFundSession =
     hasValidAmount &&
     !!token &&
     !tooManyDecimals &&
@@ -170,14 +173,13 @@ function WalletBalanceView({
     if (parseFloat(max) > 0) onAmountChange(max)
   }
 
-  const handlePlay = () => {
-    if (!token || !canPlay || !onPlay) return
-    onPlay({ tokenId: token.id, amount })
-    onAmountChange('')
+  const handleFundSession = () => {
+    if (!token || !canFundSession || !onFundSession) return
+    onFundSession({ tokenId: token.id, amount })
   }
 
   const showInput = variant !== 'fully-in-use'
-  const showInlinePlay = variant === 'session-zero' || variant === 'mixed'
+  const showInlineFund = variant === 'session-zero' || variant === 'mixed'
 
   return (
     <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
@@ -248,14 +250,14 @@ function WalletBalanceView({
                 MAX
               </button>
             </div>
-            {showInlinePlay && (
+            {showInlineFund && (
               <button
                 type="button"
-                disabled={!onPlay || !canPlay}
-                onClick={handlePlay}
+                disabled={!onFundSession || !canFundSession}
+                onClick={handleFundSession}
                 className="border-border flex h-10 min-w-20 cursor-pointer items-center justify-center rounded-[10px] border px-3 text-sm font-medium text-[#4fc77f] transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Play
+                Fund session
               </button>
             )}
           </div>
@@ -283,11 +285,11 @@ function WalletBalanceView({
           <>
             <button
               type="button"
-              disabled={!onPlay || !canPlay}
-              onClick={handlePlay}
+              disabled={!onFundSession || !canFundSession}
+              onClick={handleFundSession}
               className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 flex-1 cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Play
+              Fund session
             </button>
             <button
               type="button"
@@ -323,12 +325,66 @@ function WalletBalanceView({
   )
 }
 
-type WalletView = 'balance' | 'deposit' | 'ending-session' | 'end-session-error' | 'withdraw'
+type WalletView =
+  | 'balance'
+  | 'deposit'
+  | 'funding-session'
+  | 'fund-session-error'
+  | 'ending-session'
+  | 'end-session-error'
+  | 'withdraw'
+
+/**
+ * Invoke a session handler (onFundSession/onEndSession) guarded by a run token.
+ *
+ * Shared by the fund- and end-session flows so they cannot diverge: a
+ * synchronous throw is caught and routed to `onError` exactly like a rejected
+ * promise (so the error view is always entered), a non-thenable result calls
+ * `onSyncResult` (lets callers skip progress UI for synchronous handlers), and
+ * a thenable calls `onAsyncStart` then resolves/rejects. Stale runs —
+ * superseded by a retry or an account switch — are ignored.
+ */
+function invokeGuarded(
+  runRef: { current: number },
+  invoke: () => unknown,
+  handlers: {
+    onSyncResult: () => void
+    onAsyncStart: () => void
+    onSuccess: () => void
+    onError: (err: unknown) => void
+  }
+) {
+  const run = ++runRef.current
+  const isCurrent = () => runRef.current === run
+
+  let result: unknown
+  try {
+    result = invoke()
+  } catch (err) {
+    if (isCurrent()) handlers.onError(err)
+    return
+  }
+
+  if (result == null || typeof (result as { then?: unknown }).then !== 'function') {
+    handlers.onSyncResult()
+    return
+  }
+
+  handlers.onAsyncStart()
+  ;(result as Promise<unknown>).then(
+    () => {
+      if (isCurrent()) handlers.onSuccess()
+    },
+    (err: unknown) => {
+      if (isCurrent()) handlers.onError(err)
+    }
+  )
+}
 
 function WalletModalContent({
   session,
   allowance,
-  onPlay,
+  onFundSession,
   onEndSession,
   onDepositSuccess,
   onClose,
@@ -346,8 +402,14 @@ function WalletModalContent({
   const [depositBlocked, setDepositBlocked] = useState(false)
   const [withdrawPending, setWithdrawPending] = useState(false)
   const [endSessionError, setEndSessionError] = useState<string | null>(null)
+  const [fundSessionError, setFundSessionError] = useState<string | null>(null)
 
   const endSessionRunRef = useRef(0)
+  const fundSessionRunRef = useRef(0)
+  const [pendingFundSession, setPendingFundSession] = useState<{
+    tokenId: string
+    amount: string
+  } | null>(null)
 
   const prevAddressRef = useRef(address)
   useEffect(() => {
@@ -360,11 +422,15 @@ function WalletModalContent({
       setDepositBlocked(false)
       setWithdrawPending(false)
       setEndSessionError(null)
+      setFundSessionError(null)
+      setPendingFundSession(null)
       endSessionRunRef.current++
+      fundSessionRunRef.current++
     }
   }, [address, hostedAuthConfig])
 
-  const closeBlocked = depositBlocked || withdrawPending || view === 'ending-session'
+  const closeBlocked =
+    depositBlocked || withdrawPending || view === 'funding-session' || view === 'ending-session'
   useEffect(() => {
     onCloseBlockedChange?.(closeBlocked)
   }, [closeBlocked, onCloseBlockedChange])
@@ -382,22 +448,16 @@ function WalletModalContent({
 
   const startEndSession = () => {
     if (!onEndSession) return
-    const run = ++endSessionRunRef.current
     setEndSessionError(null)
-    setView('ending-session')
-    Promise.resolve()
-      .then(() => onEndSession())
-      .then(
-        () => {
-          if (endSessionRunRef.current !== run) return
-          setView('withdraw')
-        },
-        (err: unknown) => {
-          if (endSessionRunRef.current !== run) return
-          setEndSessionError(err instanceof Error ? err.message : null)
-          setView('end-session-error')
-        }
-      )
+    invokeGuarded(endSessionRunRef, () => onEndSession(), {
+      onSyncResult: () => setView('withdraw'),
+      onAsyncStart: () => setView('ending-session'),
+      onSuccess: () => setView('withdraw'),
+      onError: (err: unknown) => {
+        setEndSessionError(err instanceof Error ? err.message : null)
+        setView('end-session-error')
+      },
+    })
   }
 
   const handleWithdraw = () => {
@@ -411,6 +471,38 @@ function WalletModalContent({
   const dismissEndSessionError = () => {
     endSessionRunRef.current++
     setEndSessionError(null)
+    setView('balance')
+  }
+
+  const fundSession = (args: { tokenId: string; amount: string }) => {
+    if (!onFundSession) return
+    setFundSessionError(null)
+    setPendingFundSession(args)
+    setAmount('')
+    invokeGuarded(fundSessionRunRef, () => onFundSession(args), {
+      onSyncResult: () => {
+        setPendingFundSession(null)
+        setView('balance')
+      },
+      onAsyncStart: () => setView('funding-session'),
+      onSuccess: () => {
+        setPendingFundSession(null)
+        setView('balance')
+      },
+      onError: (err: unknown) => {
+        setFundSessionError(err instanceof Error ? err.message : null)
+        setView('fund-session-error')
+      },
+    })
+  }
+
+  const dismissFundSessionError = () => {
+    fundSessionRunRef.current++
+    setFundSessionError(null)
+    if (pendingFundSession) {
+      setAmount(pendingFundSession.amount)
+      setPendingFundSession(null)
+    }
     setView('balance')
   }
 
@@ -433,7 +525,11 @@ function WalletModalContent({
         </button>
       )}
 
-      {(view === 'balance' || view === 'ending-session' || view === 'end-session-error') && (
+      {(view === 'balance' ||
+        view === 'funding-session' ||
+        view === 'fund-session-error' ||
+        view === 'ending-session' ||
+        view === 'end-session-error') && (
         <div className="flex items-center px-5 py-4">
           <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
         </div>
@@ -445,10 +541,37 @@ function WalletModalContent({
           allowance={allowance}
           amount={amount}
           onAmountChange={setAmount}
-          onPlay={onPlay}
+          onFundSession={onFundSession ? fundSession : undefined}
           onAddFunds={() => setView('deposit')}
           onWithdraw={handleWithdraw}
         />
+      )}
+
+      {view === 'funding-session' && (
+        <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
+          <TransactionProgressView
+            title="Funding session..."
+            steps={[{ label: 'Waiting for the session to be funded', status: 'active' }]}
+          />
+        </div>
+      )}
+
+      {view === 'fund-session-error' && (
+        <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
+          <TransactionErrorView
+            title="Could not fund session"
+            message={
+              fundSessionError
+                ? `Your session could not be funded. (${fundSessionError})`
+                : 'Your session could not be funded.'
+            }
+            onRetry={() => {
+              if (pendingFundSession) fundSession(pendingFundSession)
+            }}
+            onDismiss={dismissFundSessionError}
+            retryLabel="Try again"
+          />
+        </div>
       )}
 
       {view === 'ending-session' && (
@@ -471,6 +594,7 @@ function WalletModalContent({
             }
             onRetry={startEndSession}
             onDismiss={dismissEndSessionError}
+            retryLabel="Try again"
           />
         </div>
       )}
