@@ -543,7 +543,7 @@ function WalletModalContent({
           onAmountChange={setAmount}
           onFundSession={onFundSession ? fundSession : undefined}
           onAddFunds={() => setView('deposit')}
-          onWithdraw={handleWithdraw}
+          onWithdraw={session && !onEndSession ? undefined : handleWithdraw}
         />
       )}
 
