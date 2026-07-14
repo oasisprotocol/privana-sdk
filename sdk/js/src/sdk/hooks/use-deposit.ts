@@ -60,8 +60,6 @@ export interface UseDepositOptions {
   pollInterval?: number
   /** Max time to wait for deposit to be credited in ms (default: 180000 = 3 minutes) */
   pollTimeout?: number
-  /** Number of block confirmations to wait before checking deposit status (default: 15) */
-  confirmations?: number
 }
 
 export interface DepositParams {
@@ -111,6 +109,14 @@ interface PersistedDeposit {
 }
 
 const STALE_MS = 30 * 60 * 1000
+
+function resolveConfirmations(depositAddress: DepositAddressResponse, chainId: number): number {
+  const confirmations = depositAddress.finality_depth?.[String(chainId)]
+  if (confirmations === undefined) {
+    throw new Error(`Deposits are not supported on chain ${chainId}`)
+  }
+  return confirmations
+}
 
 function storageKey(address: string): string {
   return `privana:pending-deposit:${address.toLowerCase()}`
@@ -170,8 +176,6 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   const { executePrivateRead, privateReadAddress } = usePrivateReadRequest()
   const privateReadAddressRef = useRef(privateReadAddress)
   privateReadAddressRef.current = privateReadAddress
-
-  const confirmations = options.confirmations ?? 15
 
   const [depositAddress, setDepositAddress] = useState<DepositAddressResponse | null>(null)
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>()
@@ -378,6 +382,8 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
 
     ;(async () => {
       try {
+        const confirmations = resolveConfirmations(persisted.depositAddress, persisted.chainId)
+
         // Try a one-shot receipt fetch first. Resumed deposits were submitted
         // in a previous session, so the transaction is almost certainly mined
         // already. getTransactionReceipt avoids the subscription-based polling
@@ -390,7 +396,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
             chainId: persisted.chainId,
           })
           // A receipt exists from the first block, so accepting it alone would
-          // confirm a resumed deposit at 1 block where a live one waits 15.
+          // confirm a resumed deposit at 1 block where a live one waits the full depth.
           const blockNumber = await getBlockNumber(config, { chainId: persisted.chainId })
           confirmed = blockNumber - receipt.blockNumber + 1n >= BigInt(confirmations)
         } catch {
@@ -417,7 +423,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
         onErrorRef.current?.(error)
       }
     })()
-  }, [address, config, confirmations, queryClient, verify])
+  }, [address, config, queryClient, verify])
 
   const deposit = useCallback(
     async (params: DepositParams) => {
@@ -464,6 +470,10 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
             `Amount is below the minimum deposit (${minAmountStr}) for ${isNative ? 'native' : 'ERC-20'} on chain ${sourceChain.id}`
           )
         }
+
+        // Resolved here rather than at the wait below so an unsupported chain
+        // fails before the transfer, not after the funds have left the wallet.
+        const confirmations = resolveConfirmations(addrResponse, sourceChain.id)
 
         if (params.postDepositLock && !canUseBrowserStorage()) {
           throw new Error('Browser storage is required for locked deposit recovery')
@@ -603,7 +613,6 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
       client,
       getChainById,
       config,
-      confirmations,
       enabledTokens,
       ensureCorrectChain,
       networkConfig,

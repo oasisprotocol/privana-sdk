@@ -10,6 +10,7 @@ export interface DepositAddressResponse {
   chain_type: string
   version: number
   min_deposit: Record<string, MinDepositAmounts>
+  finality_depth: Record<string, number>
 }
 
 export interface DepositCheckResponse {
