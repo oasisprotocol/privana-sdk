@@ -188,6 +188,8 @@ interface TransactionErrorViewProps {
   onRetry: () => void
   onDismiss: () => void
   isRetrying?: boolean
+  /** Label for the retry button. Defaults to "Retry Verification". */
+  retryLabel?: string
 }
 
 export function TransactionErrorView({
@@ -198,6 +200,7 @@ export function TransactionErrorView({
   onRetry,
   onDismiss,
   isRetrying,
+  retryLabel = 'Retry Verification',
 }: TransactionErrorViewProps) {
   return (
     <div className="flex w-full flex-col gap-4">
@@ -236,7 +239,7 @@ export function TransactionErrorView({
           disabled={isRetrying}
           className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 flex-1 cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isRetrying ? 'Retrying...' : 'Retry Verification'}
+          {isRetrying ? 'Retrying...' : retryLabel}
         </button>
       </div>
     </div>
