@@ -57,8 +57,8 @@ export function ComponentPreview() {
     session: demoSession,
     allowance: demoAllowance,
     onConnectWallet: openConnectModal,
-    onPlay: (args: { tokenId: string; amount: string }) => {
-      console.log('WalletModal onPlay', args)
+    onFundSession: (args: { tokenId: string; amount: string }) => {
+      console.log('WalletModal onFundSession', args)
       toast.success(`Play with ${args.amount}`)
     },
     onEndSession: () =>
