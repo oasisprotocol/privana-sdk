@@ -11,6 +11,7 @@ export interface UseDepositAddressOptions {
 }
 
 export interface UseDepositAddressResult {
+  response?: DepositAddressResponse
   depositAddress: string | null
   isReady: boolean
   isLoading: boolean
@@ -46,6 +47,7 @@ export function useDepositAddress(options: UseDepositAddressOptions = {}): UseDe
   })
 
   return {
+    response: query.data,
     depositAddress: query.data?.deposit_address ?? null,
     isReady,
     isLoading: query.isLoading,

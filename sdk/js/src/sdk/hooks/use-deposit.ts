@@ -24,12 +24,13 @@ import {
   clampLockAmount,
   createSignedLockRequest,
   isSignedLockUsable,
+  requireDepositLockOwner,
+  requireServiceAddress,
   submitPendingLock,
   PostDepositLockError,
   type PostDepositLockConfig,
 } from './pending-lock'
 import type {
-  Address,
   Bytes32,
   DepositAddressResponse,
   DepositCheckResponse,
@@ -47,9 +48,9 @@ export interface UseDepositOptions {
   onLockSubmitted?: (response: TransactionSubmissionResponse) => void
   /**
    * Fired when the deposit credited but the pre-signed lock could not be
-   * submitted (expired, short credit, stale nonce). The funds sit in the
-   * user's available balance — re-prompt a fresh lock signature at the
-   * credited amount. Falls back to `onError` when not provided.
+   * submitted. The funds sit in the user's available balance. Fresh signing
+   * is safe only for failures known to precede any API attempt; otherwise
+   * retry or reconcile the same signature. Falls back to `onError`.
    */
   onLockFailed?: (error: PostDepositLockError) => void
   /** Called when deposit check polling times out - deposit may still be processing */
@@ -166,7 +167,9 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   const { data: walletClient } = useWalletClient()
   const queryClient = useQueryClient()
   const config = useConfig()
-  const { executePrivateRead } = usePrivateReadRequest()
+  const { executePrivateRead, privateReadAddress } = usePrivateReadRequest()
+  const privateReadAddressRef = useRef(privateReadAddress)
+  privateReadAddressRef.current = privateReadAddress
 
   const confirmations = options.confirmations ?? 15
 
@@ -220,12 +223,12 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   // route failures to the dedicated callback (or onError as fallback) instead
   // of the deposit error state.
   const submitPendingLockAfterCredit = useCallback(
-    async (signedLock: LockFundsRequest, response: DepositCheckResponse) => {
+    async (signedLock: LockFundsRequest, creditedAmount: bigint) => {
       try {
         const result = await submitPendingLock({
           client,
           payload: signedLock,
-          creditedAmount: response.amount != null ? BigInt(response.amount) : undefined,
+          creditedAmount,
         })
         queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
         queryClient.invalidateQueries({ queryKey: ['accounting-locked-funds'] })
@@ -240,7 +243,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
                 err instanceof Error ? err.message : 'Lock submission failed',
                 'submission-failed',
                 BigInt(signedLock.amount),
-                undefined,
+                creditedAmount,
                 { cause: err }
               )
         ;(onLockFailedRef.current ?? onErrorRef.current)?.(error)
@@ -259,7 +262,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   } = useDepositVerification({
     pollInterval: options.pollInterval,
     pollTimeout: options.pollTimeout,
-    onCredited: (hash, response) => {
+    onCredited: (hash, response, creditedAmount) => {
       verificationContextRef.current = null
       const signedLock = pendingLockRef.current
       pendingLockRef.current = null
@@ -272,7 +275,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
       // nonce and surfaces as a (fund-safe) spurious 'lock failed' — the
       // client cannot distinguish that from a submission that never landed.
       if (signedLock) {
-        void submitPendingLockAfterCredit(signedLock, response).finally(() => {
+        void submitPendingLockAfterCredit(signedLock, creditedAmount).finally(() => {
           if (address) clearPendingDeposit(address, hash)
         })
       } else if (address) {
@@ -473,6 +476,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
         const lockAmount = clampLockAmount(params.amount, params.postDepositLock?.maxAmount)
         let signedLock: LockFundsRequest | undefined
         if (params.postDepositLock) {
+          const lockOwner = requireDepositLockOwner(address, privateReadAddress)
           setIsSwitchingChain(true)
           try {
             await ensureCorrectChain(networkConfig.chainId)
@@ -489,7 +493,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
           signedLock = await createSignedLockRequest({
             client,
             walletClient: signingWalletClient,
-            userAddress: address as Address,
+            userAddress: lockOwner,
             networkConfig,
             serviceAddress: requireServiceAddress(
               params.postDepositLock.serviceAddress ?? serviceAddress
@@ -498,6 +502,9 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
             amount: lockAmount,
             lockDuration: params.postDepositLock.lockDuration,
           })
+          if (privateReadAddressRef.current?.toLowerCase() !== lockOwner.toLowerCase()) {
+            throw new Error('Authenticated deposit account changed while signing')
+          }
         }
         if (isStale()) return
 
@@ -600,6 +607,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
       enabledTokens,
       ensureCorrectChain,
       networkConfig,
+      privateReadAddress,
       queryClient,
       serviceAddress,
       writeContractAsync,
@@ -649,11 +657,4 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     retryVerification,
     reset,
   }
-}
-
-function requireServiceAddress(serviceAddress: Address | undefined): Address {
-  if (!serviceAddress) {
-    throw new Error('Service address not configured')
-  }
-  return serviceAddress
 }

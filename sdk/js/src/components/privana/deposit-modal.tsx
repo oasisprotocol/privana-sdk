@@ -13,11 +13,21 @@ import { toast } from 'sonner'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import {
   useDeposit,
-  useDepositAddress,
   useDepositVerification,
   usePendingDeposits,
+  isSignedLockUsable,
   type PostDepositLockError,
+  type VerificationContext,
 } from '@/sdk/hooks'
+import { useDepositAddress, type UseDepositAddressResult } from '@/sdk/hooks/use-deposit-address'
+import {
+  getExternalDepositMinimum,
+  isExternalDepositBlockInSession,
+} from '@/sdk/hooks/external-deposit-lock'
+import {
+  useExternalDepositLock,
+  type UseExternalDepositLockResult,
+} from '@/sdk/hooks/use-external-deposit-lock'
 import { useMoonpayLimits } from '@/sdk/hooks/use-moonpay-limits'
 import {
   cn,
@@ -135,6 +145,7 @@ function DepositView({
   selectedToken,
   amount,
   allowance,
+  externalMinimum,
   onAmountChange,
   onSelectToken,
   onConnectWallet,
@@ -145,19 +156,23 @@ function DepositView({
   selectedToken: TokenConfig | undefined
   amount: string
   allowance?: Allowance
+  /** `undefined` while loading, `null` when unavailable, otherwise base units. */
+  externalMinimum?: bigint | null
   onAmountChange: (value: string) => void
   onSelectToken: () => void
   onConnectWallet?: () => void
   onSubmit: (args: { source: DepositSource; tokenId: string; amount: string }) => void
   isSubmitting?: boolean
 }) {
-  const { getChainById, chains, serviceName, serviceIcon, networkConfig } = usePrivanaContext()
+  const { getChainById, chains, serviceName, serviceIcon, networkConfig, hostedAuthConfig } =
+    usePrivanaContext()
   const { address, isConnected } = useAccount()
   const appName = serviceName ?? 'Privana'
   const chain = selectedToken ? getChainById(selectedToken.chainId) : undefined
   const targetChain = chain ?? chains[0]
   const sourceLabel = source === 'connected' ? 'Connected Wallet' : 'External Wallet'
   const isConnectedSource = source === 'connected'
+  const isExternal = source === 'external'
   const isCreditCard = source === 'credit-card'
   const isNative = selectedToken?.contract === zeroAddress
   const { data: nativeBalanceData } = useBalance({
@@ -217,7 +232,21 @@ function DepositView({
   // No MoonPay currency mapping for this token.
   const creditCardUnavailable =
     isCreditCard && !!selectedToken && !selectedToken.moonpayCurrencyCode
-  const needsConnect = isConnectedSource && !isConnected
+  const externalTokenUnavailable = isExternal && !!selectedToken && isNative
+  const externalMinimumRequired = isExternal && !!allowance && !!selectedToken
+  const externalMinimumLoading = externalMinimumRequired && externalMinimum === undefined
+  const externalMinimumUnavailable = externalMinimumRequired && externalMinimum === null
+  const belowExternalMinimum =
+    externalMinimumRequired &&
+    hasValidAmount &&
+    !tooManyDecimals &&
+    !!selectedToken &&
+    typeof externalMinimum === 'bigint' &&
+    parseTokenAmount(amount, selectedToken.decimals) < externalMinimum
+  // Signing the external-deposit policy needs a wallet even though the
+  // transfer itself comes from elsewhere.
+  const externalNeedsWallet = isExternal && (!!allowance || !hostedAuthConfig)
+  const needsConnect = (isConnectedSource || externalNeedsWallet) && !isConnected
 
   const canDeposit =
     hasValidAmount &&
@@ -227,6 +256,10 @@ function DepositView({
     !belowMoonpayMin &&
     !moonpayLimitsUnready &&
     !creditCardUnavailable &&
+    !externalTokenUnavailable &&
+    !externalMinimumLoading &&
+    !externalMinimumUnavailable &&
+    !belowExternalMinimum &&
     !needsConnect
 
   const handleMax = () => {
@@ -246,9 +279,16 @@ function DepositView({
           </p>
         </div>
       ) : (
-        <h2 className="text-foreground text-[28px] leading-8 font-medium">
-          Deposit from {sourceLabel}
-        </h2>
+        <div className="flex flex-col gap-2">
+          <h2 className="text-foreground text-[28px] leading-8 font-medium">
+            Deposit from {sourceLabel}
+          </h2>
+          {allowance && (
+            <p className="text-muted-foreground text-sm">
+              Enter your deposit amount and proceed to sign a policy.
+            </p>
+          )}
+        </div>
       )}
 
       <div className="flex flex-col gap-3">
@@ -256,7 +296,10 @@ function DepositView({
         <button
           type="button"
           onClick={onSelectToken}
-          className="border-border bg-input flex w-full cursor-pointer items-center gap-3 rounded-lg border p-3 text-left"
+          // Frozen while signing: the policy signature captures the values at
+          // click time, so the form must not drift under the wallet prompt.
+          disabled={isSubmitting}
+          className="border-border bg-input flex w-full cursor-pointer items-center gap-3 rounded-lg border p-3 text-left disabled:cursor-not-allowed disabled:opacity-50"
         >
           {selectedToken ? (
             <>
@@ -296,6 +339,7 @@ function DepositView({
             type="text"
             inputMode="decimal"
             placeholder="Enter Amount"
+            disabled={isSubmitting}
             value={amount}
             onChange={(e) => {
               const value = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.')
@@ -328,6 +372,21 @@ function DepositView({
         {belowMoonpayMin && moonpayMinBuy != null && (
           <p className="text-destructive text-sm">Minimum purchase is ${moonpayMinBuy} USD.</p>
         )}
+        {belowExternalMinimum && selectedToken && typeof externalMinimum === 'bigint' && (
+          <p className="text-destructive text-sm">
+            Minimum deposit is{' '}
+            {formatTokenAmount(externalMinimum.toString(), selectedToken.decimals)}{' '}
+            {selectedToken.symbol}.
+          </p>
+        )}
+        {externalMinimumLoading && (
+          <p className="text-muted-foreground text-sm">Checking minimum deposit…</p>
+        )}
+        {externalMinimumUnavailable && (
+          <p className="text-destructive text-sm">
+            Couldn’t load the minimum deposit. Please try again.
+          </p>
+        )}
         {isCreditCard && moonpayLimitsError && (
           <p className="text-destructive text-sm">
             Couldn’t load purchase limits. Please try again.
@@ -339,6 +398,12 @@ function DepositView({
         {creditCardUnavailable && (
           <p className="text-destructive text-sm">
             {selectedToken?.symbol ?? 'This token'} isn’t available for card purchases yet.
+          </p>
+        )}
+        {externalTokenUnavailable && (
+          <p className="text-destructive text-sm">
+            {selectedToken?.symbol ?? 'This token'} can’t be used for external deposits — choose an
+            ERC20 token.
           </p>
         )}
       </div>
@@ -431,16 +496,39 @@ function AwaitingDepositStatus({
 function ExternalDepositView({
   token,
   amount,
+  depositAddressState,
   onCredited,
+  onDiscardLock,
+  lock,
 }: {
   token: TokenConfig | undefined
   amount: string
+  depositAddressState: UseDepositAddressResult
   /** When set, the host owns the success UX — the inline success view is skipped. */
   onCredited?: () => void
+  /** Explicitly abandons a signed session before any transfer is discovered. */
+  onDiscardLock?: () => void
+  /** When set, every credit routes to the pre-signed lock instead of the success views. */
+  lock?: Pick<
+    UseExternalDepositLockResult,
+    | 'isSigning'
+    | 'isSubmittingLock'
+    | 'recordVerification'
+    | 'settleAfterCredit'
+    | 'retryAfterCredit'
+    | 'clearVerification'
+    | 'session'
+  >
 }) {
-  const { getChainById } = usePrivanaContext()
-  const { depositAddress, isReady, isLoading } = useDepositAddress()
+  const { getChainById, getTokenById, serviceName } = usePrivanaContext()
+  const appName = serviceName ?? 'Privana'
+  const { depositAddress, isReady, isLoading } = depositAddressState
   const chain = token ? getChainById(token.chainId) : undefined
+  const lockSession = lock?.session
+  const recordVerification = lock?.recordVerification
+  const settleAfterCredit = lock?.settleAfterCredit
+  const retryAfterCredit = lock?.retryAfterCredit
+  const discoveryToken = lockSession ? getTokenById(lockSession.tokenId) : token
   const [copied, setCopied] = useState(false)
 
   const [deadline] = useState(() => Date.now() + LISTENING_WINDOW_MS)
@@ -448,9 +536,14 @@ function ExternalDepositView({
   const listening = secondsLeft > 0
   const [nothingFound, setNothingFound] = useState(false)
   const [credited, setCredited] = useState<{ txHash: string } | null>(null)
+  const [showCancelWarning, setShowCancelWarning] = useState(false)
 
   const verification = useDepositVerification({
-    onCredited: (txHash) => {
+    onCredited: (txHash, _response, creditedAmount) => {
+      if (settleAfterCredit) {
+        void settleAfterCredit(txHash, creditedAmount)
+        return
+      }
       if (onCredited) {
         onCredited()
         return
@@ -458,8 +551,17 @@ function ExternalDepositView({
       setCredited({ txHash })
     },
   })
-  const { isVerifying, verificationFailed, didTimeout, verify } = verification
-  const scanPaused = isVerifying || verificationFailed || didTimeout || !!credited
+  const { isVerifying, verificationFailed, canCheckAnotherTransfer, didTimeout, verify } =
+    verification
+  const scanPaused =
+    isVerifying ||
+    verificationFailed ||
+    didTimeout ||
+    !!credited ||
+    !!lock?.isSigning ||
+    !!lock?.isSubmittingLock ||
+    !!lockSession?.verification ||
+    !!lockSession?.creditedAmount
 
   const {
     pending,
@@ -469,26 +571,67 @@ function ExternalDepositView({
     isUnavailable,
     refetch: refetchPendingDeposits,
   } = usePendingDeposits({
-    chainId: token?.chainId,
-    enabled: isReady && !!depositAddress && !!token,
+    chainId: discoveryToken?.chainId,
+    tokenAddress: discoveryToken?.contract === zeroAddress ? undefined : discoveryToken?.contract,
+    enabled:
+      isReady && !!depositAddress && !!discoveryToken && discoveryToken.contract !== zeroAddress,
     refetchInterval: listening && !scanPaused ? 30_000 : false,
   })
 
   const processedRef = useRef(new Set<string>())
+  const verificationRunRef = useRef<string | null>(null)
+  useEffect(
+    () => () => {
+      verificationRunRef.current = null
+    },
+    []
+  )
+
+  useEffect(() => {
+    const stored = lockSession?.verification
+    if (!stored || lockSession.creditedAmount || isVerifying || verificationFailed || didTimeout) {
+      return
+    }
+    const key = `${lockSession.generation}:${stored.chainId}:${stored.hash}:${stored.logIndex ?? 0}`
+    if (verificationRunRef.current === key) return
+    verificationRunRef.current = key
+    processedRef.current.add(`${stored.hash}:${stored.logIndex ?? 0}`)
+    void verify({
+      hash: stored.hash,
+      chainId: stored.chainId,
+      amount: BigInt(stored.amount),
+      logIndex: stored.logIndex,
+    })
+  }, [didTimeout, isVerifying, lockSession, verificationFailed, verify])
+
   useEffect(() => {
     if (scanPaused) return
     const next = [...pending]
       .sort((a, b) => a.block_number - b.block_number)
-      .find((d) => !processedRef.current.has(`${d.tx_hash}:${d.log_index}`))
+      .find(
+        (deposit) =>
+          (!lockSession || isExternalDepositBlockInSession(lockSession, deposit.block_number)) &&
+          !processedRef.current.has(`${deposit.tx_hash}:${deposit.log_index}`)
+      )
     if (!next) return
-    processedRef.current.add(`${next.tx_hash}:${next.log_index}`)
-    void verify({
+    const context: VerificationContext = {
       hash: next.tx_hash,
       chainId: next.chain_id,
       amount: BigInt(next.amount),
       logIndex: next.log_index,
-    })
-  }, [pending, scanPaused, verify])
+    }
+    processedRef.current.add(`${next.tx_hash}:${next.log_index}`)
+    if (recordVerification) {
+      try {
+        recordVerification(context)
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Unable to save deposit recovery state')
+        return
+      }
+    } else {
+      void verify(context)
+    }
+  }, [lockSession, pending, recordVerification, scanPaused, verify])
 
   const nothingFoundTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => () => clearTimeout(nothingFoundTimerRef.current), [])
@@ -509,6 +652,19 @@ function ExternalDepositView({
     void navigator.clipboard.writeText(depositAddress)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const handleCheckAnotherTransfer = () => {
+    try {
+      if (!lock?.clearVerification()) {
+        toast.error('Deposit recovery changed in another tab. Please review the current state.')
+        return
+      }
+      verificationRunRef.current = null
+      verification.reset()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Unable to continue deposit discovery')
+    }
   }
 
   return (
@@ -570,7 +726,43 @@ function ExternalDepositView({
         </div>
       </div>
 
-      {credited ? (
+      {showCancelWarning && lockSession && !lockSession.verification ? (
+        <TransactionWarningView
+          title="Cancel this deposit?"
+          message="Only cancel if you have not sent funds. Canceling after a transfer was sent abandons its recovery and can leave the transfer uncredited or unlocked."
+          onDone={() => onDiscardLock?.()}
+          actionLabel="I haven’t sent funds"
+          onDismiss={() => setShowCancelWarning(false)}
+          dismissLabel="Keep waiting"
+        />
+      ) : lock?.isSigning ? (
+        <AwaitingDepositStatus
+          title="Confirm policy in your wallet"
+          subtitle="Sign a fresh policy for the funds already credited."
+        />
+      ) : lock?.isSubmittingLock ? (
+        <AwaitingDepositStatus
+          title={`Locking funds for ${appName}`}
+          subtitle="Deposit credited — applying your signed policy..."
+        />
+      ) : lock?.session?.creditedAmount ? (
+        <TransactionWarningView
+          title={lock.session.submissionAmbiguous ? 'Lock status unknown' : 'Deposit credited'}
+          message={
+            lock.session.submissionAmbiguous
+              ? 'The lock may already have succeeded. Retry only the saved signature, or check locked funds before abandoning recovery.'
+              : 'The deposit is credited, but its signed lock still needs to be submitted.'
+          }
+          onDone={() => {
+            void retryAfterCredit?.().catch((err: unknown) => {
+              toast.error(err instanceof Error ? err.message : 'Policy recovery failed')
+            })
+          }}
+          actionLabel={
+            lock.session.payload ? 'Retry lock submission' : 'Sign policy and lock funds'
+          }
+        />
+      ) : credited ? (
         <TransactionSuccessView
           title="Deposit Credited"
           message={`Transfer ${shortenAddress(credited.txHash)} has been credited to your Privana balance.`}
@@ -590,7 +782,14 @@ function ExternalDepositView({
                 'Your transfer was found but could not be verified.')
           }
           onRetry={() => void verification.retryVerification()}
-          onDismiss={() => verification.reset()}
+          onDismiss={
+            lock
+              ? canCheckAnotherTransfer
+                ? handleCheckAnotherTransfer
+                : undefined
+              : () => verification.reset()
+          }
+          dismissLabel={lock && canCheckAnotherTransfer ? 'Check another transfer' : undefined}
           isRetrying={isVerifying}
         />
       ) : isVerifying ? (
@@ -619,6 +818,15 @@ function ExternalDepositView({
             >
               Refresh deposit status
             </button>
+            {lockSession && !lockSession.verification && (
+              <button
+                type="button"
+                onClick={() => setShowCancelWarning(true)}
+                className="border-border text-foreground hover:bg-secondary flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] border px-3 py-2 text-sm font-medium transition-colors"
+              >
+                Cancel deposit
+              </button>
+            )}
             {isRateLimited ? (
               <p className="text-muted-foreground text-center text-sm">
                 Checked too recently — try again in a moment.
@@ -678,7 +886,7 @@ export function DepositModalContent({
   /** Renders a back chevron on the root method view (for embedding, e.g. WalletModal). */
   onExit?: () => void
 }) {
-  const { serviceName, enabledTokens, defaultToken, hostedAuthConfig, getChainById } =
+  const { serviceName, enabledTokens, defaultToken, hostedAuthConfig, getChainById, getTokenById } =
     usePrivanaContext()
   const { address } = useAccount()
   const appName = serviceName ?? 'Privana'
@@ -689,6 +897,18 @@ export function DepositModalContent({
   const [amount, setAmount] = useState('')
 
   const selectedToken = enabledTokens.find((t) => t.id === selectedTokenId) ?? defaultToken
+  const externalDepositAddress = useDepositAddress({
+    enabled: source === 'external' && (view === 'deposit' || view === 'external-deposit'),
+  })
+  const externalMinimum =
+    source !== 'external' || !selectedToken
+      ? undefined
+      : externalDepositAddress.isError
+        ? null
+        : externalDepositAddress.response
+          ? (getExternalDepositMinimum(externalDepositAddress.response, selectedToken.chainId) ??
+            null)
+          : undefined
 
   const prevAddressRef = useRef(address)
   useEffect(() => {
@@ -711,10 +931,11 @@ export function DepositModalContent({
   const [showTimeout, setShowTimeout] = useState(false)
   const [cancelled, setCancelled] = useState(false)
   const [isSubmittingLock, setIsSubmittingLock] = useState(false)
-  const [lockFailedMessage, setLockFailedMessage] = useState<string | null>(null)
+  const [lockFailure, setLockFailure] = useState<PostDepositLockError | null>(null)
 
   const finishDeposit = () => {
     setAmount('')
+    if (view === 'external-deposit') setView('deposit')
     if (onDepositSuccess) {
       resetDeposit()
       onDepositSuccess()
@@ -756,6 +977,7 @@ export function DepositModalContent({
     },
     onLockSubmitted: () => {
       setIsSubmittingLock(false)
+      setLockFailure(null)
       finishDeposit()
     },
     // The deposit credited; only the policy lock failed. Success must not
@@ -763,7 +985,7 @@ export function DepositModalContent({
     // error view and let the host re-prompt for a fresh lock.
     onLockFailed: (err) => {
       setIsSubmittingLock(false)
-      setLockFailedMessage(err.message)
+      setLockFailure(err)
       onLockFailed?.(err)
     },
     onCheckTimeout: () => {
@@ -772,7 +994,49 @@ export function DepositModalContent({
     },
   })
 
-  const isUnsafeToClose = (isGettingAddress || isSendingTransaction) && !cancelled
+  // Pre-signed lock for the external-wallet flow. The connected flow above
+  // runs its lock inside useDeposit; here the transfer happens outside the
+  // app, so signing (handleSubmit) and settling (ExternalDepositView's credit
+  // callback) are wired separately through this hook.
+  const externalLock = useExternalDepositLock({
+    allowance,
+    onLockSubmitted: () => {
+      setLockFailure(null)
+      finishDeposit()
+    },
+    // Same contract as the connected flow: the deposit credited, only the
+    // lock failed — never report success, show the lock-error view instead.
+    onLockFailed: (err) => {
+      setLockFailure(err)
+      onLockFailed?.(err)
+    },
+  })
+
+  useEffect(() => {
+    const restored = externalLock.session
+    if (!restored) return
+    const canRestore =
+      view === 'method' ||
+      (source === 'external' && (view === 'deposit' || view === 'external-deposit'))
+    if (!canRestore) return
+    const token = getTokenById(restored.tokenId)
+    if (!token) return
+    setSource('external')
+    setSelectedTokenId(token.id)
+    setAmount(formatTokenAmount(restored.depositAmount, token.decimals))
+    setView('external-deposit')
+  }, [externalLock.session, getTokenById, source, view])
+
+  useEffect(() => {
+    if (view === 'external-deposit' && allowance && !externalLock.session) {
+      setView('deposit')
+    }
+  }, [allowance, externalLock.session, view])
+
+  const isUnsafeToClose =
+    ((isGettingAddress || isSendingTransaction) && !cancelled) ||
+    externalLock.isSigning ||
+    externalLock.isSubmittingLock
   useEffect(() => {
     onCloseBlockedChange?.(isUnsafeToClose)
   }, [isUnsafeToClose, onCloseBlockedChange])
@@ -790,7 +1054,36 @@ export function DepositModalContent({
 
   const handleSubmit = (args: { source: DepositSource; tokenId: string; amount: string }) => {
     if (args.source === 'external') {
-      setView('external-deposit')
+      const token = enabledTokens.find((candidate) => candidate.id === args.tokenId)
+      if (!token) return
+      if (token.contract === zeroAddress) {
+        toast.error('External deposits support ERC20 tokens only')
+        return
+      }
+      const depositAmount = parseTokenAmount(args.amount, token.decimals)
+      if (!allowance) {
+        setView('external-deposit')
+        return
+      }
+      if (typeof externalMinimum !== 'bigint') {
+        toast.error('Minimum deposit is unavailable. Please try again.')
+        return
+      }
+      if (depositAmount < externalMinimum) {
+        toast.error(
+          `Minimum deposit is ${formatTokenAmount(externalMinimum.toString(), token.decimals)} ${token.symbol}`
+        )
+        return
+      }
+      externalLock
+        .signAndPersist({
+          tokenId: token.id,
+          amount: depositAmount,
+        })
+        .then(() => setView('external-deposit'))
+        .catch((err: unknown) => {
+          toast.error(err instanceof Error ? err.message : 'Policy signing failed')
+        })
       return
     }
     if (args.source === 'credit-card') {
@@ -873,9 +1166,17 @@ export function DepositModalContent({
         ]
       : []),
   ]
+  const hasExternalLockRecovery =
+    view === 'external-deposit' && !!externalLock.session?.creditedAmount
+  const externalSubmissionAmbiguous =
+    hasExternalLockRecovery && !!lockFailure?.submissionMayHaveSucceeded
+  const savedExternalPayloadUsable =
+    !!externalLock.session?.payload && isSignedLockUsable(externalLock.session.payload)
+  const ambiguousRecoveryMustBeAbandoned =
+    externalSubmissionAmbiguous && !savedExternalPayloadUsable
   const flowView: DepositFlowView | null = showSuccess
     ? 'deposit-success'
-    : lockFailedMessage
+    : lockFailure
       ? 'lock-error'
       : showTimeout
         ? 'deposit-timeout'
@@ -899,10 +1200,30 @@ export function DepositModalContent({
   }
 
   const handleLockFailedDone = () => {
-    setLockFailedMessage(null)
+    if (hasExternalLockRecovery && !externalLock.discardSession()) {
+      toast.error('Deposit recovery changed in another tab. Please review the current state.')
+      return
+    }
+    setLockFailure(null)
     setAmount('')
     setCancelled(false)
     resetDeposit()
+    if (view === 'external-deposit') setView('deposit')
+  }
+
+  const handleExternalLockRetry = () => {
+    externalLock.retryAfterCredit().catch((err: unknown) => {
+      toast.error(err instanceof Error ? err.message : 'Policy signing failed')
+    })
+  }
+
+  const handleExternalVerificationDiscard = () => {
+    if (!externalLock.discardSession()) {
+      toast.error('Deposit recovery changed in another tab. Please review the current state.')
+      return
+    }
+    setAmount('')
+    setView('deposit')
   }
 
   const handleDismissVerificationError = () => {
@@ -927,6 +1248,10 @@ export function DepositModalContent({
           : { to: 'method' as const, label: 'Deposit Method' }
 
   const goBack = () => {
+    if (view === 'external-deposit' && externalLock.session) {
+      toast.error('Cancel the active deposit from the address screen before going back')
+      return
+    }
     if (back.to === 'method') {
       setAmount('')
       setSelectedTokenId('')
@@ -979,9 +1304,40 @@ export function DepositModalContent({
           )}
           {activeView === 'lock-error' && (
             <TransactionWarningView
-              title="Deposit credited, lock failed"
-              message={`Your deposit was credited but locking the funds for ${appName} failed: ${lockFailedMessage}`}
-              onDone={handleLockFailedDone}
+              title={
+                externalSubmissionAmbiguous
+                  ? 'Deposit credited, lock status unknown'
+                  : 'Deposit credited, lock failed'
+              }
+              message={
+                externalSubmissionAmbiguous
+                  ? `Your deposit was credited, but the lock for ${appName} may already have succeeded. Retry only the saved signature; if it has expired, check locked funds before abandoning recovery.`
+                  : `Your deposit was credited but locking the funds for ${appName} failed: ${lockFailure?.message}`
+              }
+              onDone={
+                hasExternalLockRecovery && !ambiguousRecoveryMustBeAbandoned
+                  ? handleExternalLockRetry
+                  : handleLockFailedDone
+              }
+              actionLabel={
+                hasExternalLockRecovery
+                  ? ambiguousRecoveryMustBeAbandoned
+                    ? 'Abandon recovery'
+                    : externalLock.session?.payload
+                      ? 'Retry lock submission'
+                      : 'Sign policy and lock funds'
+                  : undefined
+              }
+              pendingLabel={
+                externalLock.isSigning ? 'Confirm policy in wallet...' : 'Locking funds...'
+              }
+              isPending={externalLock.isSigning || externalLock.isSubmittingLock}
+              onDismiss={
+                hasExternalLockRecovery && !ambiguousRecoveryMustBeAbandoned
+                  ? handleLockFailedDone
+                  : undefined
+              }
+              dismissLabel="Abandon recovery"
             />
           )}
           {activeView === 'deposit-timeout' && (
@@ -1075,11 +1431,12 @@ export function DepositModalContent({
             selectedToken={selectedToken}
             amount={amount}
             allowance={allowance}
+            externalMinimum={externalMinimum}
             onAmountChange={setAmount}
             onSelectToken={() => setView('select-token')}
             onConnectWallet={onConnectWallet}
             onSubmit={handleSubmit}
-            isSubmitting={isPending}
+            isSubmitting={isPending || externalLock.isSigning || externalLock.isSubmittingLock}
           />
         </MoonPayGate>
       )}
@@ -1094,11 +1451,17 @@ export function DepositModalContent({
         />
       )}
 
-      {activeView === 'external-deposit' && (
+      {activeView === 'external-deposit' && (!allowance || externalLock.session) && (
         <ExternalDepositView
           token={selectedToken}
           amount={amount}
+          depositAddressState={externalDepositAddress}
           onCredited={allowance ? undefined : onDepositSuccess}
+          onDiscardLock={handleExternalVerificationDiscard}
+          // Routed on the signed session, not the allowance prop: once a
+          // policy is signed it must settle even if the host's allowance
+          // changes, and after it settles credits get the default handling.
+          lock={externalLock.session ? externalLock : undefined}
         />
       )}
 
@@ -1116,7 +1479,7 @@ export function DepositModalContent({
             onCredited={allowance ? undefined : finishCardPurchase}
             onLockSubmitted={finishCardPurchase}
             onLockFailed={(err) => {
-              setLockFailedMessage(err.message)
+              setLockFailure(err)
               onLockFailed?.(err)
             }}
           />

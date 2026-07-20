@@ -61,3 +61,60 @@ export function removeBrowserStorageItem(key: string): void {
     }
   }
 }
+
+/**
+ * External deposit sessions coordinate work across tabs, so they require one
+ * shared authority. A tab-local fallback can resurrect a session another tab
+ * already completed or cancelled.
+ */
+export function canUseSharedBrowserStorage(): boolean {
+  const storage = storageCandidate('localStorage')
+  if (!storage) return false
+  const probeKey = 'privana:shared-storage-probe'
+  try {
+    storage.setItem(probeKey, '1')
+    storage.removeItem(probeKey)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function setSharedBrowserStorageItem(key: string, value: string): boolean {
+  const storage = storageCandidate('localStorage')
+  if (!storage) return false
+  try {
+    storage.setItem(key, value)
+  } catch {
+    return false
+  }
+
+  // Clean up a current-tab copy left by development versions which mirrored
+  // these new session keys before shared storage became authoritative.
+  try {
+    storageCandidate('sessionStorage')?.removeItem(key)
+  } catch {
+    // The shared write above is authoritative.
+  }
+  return true
+}
+
+export function getSharedBrowserStorageItem(key: string): string | null {
+  try {
+    return storageCandidate('localStorage')?.getItem(key) ?? null
+  } catch {
+    return null
+  }
+}
+
+export function removeSharedBrowserStorageItem(key: string): void {
+  // localStorage is authoritative. Removing the current tab's legacy mirror
+  // as well prevents confusing leftovers during development and upgrades.
+  for (const storage of storageCandidates()) {
+    try {
+      storage.removeItem(key)
+    } catch {
+      // Ignore cleanup failures.
+    }
+  }
+}

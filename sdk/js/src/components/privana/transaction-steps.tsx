@@ -155,9 +155,23 @@ interface TransactionWarningViewProps {
   title: string
   message: string
   onDone: () => void
+  actionLabel?: string
+  pendingLabel?: string
+  isPending?: boolean
+  onDismiss?: () => void
+  dismissLabel?: string
 }
 
-export function TransactionWarningView({ title, message, onDone }: TransactionWarningViewProps) {
+export function TransactionWarningView({
+  title,
+  message,
+  onDone,
+  actionLabel = 'Done',
+  pendingLabel = actionLabel,
+  isPending = false,
+  onDismiss,
+  dismissLabel = 'Dismiss',
+}: TransactionWarningViewProps) {
   return (
     <div className="flex w-full flex-col gap-4">
       <div className="flex items-center gap-3">
@@ -170,12 +184,24 @@ export function TransactionWarningView({ title, message, onDone }: TransactionWa
         </div>
       </div>
 
-      <button
-        onClick={onDone}
-        className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors"
-      >
-        Done
-      </button>
+      <div className="flex gap-2">
+        {onDismiss && (
+          <button
+            onClick={onDismiss}
+            disabled={isPending}
+            className="border-border text-foreground hover:bg-secondary flex h-10 flex-1 cursor-pointer items-center justify-center rounded-[10px] border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {dismissLabel}
+          </button>
+        )}
+        <button
+          onClick={onDone}
+          disabled={isPending}
+          className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 flex-1 cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isPending ? pendingLabel : actionLabel}
+        </button>
+      </div>
     </div>
   )
 }
@@ -186,10 +212,12 @@ interface TransactionErrorViewProps {
   explorerUrl?: string
   explorerLabel?: string
   onRetry: () => void
-  onDismiss: () => void
+  onDismiss?: () => void
   isRetrying?: boolean
   /** Label for the retry button. Defaults to "Retry Verification". */
   retryLabel?: string
+  /** Label for the secondary button. Defaults to "Close". */
+  dismissLabel?: string
 }
 
 export function TransactionErrorView({
@@ -201,6 +229,7 @@ export function TransactionErrorView({
   onDismiss,
   isRetrying,
   retryLabel = 'Retry Verification',
+  dismissLabel = 'Close',
 }: TransactionErrorViewProps) {
   return (
     <div className="flex w-full flex-col gap-4">
@@ -227,13 +256,15 @@ export function TransactionErrorView({
       )}
 
       <div className="flex gap-2">
-        <button
-          onClick={onDismiss}
-          disabled={isRetrying}
-          className="border-border text-foreground hover:bg-secondary flex h-10 flex-1 cursor-pointer items-center justify-center rounded-[10px] border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Close
-        </button>
+        {onDismiss && (
+          <button
+            onClick={onDismiss}
+            disabled={isRetrying}
+            className="border-border text-foreground hover:bg-secondary flex h-10 flex-1 cursor-pointer items-center justify-center rounded-[10px] border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {dismissLabel}
+          </button>
+        )}
         <button
           onClick={onRetry}
           disabled={isRetrying}

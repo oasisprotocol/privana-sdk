@@ -363,6 +363,34 @@ describe('createSignedLockRequest', () => {
       })
     ).rejects.toThrow('Lock amount must be positive')
   })
+
+  it('rejects a wallet client for a different account before fetching the nonce', async () => {
+    let nonceRequested = false
+    await expect(
+      createSignedLockRequest({
+        client: {
+          getLockNonce: async () => {
+            nonceRequested = true
+            return { nonce: 0 }
+          },
+        } as never,
+        walletClient: {
+          account: SERVICE,
+        } as never,
+        userAddress: USER,
+        networkConfig: {
+          chainId: 23295,
+          name: 'sapphire-testnet',
+          accountingContract: '0x0000000000000000000000000000000000000001',
+          apiUrl: BASE_URL,
+        },
+        serviceAddress: SERVICE,
+        tokenId: TOKEN_ID,
+        amount: 1_000_000n,
+      })
+    ).rejects.toThrow('Connected wallet does not match the authenticated deposit account')
+    expect(nonceRequested).toBe(false)
+  })
 })
 
 describe('isSignedLockUsable', () => {
@@ -417,6 +445,7 @@ describe('submitPendingLock', () => {
 
   it('skips a guaranteed revert when credited below the signed amount', async () => {
     let called = false
+    let beforeSubmitCalled = false
     const client = {
       lockFunds: async () => {
         called = true
@@ -427,12 +456,16 @@ describe('submitPendingLock', () => {
       client: client as never,
       payload: signedLockFixture({ amount: '1000000' }),
       creditedAmount: 999_999n,
+      beforeSubmit: () => {
+        beforeSubmitCalled = true
+      },
     }).catch((e) => e)
     expect(error).toBeInstanceOf(PostDepositLockError)
     expect((error as PostDepositLockError).reason).toBe('credited-below-signed')
     expect((error as PostDepositLockError).signedAmount).toBe(1_000_000n)
     expect((error as PostDepositLockError).creditedAmount).toBe(999_999n)
     expect(called).toBe(false)
+    expect(beforeSubmitCalled).toBe(false)
   })
 
   it('wraps API rejections as submission-failed with the cause attached', async () => {
@@ -469,7 +502,7 @@ describe('submitPendingLock', () => {
 })
 
 describe('pending-lock persistence', () => {
-  function createStorageStub(): Storage {
+  function createStorageStub({ failWrites = false }: { failWrites?: boolean } = {}): Storage {
     const map = new Map<string, string>()
     return {
       get length() {
@@ -479,7 +512,10 @@ describe('pending-lock persistence', () => {
       getItem: (key: string) => map.get(key) ?? null,
       key: (index: number) => [...map.keys()][index] ?? null,
       removeItem: (key: string) => void map.delete(key),
-      setItem: (key: string, value: string) => void map.set(key, String(value)),
+      setItem: (key: string, value: string) => {
+        if (failWrites) throw new Error('Storage unavailable')
+        map.set(key, String(value))
+      },
     }
   }
 
@@ -519,6 +555,27 @@ describe('pending-lock persistence', () => {
       savePendingLock(USER, 'tx-1', payload)
       expect(loadPendingLock(USER, 'tx-1')).toEqual(payload)
     })
+  })
+
+  it('keeps the shipped session fallback for MoonPay transaction ids', () => {
+    const globals = globalThis as { window?: unknown }
+    const original = globals.window
+    const sessionStorage = createStorageStub()
+    globals.window = {
+      localStorage: createStorageStub({ failWrites: true }),
+      sessionStorage,
+    }
+    try {
+      const payload = signedLockFixture()
+      savePendingLock(USER, 'moonpay-transaction-id', payload)
+      expect(loadPendingLock(USER, 'moonpay-transaction-id')).toEqual(payload)
+      expect(sessionStorage.length).toBe(1)
+      clearPendingLock(USER, 'moonpay-transaction-id')
+      expect(sessionStorage.length).toBe(0)
+    } finally {
+      if (original === undefined) delete globals.window
+      else globals.window = original
+    }
   })
 
   it('drops malformed records', () => {
