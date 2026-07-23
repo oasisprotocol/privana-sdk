@@ -392,7 +392,7 @@ export function FiatOnRampForm({
       {lockPending && (
         <p className="text-muted-foreground flex items-center gap-2 text-sm">
           <Loader2 className="size-4 animate-spin" aria-hidden />
-          Purchase credited — locking your funds…
+          Purchase credited. Locking your funds…
         </p>
       )}
 

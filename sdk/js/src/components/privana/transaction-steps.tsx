@@ -270,7 +270,7 @@ export function TransactionErrorView({
           disabled={isRetrying}
           className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 flex-1 cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isRetrying ? 'Retrying...' : retryLabel}
+          {isRetrying ? 'Retrying…' : retryLabel}
         </button>
       </div>
     </div>

@@ -215,10 +215,7 @@ export function useDepositVerification(
         }
 
         if (triggerResult.status === 'error') {
-          markVerificationFailed(
-            new Error(triggerResult.detail ?? 'Deposit verification failed'),
-            true
-          )
+          markVerificationFailed(new Error(triggerResult.detail ?? 'Deposit verification failed'))
           return
         }
 
@@ -267,10 +264,7 @@ export function useDepositVerification(
 
             if (result.status === 'error') {
               stopPolling()
-              markVerificationFailed(
-                new Error(result.detail ?? 'Deposit verification failed'),
-                true
-              )
+              markVerificationFailed(new Error(result.detail ?? 'Deposit verification failed'))
               return true
             }
           } catch (err) {
@@ -376,10 +370,10 @@ function creditedAmountFromResponse(
 }
 
 function isDefinitiveCandidateFailure(error: Error): boolean {
-  return (
-    error instanceof AccountingApiError &&
-    (error.statusCode === 400 || error.statusCode === 409 || error.statusCode === 422)
-  )
+  // The deposit API uses 400 for candidate-specific validation failures. A
+  // status response of "error" or an accounting 422 can still succeed when
+  // the same transfer is retried, so neither is safe to skip.
+  return error instanceof AccountingApiError && error.statusCode === 400
 }
 
 function sleep(ms: number): Promise<void> {

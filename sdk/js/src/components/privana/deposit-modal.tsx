@@ -418,7 +418,7 @@ function DepositView({
         )}
         {externalTokenUnavailable && (
           <p className="text-destructive text-sm">
-            {selectedToken?.symbol ?? 'This token'} can’t be used for external deposits — choose an
+            {selectedToken?.symbol ?? 'This token'} can’t be used for external deposits. Choose an
             ERC20 token.
           </p>
         )}
@@ -831,7 +831,7 @@ function ExternalDepositView({
       ) : isVerifying ? (
         <AwaitingDepositStatus
           title="Deposit detected"
-          subtitle="Crediting the incoming transaction to your Privana balance..."
+          subtitle="Crediting the incoming transaction to your Privana balance…"
         />
       ) : (
         <>
@@ -865,7 +865,7 @@ function ExternalDepositView({
             )}
             {isRateLimited ? (
               <p className="text-muted-foreground text-center text-sm">
-                Checked too recently — try again in a moment.
+                Checked too recently. Try again in a moment.
               </p>
             ) : isUnavailable ? (
               <p className="text-muted-foreground text-center text-sm">
@@ -873,7 +873,7 @@ function ExternalDepositView({
               </p>
             ) : isScanError ? (
               <p className="text-muted-foreground text-center text-sm">
-                Chain temporarily unreachable — retrying automatically.
+                Chain temporarily unreachable. Retrying automatically.
               </p>
             ) : nothingFound ? (
               <p className="text-muted-foreground text-center text-sm">
@@ -1372,9 +1372,7 @@ export function DepositModalContent({
                       : 'Sign policy and lock funds'
                   : undefined
               }
-              pendingLabel={
-                externalLock.isSigning ? 'Confirm policy in wallet...' : 'Locking funds...'
-              }
+              pendingLabel={externalLock.isSigning ? 'Confirm policy in wallet…' : 'Locking funds…'}
               isPending={externalLock.isSigning || externalLock.isSubmittingLock}
               onDismiss={
                 hasExternalLockRecovery && !ambiguousRecoveryMustBeAbandoned
@@ -1396,8 +1394,8 @@ export function DepositModalContent({
               title="Verification failed"
               message={
                 depositError?.message
-                  ? `Your transfer was sent on-chain but we could not verify the deposit. The funds are already at the deposit address — retry verification instead of starting a new deposit. (${depositError.message})`
-                  : 'Your transfer was sent on-chain but we could not verify the deposit. The funds are already at the deposit address — retry verification instead of starting a new deposit.'
+                  ? `Your transfer was sent on-chain but we could not verify the deposit. The funds are already at the deposit address. Retry verification instead of starting a new deposit. (${depositError.message})`
+                  : 'Your transfer was sent on-chain but we could not verify the deposit. The funds are already at the deposit address. Retry verification instead of starting a new deposit.'
               }
               explorerUrl={explorerTxUrl}
               explorerLabel="View transaction"
@@ -1407,7 +1405,7 @@ export function DepositModalContent({
           )}
           {activeView === 'depositing' && (
             <TransactionProgressView
-              title="Depositing..."
+              title="Depositing…"
               steps={depositSteps}
               // Only allow cancel before the transaction is confirmed (during
               // address fetch / wallet signing).

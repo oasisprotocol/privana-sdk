@@ -212,7 +212,7 @@ export function DepositForm({
 
   const getButtonText = () => {
     if (!isConnected) return 'Connect Wallet'
-    if (isSwitchingChain) return 'Switching...'
+    if (isSwitchingChain) return 'Switching…'
     return 'Deposit'
   }
 
@@ -238,7 +238,7 @@ export function DepositForm({
 
   if (verificationFailed) {
     const baseMessage =
-      'Your transfer was sent on-chain but we could not verify the deposit. The funds are already at the deposit address — retry verification instead of starting a new deposit.'
+      'Your transfer was sent on-chain but we could not verify the deposit. The funds are already at the deposit address. Retry verification instead of starting a new deposit.'
     const detail = error?.message
     const message = detail ? `${baseMessage} (${detail})` : baseMessage
     return (
@@ -258,7 +258,7 @@ export function DepositForm({
     const canCancel = isGettingAddress || isSendingTransaction
     return (
       <TransactionProgressView
-        title="Depositing..."
+        title="Depositing…"
         steps={depositSteps}
         onCancel={canCancel ? handleCancel : undefined}
       />
