@@ -27,6 +27,7 @@ import {
   ExternalDepositLockSessionChangedError,
   externalDepositRetryAmount,
   externalDepositSessionId,
+  isCurrentExternalDepositVerification,
   isSameExternalDepositLockSession,
   loadExternalDepositLockSession,
   saveExternalDepositLockSession,
@@ -366,18 +367,12 @@ export function useExternalDepositLock({
     async (txHash: string, creditedAmount: bigint) => {
       const active = sessionRef.current
       if (!active || settlingRef.current) return
-      if (creditedAmount <= 0n) throw new Error('Credited amount must be positive')
-      if (active.verification?.hash.toLowerCase() !== txHash.toLowerCase()) {
-        notifyFailure(
-          new PostDepositLockError(
-            'Credited transfer does not match the signed deposit session',
-            'not-found',
-            BigInt(active.maxLockAmount),
-            creditedAmount
-          )
-        )
+      if (!isCurrentExternalDepositVerification(active, txHash)) {
+        // Another tab may have advanced or replaced the candidate while this
+        // verification was in flight. Its durable state is authoritative.
         return
       }
+      if (creditedAmount <= 0n) throw new Error('Credited amount must be positive')
       const credited = {
         ...active,
         verification: undefined,

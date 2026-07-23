@@ -6,6 +6,7 @@ import {
   externalDepositRetryAmount,
   externalDepositSessionId,
   getExternalDepositMinimum,
+  isCurrentExternalDepositVerification,
   isExternalDepositBlockInSession,
   loadExternalDepositLockSession,
   saveExternalDepositLockSession,
@@ -294,6 +295,26 @@ describe('external deposit minimum', () => {
         CHAIN_ID
       )
     ).toBeUndefined()
+  })
+})
+
+describe('external deposit verification authority', () => {
+  const verification = {
+    hash: '0xabc' as const,
+    chainId: CHAIN_ID,
+    amount: '1000',
+    logIndex: 0,
+  }
+
+  it('accepts only the current uncredited verification callback', () => {
+    expect(isCurrentExternalDepositVerification(makeSession({ verification }), '0xAbC')).toBe(true)
+    expect(isCurrentExternalDepositVerification(makeSession({ verification }), '0xdef')).toBe(false)
+    expect(
+      isCurrentExternalDepositVerification(
+        makeSession({ verification: undefined, creditedAmount: '1000' }),
+        '0xabc'
+      )
+    ).toBe(false)
   })
 })
 
@@ -614,6 +635,7 @@ describe('external deposit lock settlement', () => {
       expect((error as PostDepositLockError).reason).toBe('submission-failed')
       expect((error as PostDepositLockError).cause).toBe(apiError)
       expect((error as PostDepositLockError).submissionMayHaveSucceeded).toBe(true)
+      expect((error as PostDepositLockError).message).toContain('before stopping recovery')
       const stored = loadExternalDepositLockSession(OWNER)
       expect(stored?.payload).toEqual(session.payload)
       expect(stored?.creditedAmount).toBe('1000')

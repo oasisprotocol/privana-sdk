@@ -462,6 +462,9 @@ describe('submitPendingLock', () => {
     }).catch((e) => e)
     expect(error).toBeInstanceOf(PostDepositLockError)
     expect((error as PostDepositLockError).reason).toBe('credited-below-signed')
+    expect((error as PostDepositLockError).message).toBe(
+      'Credited amount is below the signed lock amount'
+    )
     expect((error as PostDepositLockError).signedAmount).toBe(1_000_000n)
     expect((error as PostDepositLockError).creditedAmount).toBe(999_999n)
     expect(called).toBe(false)

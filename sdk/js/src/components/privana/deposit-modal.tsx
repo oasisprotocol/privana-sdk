@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useAccount, useBalance, useReadContract } from 'wagmi'
-import { erc20Abi, zeroAddress } from 'viem'
+import { erc20Abi, formatUnits, zeroAddress } from 'viem'
 import { QRCodeSVG } from 'qrcode.react'
 import { MoonPayProvider } from '@moonpay/moonpay-react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
@@ -74,6 +74,23 @@ type DepositFlowView =
   | 'deposit-timeout'
   | 'deposit-error'
   | 'lock-error'
+
+function formatPostDepositLockFailure(
+  error: PostDepositLockError | null,
+  token: TokenConfig | undefined
+): string {
+  if (
+    error?.reason === 'credited-below-signed' &&
+    error.creditedAmount !== undefined &&
+    error.signedAmount !== undefined &&
+    token
+  ) {
+    const creditedAmount = `${formatUnits(error.creditedAmount, token.decimals)} ${token.symbol}`
+    const signedAmount = `${formatUnits(error.signedAmount, token.decimals)} ${token.symbol}`
+    return `Credited amount (${creditedAmount}) is below the signed lock amount (${signedAmount})`
+  }
+  return error?.message ?? 'Lock submission failed'
+}
 
 function MethodTabs({
   activeTab,
@@ -374,8 +391,7 @@ function DepositView({
         )}
         {belowExternalMinimum && selectedToken && typeof externalMinimum === 'bigint' && (
           <p className="text-destructive text-sm">
-            Minimum deposit is{' '}
-            {formatTokenAmount(externalMinimum.toString(), selectedToken.decimals)}{' '}
+            Minimum deposit is {formatUnits(externalMinimum, selectedToken.decimals)}{' '}
             {selectedToken.symbol}.
           </p>
         )}
@@ -562,6 +578,7 @@ function ExternalDepositView({
     !!lock?.isSubmittingLock ||
     !!lockSession?.verification ||
     !!lockSession?.creditedAmount
+  const showDepositInstructions = !credited && !lockSession?.creditedAmount
 
   const {
     pending,
@@ -620,7 +637,6 @@ function ExternalDepositView({
       amount: BigInt(next.amount),
       logIndex: next.log_index,
     }
-    processedRef.current.add(`${next.tx_hash}:${next.log_index}`)
     if (recordVerification) {
       try {
         recordVerification(context)
@@ -628,9 +644,9 @@ function ExternalDepositView({
         toast.error(err instanceof Error ? err.message : 'Unable to save deposit recovery state')
         return
       }
-    } else {
-      void verify(context)
     }
+    processedRef.current.add(`${next.tx_hash}:${next.log_index}`)
+    if (!recordVerification) void verify(context)
   }, [lockSession, pending, recordVerification, scanPaused, verify])
 
   const nothingFoundTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -647,11 +663,15 @@ function ExternalDepositView({
     })
   }
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
     if (!depositAddress) return
-    void navigator.clipboard.writeText(depositAddress)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(depositAddress)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error('Unable to copy the deposit address')
+    }
   }
 
   const handleCheckAnotherTransfer = () => {
@@ -686,50 +706,66 @@ function ExternalDepositView({
         <SummaryRow value={amount || '—'} label="Value" />
       </div>
 
-      <div className="bg-secondary flex h-50 items-center justify-center rounded-[10px]">
-        {!isReady ? (
-          <p className="text-muted-foreground px-6 text-center text-sm">
-            Connect your wallet to generate a deposit address.
-          </p>
-        ) : depositAddress ? (
-          <div className="rounded-[10px] bg-white p-3">
-            <QRCodeSVG value={depositAddress} size={160} />
-          </div>
-        ) : isLoading ? (
-          <Skeleton className="h-full w-full rounded-[10px]" />
-        ) : (
-          <span className="text-muted-foreground text-sm">Deposit address unavailable</span>
-        )}
-      </div>
+      {showDepositInstructions && (
+        <>
+          {!scanPaused && (
+            <p className="text-muted-foreground text-sm">
+              Send the displayed amount in one transfer. Transfers below the minimum are not
+              combined or automatically returned.
+            </p>
+          )}
 
-      <div className="flex flex-col gap-3">
-        <p className="text-muted-foreground text-sm">Deposit Address</p>
-        <div className="flex items-center gap-3">
-          <div className="border-border flex h-10 min-w-0 flex-1 items-center rounded-[10px] border px-3">
-            {depositAddress ? (
-              <p className="text-foreground min-w-0 flex-1 truncate text-sm">{depositAddress}</p>
-            ) : isReady && isLoading ? (
-              <Skeleton className="h-4 w-3/4" />
+          <div className="bg-secondary flex h-50 items-center justify-center rounded-[10px]">
+            {!isReady ? (
+              <p className="text-muted-foreground px-6 text-center text-sm">
+                Connect your wallet to generate a deposit address.
+              </p>
+            ) : depositAddress ? (
+              <div className="rounded-[10px] bg-white p-3">
+                <QRCodeSVG value={depositAddress} size={160} />
+              </div>
+            ) : isLoading ? (
+              <Skeleton className="h-full w-full rounded-[10px]" />
             ) : (
-              <p className="text-muted-foreground text-sm">—</p>
+              <span className="text-muted-foreground text-sm">Deposit address unavailable</span>
             )}
           </div>
-          <button
-            type="button"
-            onClick={handleCopy}
-            disabled={!depositAddress}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-[10px] px-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <CopyIcon />
-            {copied ? 'Copied' : 'Copy'}
-          </button>
-        </div>
-      </div>
 
-      {showCancelWarning && lockSession && !lockSession.verification ? (
+          <div className="flex flex-col gap-3">
+            <p className="text-muted-foreground text-sm">Deposit Address</p>
+            <div className="flex items-center gap-3">
+              <div className="border-border flex h-10 min-w-0 flex-1 items-center rounded-[10px] border px-3">
+                {depositAddress ? (
+                  <p className="text-foreground min-w-0 flex-1 truncate text-sm">
+                    {depositAddress}
+                  </p>
+                ) : isReady && isLoading ? (
+                  <Skeleton className="h-4 w-3/4" />
+                ) : (
+                  <p className="text-muted-foreground text-sm">—</p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={handleCopy}
+                disabled={!depositAddress}
+                className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-[10px] px-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <CopyIcon />
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {showCancelWarning &&
+      lockSession &&
+      !lockSession.verification &&
+      !lockSession.creditedAmount ? (
         <TransactionWarningView
           title="Cancel this deposit?"
-          message="Only cancel if you have not sent funds. Canceling after a transfer was sent abandons its recovery and can leave the transfer uncredited or unlocked."
+          message="Only cancel if you have not sent funds. Canceling after a transfer was sent stops recovery and can leave the transfer uncredited or unlocked."
           onDone={() => onDiscardLock?.()}
           actionLabel="I haven’t sent funds"
           onDismiss={() => setShowCancelWarning(false)}
@@ -743,14 +779,14 @@ function ExternalDepositView({
       ) : lock?.isSubmittingLock ? (
         <AwaitingDepositStatus
           title={`Locking funds for ${appName}`}
-          subtitle="Deposit credited — applying your signed policy..."
+          subtitle="Deposit credited. Applying your signed policy…"
         />
       ) : lock?.session?.creditedAmount ? (
         <TransactionWarningView
           title={lock.session.submissionAmbiguous ? 'Lock status unknown' : 'Deposit credited'}
           message={
             lock.session.submissionAmbiguous
-              ? 'The lock may already have succeeded. Retry only the saved signature, or check locked funds before abandoning recovery.'
+              ? 'The lock may already have succeeded. Retry only the saved signature, or check locked funds before stopping recovery.'
               : 'The deposit is credited, but its signed lock still needs to be submitted.'
           }
           onDone={() => {
@@ -818,7 +854,7 @@ function ExternalDepositView({
             >
               Refresh deposit status
             </button>
-            {lockSession && !lockSession.verification && (
+            {lockSession && !lockSession.verification && !lockSession.creditedAmount && (
               <button
                 type="button"
                 onClick={() => setShowCancelWarning(true)}
@@ -1023,7 +1059,7 @@ export function DepositModalContent({
     if (!token) return
     setSource('external')
     setSelectedTokenId(token.id)
-    setAmount(formatTokenAmount(restored.depositAmount, token.decimals))
+    setAmount(formatUnits(BigInt(restored.depositAmount), token.decimals))
     setView('external-deposit')
   }, [externalLock.session, getTokenById, source, view])
 
@@ -1071,7 +1107,7 @@ export function DepositModalContent({
       }
       if (depositAmount < externalMinimum) {
         toast.error(
-          `Minimum deposit is ${formatTokenAmount(externalMinimum.toString(), token.decimals)} ${token.symbol}`
+          `Minimum deposit is ${formatUnits(externalMinimum, token.decimals)} ${token.symbol}`
         )
         return
       }
@@ -1174,6 +1210,14 @@ export function DepositModalContent({
     !!externalLock.session?.payload && isSignedLockUsable(externalLock.session.payload)
   const ambiguousRecoveryMustBeAbandoned =
     externalSubmissionAmbiguous && !savedExternalPayloadUsable
+  const externalRecoveryExitLabel = externalSubmissionAmbiguous
+    ? 'Stop recovery'
+    : 'Keep funds unlocked'
+  const lockFailureToken =
+    hasExternalLockRecovery && externalLock.session
+      ? (getTokenById(externalLock.session.tokenId) ?? selectedToken)
+      : selectedToken
+  const lockFailureMessage = formatPostDepositLockFailure(lockFailure, lockFailureToken)
   const flowView: DepositFlowView | null = showSuccess
     ? 'deposit-success'
     : lockFailure
@@ -1311,8 +1355,8 @@ export function DepositModalContent({
               }
               message={
                 externalSubmissionAmbiguous
-                  ? `Your deposit was credited, but the lock for ${appName} may already have succeeded. Retry only the saved signature; if it has expired, check locked funds before abandoning recovery.`
-                  : `Your deposit was credited but locking the funds for ${appName} failed: ${lockFailure?.message}`
+                  ? `Your deposit was credited, but the lock for ${appName} may already have succeeded. Retry only the saved signature; if it has expired, check locked funds before stopping recovery.`
+                  : `Your deposit was credited but locking the funds for ${appName} failed: ${lockFailureMessage}`
               }
               onDone={
                 hasExternalLockRecovery && !ambiguousRecoveryMustBeAbandoned
@@ -1322,7 +1366,7 @@ export function DepositModalContent({
               actionLabel={
                 hasExternalLockRecovery
                   ? ambiguousRecoveryMustBeAbandoned
-                    ? 'Abandon recovery'
+                    ? externalRecoveryExitLabel
                     : externalLock.session?.payload
                       ? 'Retry lock submission'
                       : 'Sign policy and lock funds'
@@ -1337,7 +1381,7 @@ export function DepositModalContent({
                   ? handleLockFailedDone
                   : undefined
               }
-              dismissLabel="Abandon recovery"
+              dismissLabel={externalRecoveryExitLabel}
             />
           )}
           {activeView === 'deposit-timeout' && (

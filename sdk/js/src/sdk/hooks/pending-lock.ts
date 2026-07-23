@@ -260,7 +260,7 @@ export async function submitPendingLock({
   }
   if (creditedAmount !== undefined && creditedAmount < signedAmount) {
     throw new PostDepositLockError(
-      `Credited amount (${creditedAmount}) is below the signed lock amount (${signedAmount})`,
+      'Credited amount is below the signed lock amount',
       'credited-below-signed',
       signedAmount,
       creditedAmount

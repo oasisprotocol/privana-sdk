@@ -62,6 +62,17 @@ export function isExternalDepositBlockInSession(
   return Number.isSafeInteger(blockNumber) && blockNumber > session.startBlock
 }
 
+/** True only while a verification callback still owns the active, uncredited candidate. */
+export function isCurrentExternalDepositVerification(
+  session: ExternalDepositLockSessionRecord,
+  txHash: string
+): boolean {
+  return (
+    session.creditedAmount === undefined &&
+    session.verification?.hash.toLowerCase() === txHash.toLowerCase()
+  )
+}
+
 export function getExternalDepositMinimum(
   response: DepositAddressResponse | undefined,
   chainId: number
@@ -376,7 +387,7 @@ function markSubmissionAmbiguous(
 
 function ambiguousSubmissionError(error: PostDepositLockError): PostDepositLockError {
   return new PostDepositLockError(
-    'Lock submission could not be confirmed. Retry only the saved signature, or check locked funds before abandoning recovery.',
+    'Lock submission could not be confirmed. Retry only the saved signature, or check locked funds before stopping recovery.',
     error.reason,
     error.signedAmount,
     error.creditedAmount,
