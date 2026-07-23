@@ -20,7 +20,7 @@ export interface VerificationContext {
 
 export interface UseDepositVerificationOptions {
   /** Fired when the deposit is credited inside the Privana accounting module. */
-  onCredited?: (txHash: string, response: DepositCheckResponse) => void
+  onCredited?: (txHash: string, response: DepositCheckResponse, creditedAmount: bigint) => void
   /** Fired when polling exceeds `pollTimeout` (the deposit may still be processing). */
   onCheckTimeout?: (txHash: string) => void
   onError?: (error: Error) => void
@@ -50,6 +50,8 @@ export interface UseDepositVerificationResult {
    * without re-sending the transfer.
    */
   verificationFailed: boolean
+  /** True only when this transfer was definitively rejected and another candidate is safe to try. */
+  canCheckAnotherTransfer: boolean
   error: Error | null
   /** Current transfer hash being verified, if any. */
   txHash: `0x${string}` | undefined
@@ -85,6 +87,7 @@ export function useDepositVerification(
   const [isVerifying, setIsVerifying] = useState(false)
   const [didTimeout, setDidTimeout] = useState(false)
   const [verificationFailed, setVerificationFailed] = useState(false)
+  const [canCheckAnotherTransfer, setCanCheckAnotherTransfer] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>()
 
@@ -129,16 +132,18 @@ export function useDepositVerification(
       const { hash, chainId, amount, logIndex } = ctx
 
       setVerificationFailed(false)
+      setCanCheckAnotherTransfer(false)
       setError(null)
       setDidTimeout(false)
       setIsVerifying(true)
 
       const pollStartTime = Date.now()
 
-      const markVerificationFailed = (err: Error) => {
+      const markVerificationFailed = (err: Error, canCheckAnother = false) => {
         setIsVerifying(false)
         setError(err)
         setVerificationFailed(true)
+        setCanCheckAnotherTransfer(canCheckAnother)
         onErrorRef.current?.(err)
       }
 
@@ -200,11 +205,12 @@ export function useDepositVerification(
         if (isStale()) return
 
         if (triggerResult.status === 'credited') {
+          const creditedAmount = creditedAmountFromResponse(triggerResult, amount)
           setIsVerifying(false)
           verificationContextRef.current = null
           queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
           queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
-          onCreditedRef.current?.(hash, triggerResult)
+          onCreditedRef.current?.(hash, triggerResult, creditedAmount)
           return
         }
 
@@ -236,12 +242,23 @@ export function useDepositVerification(
             consecutiveFailures = 0
 
             if (result.status === 'credited') {
+              let creditedAmount: bigint
+              try {
+                creditedAmount = creditedAmountFromResponse(result, amount)
+              } catch (err) {
+                stopPolling()
+                markVerificationFailed(
+                  err instanceof Error ? err : new Error('Deposit credited amount is invalid'),
+                  false
+                )
+                return true
+              }
               stopPolling()
               setIsVerifying(false)
               verificationContextRef.current = null
               queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
               queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
-              onCreditedRef.current?.(hash, result)
+              onCreditedRef.current?.(hash, result, creditedAmount)
               return true
             }
 
@@ -275,9 +292,8 @@ export function useDepositVerification(
       } catch (err) {
         if (isStale()) return
         stopPolling()
-        markVerificationFailed(
-          err instanceof Error ? err : new Error('Deposit verification failed')
-        )
+        const error = err instanceof Error ? err : new Error('Deposit verification failed')
+        markVerificationFailed(error, isDefinitiveCandidateFailure(error))
       }
     },
     [
@@ -322,6 +338,7 @@ export function useDepositVerification(
     setIsVerifying(false)
     setDidTimeout(false)
     setVerificationFailed(false)
+    setCanCheckAnotherTransfer(false)
     setError(null)
   }, [stopPolling])
 
@@ -329,12 +346,34 @@ export function useDepositVerification(
     isVerifying,
     didTimeout,
     verificationFailed,
+    canCheckAnotherTransfer,
     error,
     txHash,
     verify,
     retryVerification,
     reset,
   }
+}
+
+function creditedAmountFromResponse(
+  response: DepositCheckResponse,
+  requestedAmount: bigint
+): bigint {
+  if (response.amount == null) return requestedAmount
+  try {
+    const amount = BigInt(response.amount)
+    if (amount <= 0n) throw new Error('non-positive amount')
+    return amount
+  } catch (err) {
+    throw new Error('Deposit API returned an invalid credited amount', { cause: err })
+  }
+}
+
+function isDefinitiveCandidateFailure(error: Error): boolean {
+  // The deposit API uses 400 for candidate-specific validation failures. A
+  // status response of "error" or an accounting 422 can still succeed when
+  // the same transfer is retried, so neither is safe to skip.
+  return error instanceof AccountingApiError && error.statusCode === 400
 }
 
 function sleep(ms: number): Promise<void> {

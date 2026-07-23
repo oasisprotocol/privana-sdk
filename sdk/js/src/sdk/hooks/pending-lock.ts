@@ -18,9 +18,10 @@ import type {
  * Deposit-and-lock without backend involvement: the user pre-signs a regular
  * `Lock` (EIP-712) for the exact expected amount before the deposit, the SDK
  * persists the payload, and submits it to POST /funds/lock once the deposit is
- * credited. Every failure fails closed — if the credited amount is short or the
- * nonce went stale, the lock reverts, the funds stay in the user's available
- * balance, and the UI re-prompts a fresh signature at the actual amount.
+ * credited. Every failure fails closed. Deterministic preflight failures such
+ * as a short credit or expired signature can safely request a fresh signature;
+ * once an API attempt starts, recovery must replay that signature unless the
+ * attempt was cross-tab serialized and definitively rejected.
  * Services must only act on lock confirmation, never on deposit.
  */
 export interface PostDepositLockConfig {
@@ -86,6 +87,29 @@ export function clampLockAmount(amount: bigint, maxAmount?: bigint): bigint {
   return maxAmount !== undefined && maxAmount < amount ? maxAmount : amount
 }
 
+/**
+ * The provider's `serviceAddress` is optional; every lock flow needs it set
+ * before a `Lock` can be signed.
+ */
+export function requireServiceAddress(serviceAddress: Address | undefined): Address {
+  if (!serviceAddress) {
+    throw new Error('Service address not configured')
+  }
+  return serviceAddress
+}
+
+export function requireDepositLockOwner(
+  walletAddress: Address | undefined,
+  beneficiary: Address | null
+): Address {
+  if (!walletAddress) throw new Error('No wallet connected')
+  if (!beneficiary) throw new Error('No authenticated deposit account')
+  if (walletAddress.toLowerCase() !== beneficiary.toLowerCase()) {
+    throw new Error('Connected wallet does not match the authenticated deposit account')
+  }
+  return beneficiary
+}
+
 export interface CreateSignedLockRequestParams {
   client: PrivanaClient
   walletClient: WalletClient
@@ -96,6 +120,12 @@ export interface CreateSignedLockRequestParams {
   /** Exact amount to lock, in base units. */
   amount: bigint
   lockDuration?: number
+}
+
+function walletClientAccountAddress(walletClient: WalletClient): Address | undefined {
+  const account = walletClient.account
+  if (!account) return undefined
+  return typeof account === 'string' ? account : account.address
 }
 
 /**
@@ -115,6 +145,10 @@ export async function createSignedLockRequest({
 }: CreateSignedLockRequestParams): Promise<LockFundsRequest> {
   if (amount <= 0n) {
     throw new Error('Lock amount must be positive')
+  }
+  const signerAddress = walletClientAccountAddress(walletClient)
+  if (!signerAddress || signerAddress.toLowerCase() !== userAddress.toLowerCase()) {
+    throw new Error('Connected wallet does not match the authenticated deposit account')
   }
   const expiry = BigInt(Math.floor(Date.now() / 1000) + lockDuration)
   const { nonce } = await client.getLockNonce(userAddress)
@@ -162,19 +196,22 @@ export type PostDepositLockFailureReason =
   | 'not-found'
 
 /**
- * The deposit itself was credited; only the post-credit lock failed. UIs
- * should re-prompt a fresh `Lock` signature at the actual credited amount.
+ * The deposit itself was credited; only the post-credit lock failed. UIs may
+ * request a fresh signature only when no prior API attempt could have landed.
  */
 export class PostDepositLockError extends Error {
+  public readonly submissionMayHaveSucceeded: boolean
+
   constructor(
     message: string,
     public readonly reason: PostDepositLockFailureReason,
     public readonly signedAmount?: bigint,
     public readonly creditedAmount?: bigint,
-    options?: { cause?: unknown }
+    options?: { cause?: unknown; submissionMayHaveSucceeded?: boolean }
   ) {
     super(message, options)
     this.name = 'PostDepositLockError'
+    this.submissionMayHaveSucceeded = options?.submissionMayHaveSucceeded ?? false
     Object.setPrototypeOf(this, PostDepositLockError.prototype)
   }
 }
@@ -184,6 +221,8 @@ export interface SubmitPendingLockParams {
   payload: LockFundsRequest
   /** Credited amount in base units, when known — skips a guaranteed revert. */
   creditedAmount?: bigint
+  /** Runs after deterministic preflight checks and immediately before the API request. */
+  beforeSubmit?: () => void
 }
 
 /**
@@ -195,6 +234,7 @@ export async function submitPendingLock({
   client,
   payload,
   creditedAmount,
+  beforeSubmit,
 }: SubmitPendingLockParams): Promise<TransactionSubmissionResponse> {
   // Guard the parse so a corrupted stored payload surfaces as a typed error
   // instead of a raw TypeError that callers' catch blocks would re-trip on.
@@ -220,13 +260,14 @@ export async function submitPendingLock({
   }
   if (creditedAmount !== undefined && creditedAmount < signedAmount) {
     throw new PostDepositLockError(
-      `Credited amount (${creditedAmount}) is below the signed lock amount (${signedAmount})`,
+      'Credited amount is below the signed lock amount',
       'credited-below-signed',
       signedAmount,
       creditedAmount
     )
   }
   try {
+    beforeSubmit?.()
     return await client.lockFunds(payload)
   } catch (err) {
     throw new PostDepositLockError(

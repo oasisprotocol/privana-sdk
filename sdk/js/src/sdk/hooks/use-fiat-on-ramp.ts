@@ -21,6 +21,8 @@ import {
   clearPendingLock,
   createSignedLockRequest,
   loadPendingLock,
+  requireDepositLockOwner,
+  requireServiceAddress,
   savePendingLock,
   submitPendingLock,
   PostDepositLockError,
@@ -80,8 +82,9 @@ export interface UseFiatOnRampOptions {
   onLockSubmitted?: (response: TransactionSubmissionResponse) => void
   /**
    * Fired when the deposit credited but the pre-signed lock could not be
-   * submitted. The funds sit in the user's available balance — re-prompt a
-   * fresh lock signature at the credited amount. Falls back to `onError`.
+   * submitted. The funds sit in the user's available balance. Fresh signing
+   * is safe only for failures known to precede any API attempt; otherwise
+   * retry or reconcile the same signature. Falls back to `onError`.
    */
   onLockFailed?: (error: PostDepositLockError) => void
   onError?: (error: Error) => void
@@ -206,7 +209,9 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
   const { address } = useAccount()
   const { data: walletClient } = useWalletClient()
   const { client, enabledTokens, networkConfig, serviceAddress } = usePrivanaContext()
-  const { executePrivateRead, privateReadReady } = usePrivateReadRequest()
+  const { executePrivateRead, privateReadAddress, privateReadReady } = usePrivateReadRequest()
+  const privateReadAddressRef = useRef(privateReadAddress)
+  privateReadAddressRef.current = privateReadAddress
   const { ensureCorrectChain } = useEnsureCorrectChain()
   const wagmiConfig = useConfig()
   const queryClient = useQueryClient()
@@ -231,9 +236,6 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
   const activeIntentIdRef = useRef<string | null>(null)
   const activeVerificationRecordRef = useRef<OnRampRecord | null>(null)
   const activeVerificationKeyRef = useRef<string | null>(null)
-  /** Delivered amount (base units) of the verification in flight — the belt
-   * check before submitting the pre-signed lock. */
-  const activeVerificationAmountRef = useRef<bigint | null>(null)
   /** Address that signed the pending lock. Storage is keyed by it, and the
    * wallet may be disconnected or on another account by credit time. */
   const lockOwnerRef = useRef<Address | null>(null)
@@ -351,7 +353,6 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
     if (key) triggeredVerificationKeysRef.current.delete(key)
     activeVerificationKeyRef.current = null
     activeVerificationRecordRef.current = null
-    activeVerificationAmountRef.current = null
     setActiveVerificationId(null)
     activeVerificationDoneRef.current?.()
     activeVerificationDoneRef.current = null
@@ -361,7 +362,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
   // failures route to the dedicated callback (or onError as fallback) instead
   // of the flow's terminal error state.
   const submitPendingLockAfterCredit = useCallback(
-    async (transactionId: string, userAddress: string) => {
+    async (transactionId: string, userAddress: string, creditedAmount: bigint) => {
       const signedLock = loadPendingLock(userAddress, transactionId)
       if (!signedLock) {
         // Drop corrupted leftovers so they don't linger in storage.
@@ -378,7 +379,6 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         ;(onLockFailedRef.current ?? onErrorRef.current)?.(error)
         return
       }
-      const creditedAmount = activeVerificationAmountRef.current ?? undefined
       try {
         const result = await submitPendingLock({ client, payload: signedLock, creditedAmount })
         queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
@@ -433,7 +433,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
       })
       setFinalityProgress((prev) => ({ ...prev, [record.transaction_id]: message }))
     },
-    onCredited: (depositTxHash) => {
+    onCredited: (depositTxHash, _response, creditedAmount) => {
       const record = activeVerificationRecordRef.current
       const verificationKey = record ? getOnRampVerificationKey(record) : null
       emitDebug('verification:credited', {
@@ -453,9 +453,9 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         // Prefer the address that signed the lock: the wallet may have
         // disconnected or switched accounts during the minutes-long delivery
         // window, and the stored payload is keyed by the signer.
-        const lockOwner = lockOwnerRef.current ?? address
+        const lockOwner = lockOwnerRef.current ?? privateReadAddress
         if (lockOwner) {
-          void submitPendingLockAfterCredit(record.transaction_id, lockOwner)
+          void submitPendingLockAfterCredit(record.transaction_id, lockOwner, creditedAmount)
         } else if (postDepositLock) {
           emitDebug('lock:owner-unavailable', { transactionId: record.transaction_id })
           ;(onLockFailedRef.current ?? onErrorRef.current)?.(
@@ -541,10 +541,12 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         if (!token) throw new Error(`Unknown token: ${tokenId}`)
         if (!depositAddress) throw new Error('Privana deposit address is not ready')
         let lockAmount: bigint | undefined
+        let lockOwner: Address | undefined
         if (postDepositLock) {
           // Fail before the intent exists: a purchase without a submittable
           // signed lock would defeat the deposit-and-lock guarantee.
           if (!address || !walletClient) throw new Error('Wallet not connected')
+          lockOwner = requireDepositLockOwner(address, privateReadAddress)
           if (!quoteCurrencyAmount) {
             throw new Error(
               'postDepositLock requires quoteCurrencyAmount to derive the lock amount'
@@ -591,7 +593,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
             base_currency_amount: baseCurrencyAmount,
           })
         )
-        if (postDepositLock && address && walletClient && lockAmount !== undefined) {
+        if (postDepositLock && lockOwner && lockAmount !== undefined) {
           // Re-fetch the wallet client bound to the signing chain: the
           // render-time client can go stale across the chain switch above and
           // wagmi then rejects the signature with a chain mismatch.
@@ -601,15 +603,18 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
           const signedLock = await createSignedLockRequest({
             client,
             walletClient: signingWalletClient,
-            userAddress: address as Address,
+            userAddress: lockOwner,
             networkConfig,
             serviceAddress: requireServiceAddress(postDepositLock.serviceAddress ?? serviceAddress),
             tokenId,
             amount: lockAmount,
             lockDuration: postDepositLock.lockDuration,
           })
-          savePendingLock(address, record.transaction_id, signedLock)
-          lockOwnerRef.current = address as Address
+          if (privateReadAddressRef.current?.toLowerCase() !== lockOwner.toLowerCase()) {
+            throw new Error('Authenticated deposit account changed while signing')
+          }
+          savePendingLock(lockOwner, record.transaction_id, signedLock)
+          lockOwnerRef.current = lockOwner
           emitDebug('intent:lock-signed', {
             transactionId: record.transaction_id,
             amount: signedLock.amount,
@@ -641,6 +646,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
       executePrivateRead,
       networkConfig,
       postDepositLock,
+      privateReadAddress,
       serviceAddress,
       tokenId,
       wagmiConfig,
@@ -851,8 +857,6 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
           )
         }
 
-        activeVerificationAmountRef.current = amount
-
         if (activeIntentIdRef.current === record.transaction_id) {
           setStatus('verifying')
         }
@@ -871,7 +875,6 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         if (activeVerificationKeyRef.current === verificationKey) {
           activeVerificationKeyRef.current = null
           activeVerificationRecordRef.current = null
-          activeVerificationAmountRef.current = null
           setActiveVerificationId(null)
         }
         throw err
@@ -1172,13 +1175,6 @@ function matchesOnRampTransaction(record: OnRampRecord, transactionId: string): 
 
 function getOnRampVerificationKey(record: OnRampRecord): string {
   return record.on_chain_tx_hash ?? record.transaction_id
-}
-
-function requireServiceAddress(serviceAddress: Address | undefined): Address {
-  if (!serviceAddress) {
-    throw new Error('Service address not configured')
-  }
-  return serviceAddress
 }
 
 function summariseMoonPayEventProps(props: Record<string, unknown>): Record<string, unknown> {
