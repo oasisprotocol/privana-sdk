@@ -41,7 +41,7 @@ export function useDepositAddress(options: UseDepositAddressOptions = {}): UseDe
     queryFn: async () => {
       if (!privateReadAddress) throw new Error('No authenticated account available')
       if (!client) throw new Error('No accounting client')
-      return executePrivateRead(() => client.getDepositAddress())
+      return executePrivateRead((readClient) => readClient.getDepositAddress())
     },
     enabled: isReady && (options.enabled ?? true),
   })

@@ -296,7 +296,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
     void (async () => {
       try {
         emitDebug('deposit-address:request')
-        const resp = await executePrivateRead(() => client.getDepositAddress())
+        const resp = await executePrivateRead((readClient) => readClient.getDepositAddress())
         if (cancelled) return
         setDepositAddress(resp.deposit_address)
         const token = enabledTokens.find((t) => t.id.toLowerCase() === tokenId.toLowerCase())
@@ -328,7 +328,9 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
 
     try {
       emitDebug('pending:request')
-      const { pending: rows } = await executePrivateRead(() => client.getPendingOnRamps())
+      const { pending: rows } = await executePrivateRead((readClient) =>
+        readClient.getPendingOnRamps()
+      )
       setPending(rows)
       emitDebug('pending:success', {
         count: rows.length,
@@ -338,7 +340,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
       emitDebug('pending:error', errorPayload(err))
       console.warn('Failed to load pending on-ramps:', err)
     }
-  }, [client, emitDebug, executePrivateRead, privateReadReady])
+  }, [emitDebug, executePrivateRead, privateReadReady])
 
   useEffect(() => {
     refreshPending()
@@ -473,8 +475,8 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
               transactionId: record.transaction_id,
               depositTxHash,
             })
-            const updated = await executePrivateRead(() =>
-              client.updateOnRamp(record.transaction_id, {
+            const updated = await executePrivateRead((readClient) =>
+              readClient.updateOnRamp(record.transaction_id, {
                 deposit_tx_hash: depositTxHash as HexString,
               })
             )
@@ -583,8 +585,8 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
           quoteCurrencyAmount: quoteCurrencyAmount ?? null,
           depositAddress,
         })
-        const record = await executePrivateRead(() =>
-          client.createOnRampIntent({
+        const record = await executePrivateRead((readClient) =>
+          readClient.createOnRampIntent({
             wallet_address: depositAddress,
             token_id: tokenId,
             chain_id: token.chainId,
@@ -676,8 +678,8 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
           tokenId,
           chainId: token.chainId,
         })
-        const record = await executePrivateRead(() =>
-          client.updateOnRamp(transactionId, {
+        const record = await executePrivateRead((readClient) =>
+          readClient.updateOnRamp(transactionId, {
             token_id: tokenId,
             chain_id: token.chainId,
             moonpay_transaction_id:
@@ -698,7 +700,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         console.warn('Failed to register on-ramp token mapping:', err)
       }
     },
-    [client, emitDebug, enabledTokens, executePrivateRead, tokenId]
+    [emitDebug, enabledTokens, executePrivateRead, tokenId]
   )
 
   const handleTransactionCreated = useCallback(
@@ -715,7 +717,9 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
       setError(null)
       try {
         emitDebug('moonpay:onUrlSignatureRequested', summariseMoonPayUrl(url))
-        const { signature } = await executePrivateRead(() => client.signOnRampUrl({ url }))
+        const { signature } = await executePrivateRead((readClient) =>
+          readClient.signOnRampUrl({ url })
+        )
         setStatus('awaiting-purchase')
         emitDebug('sign-url:success', {
           signatureLength: signature.length,
@@ -730,7 +734,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
         throw err
       }
     },
-    [client, emitDebug, executePrivateRead]
+    [emitDebug, executePrivateRead]
   )
 
   // After MoonPay reports completion the on-chain tx hash isn't in the widget
@@ -747,7 +751,9 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
       })
       while (Date.now() - startTime < deliveryTimeout) {
         try {
-          const { pending: rows } = await executePrivateRead(() => client.getPendingOnRamps())
+          const { pending: rows } = await executePrivateRead((readClient) =>
+            readClient.getPendingOnRamps()
+          )
           setPending(rows)
           const record = rows.find((r) => matchesOnRampTransaction(r, transactionId))
           emitDebug('delivery-poll:tick', {
@@ -774,7 +780,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
       emitDebug('delivery-poll:timeout', { transactionId })
       return null
     },
-    [client, deliveryPollInterval, deliveryTimeout, emitDebug, executePrivateRead]
+    [deliveryPollInterval, deliveryTimeout, emitDebug, executePrivateRead]
   )
 
   const triggerVerification = useCallback(

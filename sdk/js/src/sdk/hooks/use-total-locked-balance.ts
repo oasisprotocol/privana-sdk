@@ -32,7 +32,7 @@ export function useTotalLockedBalance(
     queryFn: async () => {
       if (!privateReadAddress) throw new Error('No authenticated account available')
       if (!tokenId) throw new Error('No token ID provided')
-      return executePrivateRead(() => client.getTotalLockedBalance(tokenId))
+      return executePrivateRead((readClient) => readClient.getTotalLockedBalance(tokenId))
     },
     enabled:
       (options.enabled ?? true) &&

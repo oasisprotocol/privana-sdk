@@ -32,7 +32,7 @@ export function useHistory(options: UseHistoryOptions = {}): UseHistoryResult {
     queryKey: ['accounting-history', ...privateReadQueryScope, offset, limit],
     queryFn: async () => {
       if (!privateReadAddress) throw new Error('No authenticated account available')
-      return executePrivateRead(() => client.getHistory({ offset, limit }))
+      return executePrivateRead((readClient) => readClient.getHistory({ offset, limit }))
     },
     enabled: (options.enabled ?? true) && privateReadReady && !!privateReadAddress && !!client,
     refetchInterval: pollingInterval,

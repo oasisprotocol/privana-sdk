@@ -294,7 +294,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   const addressMutation = useMutation({
     mutationFn: async () => {
       if (!address) throw new Error('No wallet connected')
-      return executePrivateRead(() => client.getDepositAddress())
+      return executePrivateRead((readClient) => readClient.getDepositAddress())
     },
     onSuccess: (data) => {
       setDepositAddress(data)
