@@ -224,7 +224,7 @@ Notes:
 | `useBatchBalances`       | Get multiple token balances                                                                                        |
 | `useDeposit`             | Deposit tokens                                                                                                     |
 | `useDepositVerification` | Run checkDeposit + status polling against an existing on-chain transfer (used by `useDeposit` and `useFiatOnRamp`) |
-| `useFiatOnRamp`          | Buy crypto via MoonPay; delivered straight to the Privana deposit address (from `/on-ramp` sub-export)             |
+| `useFiatOnRamp`          | MoonPay on-ramp with provider-neutral recovery, verification, credit, and locking (from `/on-ramp` sub-export)     |
 | `useWithdraw`            | Withdraw tokens                                                                                                    |
 | `useLockFunds`           | Lock funds for a recipient                                                                                         |
 | `useUnlockFunds`         | Unlock expired locks                                                                                               |
@@ -240,8 +240,13 @@ Notes:
 ## Fiat On-Ramp
 
 The fiat on-ramp lets users buy tokens with a card and have them credited to
-their Privana balance in one flow. **MoonPay delivers the purchased token
-directly to the user's Privana deposit address**.
+their Privana balance in one flow. An internal provider-neutral core owns
+recovery, receipt verification, `/deposits/check`, credit, and optional
+post-credit locking. MoonPay launch and widget behavior live in a thin adapter.
+
+**The provider delivers the purchased token directly to the server-derived
+Privana deposit address. Provider orders, amounts, events, and webhooks are
+correlation hints only; the matching on-chain transfer remains authoritative.**
 
 Exported from a separate entry point so consumers who don't use the on-ramp
 don't pay the bundle cost of `@moonpay/moonpay-react`:
@@ -292,15 +297,18 @@ The form:
 - sets `externalCustomerId = address.toLowerCase()` so the backend can bind the
   MoonPay transaction to the SIWE-authenticated user,
 - creates a backend on-ramp intent (`POST /onramp/intent`) and passes its id to
-  MoonPay as `externalTransactionId` so the webhook can correlate later,
+  MoonPay as `externalTransactionId` for exact authenticated recovery,
+- persists at most ten unresolved signed intents under the authenticated user
+  and sends them as repeated `externalTransactionId` values on pending reads,
 - gates the "Buy" button on the configured token's minimum deposit (input-time
   check) and double-checks the delivered amount before triggering verification,
 - on MoonPay's `transaction_created`, fire-and-forget calls
   `POST /onramp/{id}` with the MoonPay transaction id so the backend can
-  reconcile both ids once the delivery webhook lands,
-- listens for MoonPay's `transaction_completed` event, waits up to 120s for
-  the backend webhook to surface the on-chain tx hash, then triggers Privana
-  verification (`checkDeposit` + status polling).
+  reconcile both ids during provider reads,
+- treats MoonPay events as wake-up hints, polls the authenticated pending read
+  for the provider transaction and on-chain hash, derives the delivered amount
+  from matching receipt logs, then triggers Privana verification
+  (`checkDeposit` + status polling).
 
 ### `useFiatOnRamp` for custom UI
 
@@ -331,29 +339,30 @@ const {
 
 ### Pending / recovery
 
-If the user closes the tab between MoonPay completion and verification, the
-backend has already received the webhook and the row appears in `pending`.
-Render the list with a "Finish verification" CTA that calls
-`finishPendingVerification(record)` — no wallet signature required, just the
-verification poll.
+If the user closes or reloads between launch and verification, the SDK reloads
+its bounded signed-intent set and combines exact provider lookups with the
+authenticated derived-wallet lookup. A corrupt local intent is isolated and
+removed without blocking valid recovery. Render `pending` with a "Finish
+verification" CTA that calls `finishPendingVerification(record)` — no wallet
+signature is required for deposit verification.
 
 ### Required backend endpoints
 
 The `useFiatOnRamp` hook + form call:
 
 - `POST /v1/accounting/onramp/sign-url` — HMAC-signs the MoonPay widget URL
-- `POST /v1/accounting/onramp/intent` — creates the Privana intent row that ties a MoonPay transaction to the SIWE'd user + Privana token
-- `POST /v1/accounting/onramp/{transaction_id}` — upserts MoonPay transaction metadata (fire-and-forget on `transaction_created`)
-- `GET /v1/accounting/onramp/pending` — completed MoonPay txs awaiting verification
+- `POST /v1/accounting/onramp/intent` — mints a signed provider/user/wallet/token/chain/asset intent
+- `POST /v1/accounting/onramp/{transaction_id}` — validates and echoes MoonPay compatibility metadata without becoming order state
+- `GET /v1/accounting/onramp/pending` — bounded provider reads for completed, strictly admitted transactions awaiting verification
 
 And the existing deposit verification endpoints:
 
 - `POST /v1/accounting/deposits/check`
 - `GET /v1/accounting/deposits/status/{id}`
 
-MoonPay → backend webhook (`POST /v1/accounting/onramp/webhook`) is what
-populates the pending list with the on-chain tx hash. Configure that URL in
-your MoonPay dashboard.
+The MoonPay webhook (`POST /v1/accounting/onramp/moonpay/webhook`) is an optional
+verified observability signal. It does not populate order state and is not
+required for recovery or credit.
 
 ## License
 

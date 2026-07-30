@@ -2,16 +2,20 @@
 
 import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { MoonPayBuyWidget } from '@moonpay/moonpay-react'
+import { moonPayOnRampAdapter } from '@/sdk/on-ramp/moonpay-adapter'
+import { MIN_ONRAMP_PENDING_REQUEST_INTERVAL_MS } from '@/sdk/on-ramp/recovery'
 
 type MoonPayBuyWidgetProps = Parameters<typeof MoonPayBuyWidget>[0]
 
-export interface UseMoonPayBuyWidgetOptions {
+export interface UseMoonPayOnRampAdapterOptions {
   variant: 'overlay' | 'embedded'
   visible: boolean
   autoStart: boolean
   canBuy: boolean
   /** Prepares the on-ramp intent and flips `visible` on success. */
   openWidget: () => Promise<void>
+  /** Poll only until the shared delivery poll takes ownership. */
+  shouldPollPending: boolean
   refreshPending: () => Promise<void>
   theme?: 'light' | 'dark'
   themeId?: string
@@ -41,7 +45,7 @@ export interface UseMoonPayBuyWidgetOptions {
 }
 
 /**
- * Contains the MoonPay widget quirks in one place and returns the widget element:
+ * Thin MoonPay launch-UI adapter. It contains the widget quirks and returns the widget element:
  *
  * - MoonPayBuyWidget rebuilds its internal config from the raw props object on
  *   every render (its useMemo keys on `props`), and its useSdk effect closes and
@@ -50,16 +54,17 @@ export interface UseMoonPayBuyWidgetOptions {
  *   data props only, with callbacks routed through a ref.
  * - The embedded iframe doesn't reliably deliver onTransactionCompleted (the
  *   overlay flow also has onClose as a fallback trigger; embedded has neither),
- *   so pending is polled while the widget is open — once the MoonPay webhook
- *   lands, the row surfaces in `pending` and verification auto-starts.
+ *   so provider reads are polled while the widget is open — once a completed
+ *   order is visible, it surfaces in `pending` and verification auto-starts.
  * - `autoStart` opens the widget once, as soon as the flow allows it.
  */
-export function useMoonPayBuyWidget({
+export function useMoonPayOnRampAdapter({
   variant,
   visible,
   autoStart,
   canBuy,
   openWidget,
+  shouldPollPending,
   refreshPending,
   theme,
   themeId,
@@ -79,7 +84,7 @@ export function useMoonPayBuyWidget({
   onUrlSignatureRequested,
   onTransactionCreated,
   onTransactionCompleted,
-}: UseMoonPayBuyWidgetOptions): ReactNode {
+}: UseMoonPayOnRampAdapterOptions): ReactNode {
   const autoStartedRef = useRef(false)
   useEffect(() => {
     if (!autoStart || autoStartedRef.current || !canBuy) return
@@ -88,10 +93,17 @@ export function useMoonPayBuyWidget({
   }, [autoStart, canBuy, openWidget])
 
   useEffect(() => {
-    if (variant !== 'embedded' || !visible) return
-    const id = setInterval(() => void refreshPending(), 5_000)
+    if (
+      !moonPayOnRampAdapter.pollPendingWhileOpen ||
+      variant !== 'embedded' ||
+      !visible ||
+      !shouldPollPending
+    ) {
+      return
+    }
+    const id = setInterval(() => void refreshPending(), MIN_ONRAMP_PENDING_REQUEST_INTERVAL_MS)
     return () => clearInterval(id)
-  }, [variant, visible, refreshPending])
+  }, [variant, visible, shouldPollPending, refreshPending])
 
   const callbacksRef = useRef({
     onClose,

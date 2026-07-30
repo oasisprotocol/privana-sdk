@@ -1,5 +1,6 @@
 import type { Address, Bytes32, HexString } from './common'
 
+export type OnRampProvider = 'moonpay' | 'transak'
 export type OnRampStatus = 'pending' | 'completed' | 'failed' | 'cancelled'
 
 /** Request body / response of POST /api/onramp/sign-url */
@@ -16,9 +17,8 @@ export interface CreateOnRampIntentRequest {
   wallet_address?: Address
   token_id: Bytes32
   chain_id: number
-  moonpay_currency_code: string
-  base_currency_code?: string
-  base_currency_amount?: string
+  /** MoonPay compatibility field retained while its SDK adapter is active. */
+  moonpay_currency_code?: string
 }
 
 export type CreateOnRampIntentResponse = OnRampRecord
@@ -40,20 +40,24 @@ export type UpdateOnRampResponse = OnRampRecord
 
 export interface OnRampRecord {
   transaction_id: string
-  external_transaction_id?: string
-  moonpay_transaction_id?: string
+  external_transaction_id?: string | null
+  provider: OnRampProvider
+  provider_transaction_id?: string | null
+  provider_asset_code: string
+  moonpay_transaction_id?: string | null
   status: OnRampStatus
-  wallet_address?: Address
-  token_id?: Bytes32
-  chain_id?: number
-  moonpay_currency_code?: string
-  base_currency_code?: string
-  base_currency_amount?: string
-  quote_currency_amount?: string
-  on_chain_tx_hash?: HexString
-  deposit_tx_hash?: HexString
-  deposit_triggered_at?: number
-  credited_at?: number
+  wallet_address?: Address | null
+  token_id?: Bytes32 | null
+  chain_id?: number | null
+  moonpay_currency_code?: string | null
+  base_currency_code?: string | null
+  base_currency_amount?: string | null
+  quote_currency_amount?: string | null
+  on_chain_tx_hash?: HexString | null
+  deposit_id?: string | null
+  deposit_tx_hash?: HexString | null
+  deposit_triggered_at?: number | null
+  credited_at?: number | null
   created_at: number
   updated_at: number
 }

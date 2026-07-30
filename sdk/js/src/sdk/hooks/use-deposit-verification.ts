@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AccountingApiError } from '../client/errors'
+import { checkDepositWithFinalityRetry } from './deposit-finality'
 import { usePrivateReadRequest } from './use-private-read-request'
 import type { DepositCheckResponse } from '../types'
 
@@ -157,49 +158,28 @@ export function useDepositVerification(
         // Phase 1: trigger sweep. The backend rejects with "Insufficient finality"
         // when the source-chain tx isn't deep enough yet; retry on a slower
         // cadence instead of failing, until pollTimeout.
-        let triggerResult: DepositCheckResponse | undefined
-        while (!triggerResult) {
-          if (isStale()) return
-          try {
-            const result = await executePrivateRead((readClient) =>
+        const finality = await checkDepositWithFinalityRetry({
+          checkDeposit: () =>
+            executePrivateRead((readClient) =>
               readClient.checkDeposit({
                 chain_id: chainId,
                 tx_hash: hash,
                 amount: amount.toString(),
                 log_index: logIndex,
               })
-            )
-            if (result.status === 'error' && isInsufficientFinalityMessage(result.detail)) {
-              if (result.detail) onCheckRetryRef.current?.(result.detail)
-              if (Date.now() - pollStartTime > pollTimeout) {
-                markVerificationTimedOut()
-                return
-              }
-              await sleep(finalityRetryInterval)
-              if (isStale()) return
-              continue
-            }
-            triggerResult = result
-          } catch (err) {
-            if (isStale()) return
-            if (!isInsufficientFinalityError(err)) {
-              throw err
-            }
-            const message =
-              err instanceof AccountingApiError && err.detail
-                ? err.detail
-                : err instanceof Error
-                  ? err.message
-                  : String(err)
-            onCheckRetryRef.current?.(message)
-            if (Date.now() - pollStartTime > pollTimeout) {
-              markVerificationTimedOut()
-              return
-            }
-            await sleep(finalityRetryInterval)
-            if (isStale()) return
-          }
+            ),
+          isStale,
+          onRetry: (message) => onCheckRetryRef.current?.(message),
+          timeoutMs: pollTimeout,
+          retryIntervalMs: finalityRetryInterval,
+          startedAt: pollStartTime,
+        })
+        if (finality.kind === 'stale') return
+        if (finality.kind === 'timeout') {
+          markVerificationTimedOut()
+          return
         }
+        const triggerResult = finality.response
         if (isStale()) return
 
         if (triggerResult.status === 'credited') {
@@ -366,21 +346,4 @@ function isDefinitiveCandidateFailure(error: Error): boolean {
   // status response of "error" or an accounting 422 can still succeed when
   // the same transfer is retried, so neither is safe to skip.
   return error instanceof AccountingApiError && error.statusCode === 400
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-function isInsufficientFinalityError(error: unknown): boolean {
-  if (error instanceof AccountingApiError) {
-    return (
-      isInsufficientFinalityMessage(error.detail) || isInsufficientFinalityMessage(error.message)
-    )
-  }
-  return error instanceof Error && isInsufficientFinalityMessage(error.message)
-}
-
-function isInsufficientFinalityMessage(message: string | null | undefined): boolean {
-  return message?.includes('Insufficient finality') ?? false
 }
