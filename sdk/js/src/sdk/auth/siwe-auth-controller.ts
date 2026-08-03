@@ -168,17 +168,23 @@ export async function ctrlLogin(ctrl: SiweAuthController): Promise<void> {
   }
 }
 
-/** Clear synchronously, suppress same-wallet re-login, then best-effort revoke the refresh token. */
+/** Best-effort revoke all refresh tokens (log out everywhere, including any stolen token) while
+ *  the bearer is still set, then clear local state and suppress same-wallet re-login. */
 export async function ctrlLogout(ctrl: SiweAuthController): Promise<void> {
   const refreshToken = ctrl.getState().refreshData?.refreshToken
-  ctrlReset(ctrl, ctrl.config.persistJwt)
-  ctrl.dispatch({ type: 'setAutoAttemptedAddress', address: ctrl.config.address ?? null })
-  if (refreshToken) {
-    try {
-      await ctrl.api.logoutJwtSession({ refresh_token: refreshToken })
-    } catch {
-      // Local state is already cleared; a revocation failure must not block logout.
+  try {
+    if (refreshToken) {
+      try {
+        await ctrl.api.logoutJwtSession({ refresh_token: refreshToken, revoke_all: true })
+      } catch {
+        // Best-effort: local state clears in finally regardless; don't block logout on revocation.
+      }
     }
+  } finally {
+    // Reset AFTER the revocation call: /auth/jwt/logout authenticates via the JWT bearer
+    // (Depends(get_current_user)), so clearing the bearer first would 401 and revoke nothing.
+    ctrlReset(ctrl, ctrl.config.persistJwt)
+    ctrl.dispatch({ type: 'setAutoAttemptedAddress', address: ctrl.config.address ?? null })
   }
 }
 
