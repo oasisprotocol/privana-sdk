@@ -62,9 +62,11 @@ const MAX_HISTORY_PAGE_SIZE = 100
 
 export class PrivanaClient {
   private readonly http: HttpClient
+  private readonly baseConfig: PrivanaClientConfig
 
   constructor(config: PrivanaClientConfig) {
     this.http = new HttpClient(config)
+    this.baseConfig = { ...config, headers: { ...config.headers } }
   }
 
   getBaseUrl(): string {
@@ -394,11 +396,24 @@ export class PrivanaClient {
     return this.http.get<PendingOnRampsResponse>('/v1/accounting/onramp/pending')
   }
 
+  /**
+   * @deprecated This mutates the shared client's headers and displaces its Authorization
+   * (JWT bearer) header, which breaks concurrent JWT-authenticated requests. Use
+   * {@link PrivanaClient.withPrivateReadToken} instead, which returns a scoped client that
+   * authenticates the private read without touching the shared client's headers. Will be
+   * removed in a future release.
+   */
   setPrivateReadToken(token: string): void {
     this.http.removeHeader('Authorization')
     this.http.setHeader(PRIVATE_READ_TOKEN_HEADER, token)
   }
 
+  /**
+   * @deprecated The shared client no longer carries a private-read token between requests;
+   * private reads now run on a scoped client from {@link PrivanaClient.withPrivateReadToken}.
+   * Returns whatever X-SIWE-Token is currently set on the shared client's headers. Will be
+   * removed in a future release.
+   */
   getPrivateReadToken(): string | undefined {
     return this.http.getHeader(PRIVATE_READ_TOKEN_HEADER)
   }
@@ -414,5 +429,26 @@ export class PrivanaClient {
 
   clearBearerToken(): void {
     this.http.removeHeader('Authorization')
+  }
+
+  /**
+   * Returns a scoped client whose requests authenticate with the given SIWE private-read
+   * token (X-SIWE-Token) instead of the client-wide JWT bearer. The scoped client shares
+   * baseUrl/timeout/base headers but owns a separate header set, so private reads issued
+   * through it never displace the real client's Authorization header: concurrent
+   * JWT-authenticated requests on the real client keep their bearer, and a bearer installed
+   * mid-flight (auto-login/hydration) is never erased by a private read.
+   */
+  withPrivateReadToken(token: string): PrivanaClient {
+    const headers: Record<string, string> = {}
+    for (const [name, value] of Object.entries(this.baseConfig.headers ?? {})) {
+      const lower = name.toLowerCase()
+      if (lower === 'authorization' || lower === PRIVATE_READ_TOKEN_HEADER.toLowerCase()) {
+        continue
+      }
+      headers[name] = value
+    }
+    headers[PRIVATE_READ_TOKEN_HEADER] = token
+    return new PrivanaClient({ ...this.baseConfig, headers })
   }
 }

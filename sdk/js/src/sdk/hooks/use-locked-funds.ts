@@ -27,7 +27,7 @@ export function useLockedFunds(options: UseLockedFundsOptions = {}): UseLockedFu
     queryKey: ['accounting-locked-funds', ...privateReadQueryScope, serviceAddress ?? null],
     queryFn: async () => {
       if (!privateReadAddress) throw new Error('No authenticated account available')
-      return executePrivateRead(() => client.getLockedFunds(serviceAddress))
+      return executePrivateRead((readClient) => readClient.getLockedFunds(serviceAddress))
     },
     enabled: (options.enabled ?? true) && privateReadReady && !!privateReadAddress && !!client,
     refetchInterval: pollingInterval,

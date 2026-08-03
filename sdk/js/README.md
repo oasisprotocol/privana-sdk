@@ -117,6 +117,40 @@ The hooks cache the returned `X-SIWE-Token`, dedupe concurrent auth so a group o
 private-read hooks only triggers one sign prompt, and retry once on `401` by re-authenticating
 through the same shared in-flight auth request.
 
+### Direct in-app SIWE auth (`siweAuth`)
+
+For same-origin apps that want an explicit authenticated session (and JWT-authenticated writes),
+enable `siweAuth` on `PrivanaProvider`. The connected wallet signs an EIP-4361 message in-app and
+`useSiweAuth()` exposes `login`, `logout`, `session`, and the raw `tokens`:
+
+```tsx
+import { PrivanaProvider, useSiweAuth } from '@oasisprotocol/privana-sdk'
+;<PrivanaProvider siweAuth={{ autoLogin: true }}>
+  <AuthGate />
+</PrivanaProvider>
+```
+
+`siweAuth` accepts `true`, or an object with `autoLogin` (default `true`) and `persistJwt`
+(default `false`). It is mutually exclusive with `hostedAuth`.
+
+#### Persistent JWT sessions (`persistJwt`)
+
+Set `persistJwt: true` to mirror the session in `localStorage` (key scoped by API URL and chain ID)
+so a page reload restores an active session without another signature prompt:
+
+```tsx
+;<PrivanaProvider siweAuth={{ autoLogin: true, persistJwt: true }}>
+  <App />
+</PrivanaProvider>
+```
+
+Logout captures the refresh token, clears local and cross-tab state immediately, suppresses
+automatic re-login, and attempts server-side revocation.
+
+> **Security note:** storing long-lived refresh credentials in `localStorage` makes them reachable
+> from any JavaScript running on the page. An XSS vulnerability could exfiltrate them and forge a
+> session, so only enable `persistJwt` on origins you fully control.
+
 ### Hosted redirect auth for cross-domain apps
 
 For widget or cross-domain frontends, configure `hostedAuth` on `PrivanaProvider` and use

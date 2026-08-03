@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useContext, useMemo } from 'react'
-import { createSiweMessage } from 'viem/siwe'
 import { WagmiContext } from 'wagmi'
 import { getWalletClient } from 'wagmi/actions'
-import { buildSiweStatement, isHostedAuthSessionActive } from '../auth'
+import { isHostedAuthSessionActive } from '../auth'
+import { buildSiweLoginMessage } from '../auth/siwe'
 import { AccountingApiError, HostedAuthRequiredError } from '../client'
 import type { PrivanaClient } from '../client'
 import { usePrivanaContext } from '../context'
@@ -19,7 +19,6 @@ import {
 
 const INITIAL_AUTH_BACKOFF_MS = 5_000
 const MAX_AUTH_BACKOFF_MS = 60_000
-const DEFAULT_SIWE_AUTH_VALIDITY_MS = 24 * 60 * 60 * 1000
 
 interface PrivateReadFailureEntry {
   backoffMs: number
@@ -29,16 +28,18 @@ interface PrivateReadFailureEntry {
 const privateReadFailureCache = new Map<string, PrivateReadFailureEntry>()
 const privateReadInflight = new Map<string, Promise<string>>()
 
+// Unlike the SIWE path below, hosted auth still installs/clears the bearer on the SHARED client
+// and hands that same client to `request`, so it needs the full PrivanaClient rather than a Pick.
 export async function executeHostedAuthPrivateReadRequest<T>({
   client,
   hostedAuthSession,
   refreshHostedAuthSession,
   request,
 }: {
-  client: Pick<PrivanaClient, 'clearPrivateReadToken' | 'setBearerToken'>
+  client: PrivanaClient
   hostedAuthSession: HostedAuthSession | null
   refreshHostedAuthSession: () => Promise<HostedAuthSession>
-  request: () => Promise<T>
+  request: (client: PrivanaClient) => Promise<T>
 }): Promise<T> {
   const ensureHostedAuth = async (forceRefresh: boolean): Promise<string> => {
     if (!hostedAuthSession) {
@@ -60,21 +61,50 @@ export async function executeHostedAuthPrivateReadRequest<T>({
   await ensureHostedAuth(false)
 
   try {
-    return await request()
+    return await request(client)
   } catch (error) {
     if (!(error instanceof AccountingApiError) || error.statusCode !== 401) {
       throw error
     }
 
     await ensureHostedAuth(true)
-    return request()
+    return request(client)
   }
 }
 
-function clearPrivateReadScope(scopeKey: string, client: PrivanaClient): void {
+function clearPrivateReadScope(
+  scopeKey: string,
+  client: Pick<PrivanaClient, 'clearPrivateReadToken'>
+): void {
   deleteCachedPrivateReadToken(scopeKey)
   privateReadFailureCache.delete(scopeKey)
   client.clearPrivateReadToken()
+}
+
+export async function executeSiwePrivateReadRequest<T>({
+  client,
+  scopeKey,
+  getToken,
+  request,
+}: {
+  client: Pick<PrivanaClient, 'withPrivateReadToken' | 'clearPrivateReadToken'>
+  scopeKey: string
+  getToken: (forceRefresh: boolean) => Promise<string>
+  request: (client: PrivanaClient) => Promise<T>
+}): Promise<T> {
+  // X-SIWE-Token is mutually exclusive with the JWT bearer, so the request runs against a scoped
+  // client that carries it on a separate header set; the shared client's Authorization is untouched.
+  const run = (token: string) => request(client.withPrivateReadToken(token))
+  const token = await getToken(false)
+  try {
+    return await run(token)
+  } catch (error) {
+    if (!(error instanceof AccountingApiError) || error.statusCode !== 401) {
+      throw error
+    }
+    clearPrivateReadScope(scopeKey, client)
+    return run(await getToken(true))
+  }
 }
 
 function recordPrivateReadFailure(scopeKey: string): void {
@@ -106,7 +136,7 @@ function ensureFailureBackoff(scopeKey: string): void {
 }
 
 export function usePrivateReadRequest(): {
-  executePrivateRead<T>(request: () => Promise<T>): Promise<T>
+  executePrivateRead<T>(request: (client: PrivanaClient) => Promise<T>): Promise<T>
   privateReadAddress: Address | null
   privateReadReady: boolean
   privateReadQueryScope: readonly [string, number, Address | null]
@@ -121,7 +151,7 @@ export function usePrivateReadRequest(): {
   const privateReadReady = hostedAuthConfig ? !!hostedAuthSession : !!walletAddress
 
   const executePrivateRead = useCallback(
-    async <T>(request: () => Promise<T>): Promise<T> => {
+    async <T>(request: (client: PrivanaClient) => Promise<T>): Promise<T> => {
       if (hostedAuthConfig) {
         return executeHostedAuthPrivateReadRequest({
           client,
@@ -138,57 +168,32 @@ export function usePrivateReadRequest(): {
         throw new Error('No wallet connected')
       }
 
-      const walletClient = await getWalletClient(wagmiContext)
-      if (!walletClient) {
-        throw new Error('No wallet client available')
-      }
-
       const apiUrl = networkConfig.apiUrl
       const scopeKey = createScopeKey(apiUrl, networkConfig.chainId, walletAddress)
 
       const getToken = async (forceRefresh: boolean): Promise<string> => {
         const inflight = privateReadInflight.get(scopeKey)
-        if (inflight) {
-          const token = await inflight
-          client.setPrivateReadToken(token)
-          return token
-        }
+        if (inflight) return inflight
 
         if (!forceRefresh) {
           const cached = getCachedPrivateReadToken(scopeKey)
-          if (cached) {
-            client.setPrivateReadToken(cached)
-            return cached
-          }
+          if (cached) return cached
         }
 
         ensureFailureBackoff(scopeKey)
 
         const authPromise = (async () => {
           try {
-            const [{ domain }, nonceResponse] = await Promise.all([
-              client.getSiweDomain(),
-              client.getSiweNonce(walletAddress),
-            ])
-            const issuedAt = new Date()
-            // The nonce must be consumed within its short expiry window, but the backend
-            // expects the signed SIWE session itself to be valid for the auth-token window.
-            const expirationTime = new Date(issuedAt.getTime() + DEFAULT_SIWE_AUTH_VALIDITY_MS)
-            const uri =
-              typeof window !== 'undefined' && window.location.origin
-                ? window.location.origin
-                : apiUrl
+            // Resolved here rather than up front so cache hits never pay a connector round-trip.
+            const walletClient = await getWalletClient(wagmiContext)
+            if (!walletClient) {
+              throw new Error('No wallet client available')
+            }
 
-            const message = createSiweMessage({
+            const { message, expirationTime } = await buildSiweLoginMessage(client, {
               address: walletAddress,
               chainId: networkConfig.chainId,
-              domain,
-              expirationTime,
-              issuedAt,
-              nonce: nonceResponse.nonce,
-              statement: buildSiweStatement(networkConfig.chainId),
-              uri,
-              version: '1',
+              apiUrl,
             })
 
             const signature = await walletClient.signMessage({
@@ -203,7 +208,6 @@ export function usePrivateReadRequest(): {
 
             setCachedPrivateReadToken(scopeKey, login.siwe_token, expirationTime.getTime())
             privateReadFailureCache.delete(scopeKey)
-            client.setPrivateReadToken(login.siwe_token)
             return login.siwe_token
           } catch (error) {
             const authError =
@@ -221,19 +225,7 @@ export function usePrivateReadRequest(): {
         return authPromise
       }
 
-      await getToken(false)
-
-      try {
-        return await request()
-      } catch (error) {
-        if (!(error instanceof AccountingApiError) || error.statusCode !== 401) {
-          throw error
-        }
-
-        clearPrivateReadScope(scopeKey, client)
-        await getToken(true)
-        return request()
-      }
+      return executeSiwePrivateReadRequest({ client, scopeKey, getToken, request })
     },
     [
       client,

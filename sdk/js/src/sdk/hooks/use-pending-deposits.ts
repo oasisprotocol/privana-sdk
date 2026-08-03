@@ -55,8 +55,8 @@ export function usePendingDeposits(
       if (!chainId) throw new Error('No chain ID provided')
       if (!client) throw new Error('No accounting client')
       try {
-        return await executePrivateRead(() =>
-          client.getPendingDeposits({
+        return await executePrivateRead((readClient) =>
+          readClient.getPendingDeposits({
             chain_id: chainId,
             token_address: tokenAddress,
             lookback_blocks: lookbackBlocks,

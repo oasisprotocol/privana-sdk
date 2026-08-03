@@ -43,7 +43,7 @@ export function useBalance(options: UseBalanceOptions = {}): UseBalanceResult {
       if (!privateReadAddress) throw new Error('No authenticated account available')
       if (!tokenId) throw new Error('No token ID provided')
       if (!client) throw new Error('No accounting client')
-      return executePrivateRead(() => client.getBalance(tokenId))
+      return executePrivateRead((readClient) => readClient.getBalance(tokenId))
     },
     enabled:
       hasProviders &&

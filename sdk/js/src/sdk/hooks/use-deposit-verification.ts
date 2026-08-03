@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AccountingApiError } from '../client/errors'
-import { usePrivanaContext } from '../context/privana-provider'
 import { usePrivateReadRequest } from './use-private-read-request'
 import type { DepositCheckResponse } from '../types'
 
@@ -76,7 +75,6 @@ export interface UseDepositVerificationResult {
 export function useDepositVerification(
   options: UseDepositVerificationOptions = {}
 ): UseDepositVerificationResult {
-  const { client } = usePrivanaContext()
   const queryClient = useQueryClient()
   const { executePrivateRead } = usePrivateReadRequest()
 
@@ -163,8 +161,8 @@ export function useDepositVerification(
         while (!triggerResult) {
           if (isStale()) return
           try {
-            const result = await executePrivateRead(() =>
-              client.checkDeposit({
+            const result = await executePrivateRead((readClient) =>
+              readClient.checkDeposit({
                 chain_id: chainId,
                 tx_hash: hash,
                 amount: amount.toString(),
@@ -237,7 +235,9 @@ export function useDepositVerification(
           }
 
           try {
-            const result = await executePrivateRead(() => client.getDepositStatus(depositId))
+            const result = await executePrivateRead((readClient) =>
+              readClient.getDepositStatus(depositId)
+            )
             if (isStale()) return true
             consecutiveFailures = 0
 
@@ -296,15 +296,7 @@ export function useDepositVerification(
         markVerificationFailed(error, isDefinitiveCandidateFailure(error))
       }
     },
-    [
-      client,
-      executePrivateRead,
-      finalityRetryInterval,
-      pollInterval,
-      pollTimeout,
-      queryClient,
-      stopPolling,
-    ]
+    [executePrivateRead, finalityRetryInterval, pollInterval, pollTimeout, queryClient, stopPolling]
   )
 
   const verify = useCallback(

@@ -1,4 +1,4 @@
-const AUTH_CLOCK_SKEW_MS = 30_000
+import { AUTH_CLOCK_SKEW_MS } from '../auth/auth-clock-skew'
 
 interface PrivateReadTokenEntry {
   token: string

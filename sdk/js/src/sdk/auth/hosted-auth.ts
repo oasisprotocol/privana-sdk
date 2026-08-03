@@ -7,7 +7,9 @@ import type {
   JwtRefreshResponse,
 } from '../types'
 
-export const HOSTED_AUTH_CLOCK_SKEW_MS = 30_000
+import { AUTH_CLOCK_SKEW_MS } from './auth-clock-skew'
+
+export const HOSTED_AUTH_CLOCK_SKEW_MS = AUTH_CLOCK_SKEW_MS
 
 const PKCE_CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
 const DEFAULT_RANDOM_LENGTH = 64
