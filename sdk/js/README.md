@@ -54,17 +54,7 @@ function App() {
 `accountingContract` must be the deployed Privana accounting contract address for the same
 environment as `apiUrl`.
 
-### 2. Use the PrivanaButton
-
-```tsx
-import { PrivanaButton } from '@oasisprotocol/privana-sdk'
-
-function MyComponent() {
-  return <PrivanaButton />
-}
-```
-
-### 3. Or build custom UI with hooks
+### 2. Or build custom UI with hooks
 
 ```tsx
 import {
@@ -224,33 +214,6 @@ Notes:
 - `client_id` and exact `redirect_uri` values must be registered in backend `AUTH_CLIENTS`.
 - staging end-to-end verification requires that registration on the staging deployment.
 - the standalone localhost popup page used during Firefox debugging was diagnostic only; it is not part of the supported SDK integration path.
-
-## Components
-
-### PrivanaButton
-
-A customizable button that opens the wallet modal.
-
-```tsx
-// Basic usage
-<PrivanaButton />
-
-// Custom text
-<PrivanaButton>Open Wallet</PrivanaButton>
-
-// Custom styling
-<PrivanaButton variant="default" size="lg" className="my-class" />
-
-// Full control with render prop
-<PrivanaButton
-  renderButton={({ onClick, isOpen }) => (
-    <MyButton onClick={onClick}>Custom Button</MyButton>
-  )}
-/>
-
-// Show when wallet disconnected (disabled state)
-<PrivanaButton hideWhenDisconnected={false} />
-```
 
 ## Hooks
 

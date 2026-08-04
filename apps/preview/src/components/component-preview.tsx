@@ -5,7 +5,6 @@ import { useAccount } from 'wagmi'
 import { useConnectModal } from '@rainbow-me/rainbowkit'
 import { toast } from 'sonner'
 import {
-  PrivanaButton,
   DepositModal,
   WithdrawModal,
   WalletModal,
@@ -79,9 +78,8 @@ export function ComponentPreview() {
     <PreviewLayout>
       {isConnected && (
         <div>
-          <SectionLabel>Live SDK Button</SectionLabel>
+          <SectionLabel>Live SDK Modals</SectionLabel>
           <div className="flex items-center justify-center gap-3">
-            <PrivanaButton />
             <button
               type="button"
               className="rounded border px-3 py-2 text-sm"

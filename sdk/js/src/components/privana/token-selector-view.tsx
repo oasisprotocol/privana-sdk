@@ -11,7 +11,6 @@ interface TokenSelectorViewProps {
 
 /**
  * Simple single-column token picker shared by the Deposit and Withdraw modals.
- * (The combined PrivanaModal uses its own network-aware variant.)
  */
 export function TokenSelectorView({ selectedTokenId, onSelect }: TokenSelectorViewProps) {
   const { enabledTokens } = usePrivanaContext()
