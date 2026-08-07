@@ -16,6 +16,7 @@ export type { FiatOnRampFormProps } from './components/privana/fiat-on-ramp-form
 
 export type {
   OnRampStatus,
+  OnRampProvider,
   OnRampRecord,
   SignOnRampUrlRequest,
   SignOnRampUrlResponse,

@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useFiatOnRamp, type FiatOnRampDebugEvent } from '@/sdk/hooks/use-fiat-on-ramp'
 import type { OnRampPostDepositLockConfig, PostDepositLockError } from '@/sdk/hooks/pending-lock'
 import type { Bytes32, TransactionSubmissionResponse } from '@/sdk/types'
-import { useMoonPayBuyWidget } from './use-moonpay-buy-widget'
+import { useMoonPayOnRampAdapter } from './use-moonpay-on-ramp-adapter'
 
 export interface FiatOnRampFormProps {
   /** Privana token id to deposit into after the on-ramp completes. */
@@ -212,9 +212,9 @@ export function FiatOnRampForm({
         tokenSymbol: displaySymbol,
         tokenDecimals: decimals ?? null,
         baseCurrencyCode,
-        defaultBaseCurrencyAmount,
-        depositAddress: depositAddress ?? null,
-        walletAddress: address ?? null,
+        baseCurrencyAmountPresent: Boolean(defaultBaseCurrencyAmount),
+        depositAddressReady: Boolean(depositAddress),
+        walletConnected: Boolean(address),
         status,
       })
       return
@@ -229,8 +229,8 @@ export function FiatOnRampForm({
       tokenSymbol: displaySymbol,
       tokenDecimals: decimals ?? null,
       baseCurrencyCode,
-      defaultBaseCurrencyAmount,
-      depositAddress: depositAddress ?? null,
+      baseCurrencyAmountPresent: Boolean(defaultBaseCurrencyAmount),
+      depositAddressReady: Boolean(depositAddress),
       walletConnected: Boolean(address),
     })
     try {
@@ -241,8 +241,8 @@ export function FiatOnRampForm({
         quoteCurrencyAmount,
       })
       emitFormDebug('form:intent-ready', {
-        transactionId: intent.transaction_id,
-        externalTransactionId: intent.external_transaction_id ?? null,
+        transactionIdPresent: Boolean(intent.transaction_id),
+        externalTransactionIdPresent: Boolean(intent.external_transaction_id),
       })
       setVisible(true)
     } catch (err) {
@@ -286,12 +286,13 @@ export function FiatOnRampForm({
     emitFormDebug('moonpay:onReady')
   }, [emitFormDebug])
 
-  const widgetElement = useMoonPayBuyWidget({
+  const widgetElement = useMoonPayOnRampAdapter({
     variant,
     visible,
     autoStart,
     canBuy,
     openWidget: handleOpen,
+    shouldPollPending: status === 'awaiting-purchase',
     refreshPending,
     theme,
     themeId,
@@ -312,6 +313,13 @@ export function FiatOnRampForm({
     onTransactionCreated: handleTransactionCreated,
     onTransactionCompleted: handleTransactionCompleted,
   })
+
+  // A scope switch or definitive intent rejection clears the core's active
+  // intent. Close the now-unrenderable widget shell so a fresh purchase is not
+  // left blocked by stale local visibility state.
+  useEffect(() => {
+    if (visible && !activeIntentId && status === 'idle') setVisible(false)
+  }, [activeIntentId, status, visible])
 
   // The embedded widget doesn't self-close on completion (the overlay does, which
   // is what surfaces the finality/verification status). Once the purchase settles,

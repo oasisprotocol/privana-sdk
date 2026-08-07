@@ -361,8 +361,6 @@ export class PrivanaClient {
       token_id: normalizeHex(request.token_id),
       chain_id: request.chain_id,
       moonpay_currency_code: request.moonpay_currency_code,
-      base_currency_code: request.base_currency_code,
-      base_currency_amount: request.base_currency_amount,
     })
   }
 
@@ -392,8 +390,17 @@ export class PrivanaClient {
     )
   }
 
-  async getPendingOnRamps(): Promise<PendingOnRampsResponse> {
-    return this.http.get<PendingOnRampsResponse>('/v1/accounting/onramp/pending')
+  async getPendingOnRamps(
+    externalTransactionIds: readonly string[] = []
+  ): Promise<PendingOnRampsResponse> {
+    const params = new URLSearchParams()
+    for (const transactionId of externalTransactionIds.slice(0, 10)) {
+      params.append('externalTransactionId', transactionId)
+    }
+    const query = params.toString()
+    return this.http.get<PendingOnRampsResponse>(
+      `/v1/accounting/onramp/pending${query ? `?${query}` : ''}`
+    )
   }
 
   /**
