@@ -31,7 +31,11 @@ import {
   rememberUnresolvedOnRampIntent,
   type OnRampRecoveryScope,
 } from '../on-ramp/recovery'
-import { assertErc20OnRampToken, deliveredErc20Amount } from '../on-ramp/receipt'
+import {
+  assertErc20OnRampToken,
+  deliveredErc20Amount,
+  erc20MinDepositBaseUnits,
+} from '../on-ramp/receipt'
 import { settlePendingOnRampLock } from '../on-ramp/settlement'
 import {
   applyLockBuffer,
@@ -51,6 +55,7 @@ import type {
   Address,
   Bytes32,
   HexString,
+  MinDepositAmounts,
   OnRampRecord,
   TokenConfig,
   TransactionSubmissionResponse,
@@ -247,7 +252,10 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
   const [pending, setPending] = useState<OnRampRecord[]>([])
   const [error, setError] = useState<Error | null>(null)
   const [depositAddress, setDepositAddress] = useState<`0x${string}` | undefined>()
-  const [minDepositBaseUnits, setMinDepositBaseUnits] = useState<bigint | undefined>()
+  // Recovery is not token-scoped, so retain the backend minima for every chain.
+  const [minDepositByChain, setMinDepositByChain] = useState<
+    Record<string, MinDepositAmounts> | undefined
+  >()
   const [activeIntentId, setActiveIntentId] = useState<string | null>(null)
   const [activeVerificationId, setActiveVerificationId] = useState<string | null>(null)
   const [finalityProgress, setFinalityProgress] = useState<Record<string, string>>({})
@@ -283,8 +291,11 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
   const purchaseInitiatedRef = useRef(false)
   const scopedDepositAddress =
     depositAddressSessionRef.current === flowSession ? depositAddress : undefined
-  const scopedMinDepositBaseUnits =
-    depositAddressSessionRef.current === flowSession ? minDepositBaseUnits : undefined
+  const scopedMinDepositByChain =
+    depositAddressSessionRef.current === flowSession ? minDepositByChain : undefined
+  const scopedMinDepositBaseUnits = selectedToken
+    ? erc20MinDepositBaseUnits(scopedMinDepositByChain, selectedToken.chainId)
+    : undefined
   useEffect(() => {
     onCreditedRef.current = onCredited
     onLockSubmittedRef.current = onLockSubmitted
@@ -324,14 +335,14 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
     if (!privateReadReady) {
       emitDebug('deposit-address:skip', { reason: 'private-read-not-ready' })
       setDepositAddress(undefined)
-      setMinDepositBaseUnits(undefined)
+      setMinDepositByChain(undefined)
       return
     }
 
     // Never leave the previous authenticated user's address actionable while
     // the scoped replacement request is in flight.
     setDepositAddress(undefined)
-    setMinDepositBaseUnits(undefined)
+    setMinDepositByChain(undefined)
     let cancelled = false
     void (async () => {
       try {
@@ -340,9 +351,9 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
         if (cancelled || flowSessionRef.current !== flowSession) return
         depositAddressSessionRef.current = flowSession
         setDepositAddress(resp.deposit_address)
+        setMinDepositByChain(resp.min_deposit)
         const token = enabledTokens.find((t) => t.id.toLowerCase() === tokenId.toLowerCase())
         const mins = token ? resp.min_deposit?.[String(token.chainId)] : undefined
-        if (mins?.erc20) setMinDepositBaseUnits(BigInt(mins.erc20))
         emitDebug('deposit-address:success', {
           depositAddressReady: true,
           selectedToken: token ? summariseToken(token) : null,
@@ -1010,10 +1021,14 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
 
         // Post-completion safety net: provider fees or settlement drift can
         // leave delivery below Privana's minimum.
-        if (scopedMinDepositBaseUnits !== undefined && amount < scopedMinDepositBaseUnits) {
+        const recordMinDepositBaseUnits = erc20MinDepositBaseUnits(
+          scopedMinDepositByChain,
+          record.chain_id
+        )
+        if (recordMinDepositBaseUnits !== undefined && amount < recordMinDepositBaseUnits) {
           emitDebug('verification:below-minimum', {
             deliveredAmount: amount.toString(),
-            minDepositBaseUnits: String(scopedMinDepositBaseUnits),
+            minDepositBaseUnits: String(recordMinDepositBaseUnits),
           })
           throw new Error(`Delivered amount (${amount} base units) is below the minimum deposit.`)
         }
@@ -1046,7 +1061,7 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
         throw err
       }
     },
-    [emitDebug, enabledTokens, flowSession, scopedMinDepositBaseUnits, verify, wagmiConfig]
+    [emitDebug, enabledTokens, flowSession, scopedMinDepositByChain, verify, wagmiConfig]
   )
 
   const handleProviderEvent = useCallback(
