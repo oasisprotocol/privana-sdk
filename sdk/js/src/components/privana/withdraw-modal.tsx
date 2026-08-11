@@ -28,12 +28,14 @@ function WithdrawView({
   onAmountChange,
   onSelectToken,
   onPendingChange,
+  onWithdrawSuccess,
 }: {
   selectedToken: TokenConfig | undefined
   amount: string
   onAmountChange: (value: string) => void
   onSelectToken: () => void
   onPendingChange?: (pending: boolean) => void
+  onWithdrawSuccess?: () => void
 }) {
   const { chains, getChainById } = usePrivanaContext()
   const { isConnected, address } = useAccount()
@@ -59,7 +61,12 @@ function WithdrawView({
   const { withdraw, isPending, currentStep, error, reset } = useWithdraw({
     onProcessingSuccess: () => {
       onAmountChange('')
-      setShowSuccess(true)
+      if (onWithdrawSuccess) {
+        reset()
+        onWithdrawSuccess()
+      } else {
+        setShowSuccess(true)
+      }
     },
     onProcessingTimeout: () => {
       onAmountChange('')
@@ -261,11 +268,13 @@ export function WithdrawModalContent({
   onClose,
   onPendingChange,
   onBack,
+  onWithdrawSuccess,
 }: {
   onClose?: () => void
   onPendingChange?: (pending: boolean) => void
   /** Renders a back chevron on the form view (for embedding, e.g. WalletModal). */
   onBack?: () => void
+  onWithdrawSuccess?: () => void
 }) {
   const { serviceName, enabledTokens, defaultToken, hostedAuthConfig } = usePrivanaContext()
   const { address } = useAccount()
@@ -338,6 +347,7 @@ export function WithdrawModalContent({
           onAmountChange={setAmount}
           onSelectToken={() => setView('select-token')}
           onPendingChange={handlePendingChange}
+          onWithdrawSuccess={onWithdrawSuccess}
         />
       )}
 
@@ -357,9 +367,10 @@ export function WithdrawModalContent({
 export interface WithdrawModalProps {
   open: boolean
   onClose: () => void
+  onWithdrawSuccess?: () => void
 }
 
-export function WithdrawModal({ open, onClose }: WithdrawModalProps) {
+export function WithdrawModal({ open, onClose, onWithdrawSuccess }: WithdrawModalProps) {
   const titleId = useId()
   const descId = useId()
   const [isCloseBlocked, setIsCloseBlocked] = useState(false)
@@ -390,7 +401,11 @@ export function WithdrawModal({ open, onClose }: WithdrawModalProps) {
         <DialogDescription id={descId} className="sr-only">
           Withdraw funds from your account.
         </DialogDescription>
-        <WithdrawModalContent onClose={handleClose} onPendingChange={setIsCloseBlocked} />
+        <WithdrawModalContent
+          onClose={handleClose}
+          onPendingChange={setIsCloseBlocked}
+          onWithdrawSuccess={onWithdrawSuccess}
+        />
       </DialogContent>
     </Dialog>
   )
@@ -398,9 +413,10 @@ export function WithdrawModal({ open, onClose }: WithdrawModalProps) {
 
 export interface WithdrawInlineModalProps {
   className?: string
+  onWithdrawSuccess?: () => void
 }
 
-export function WithdrawInlineModal({ className }: WithdrawInlineModalProps) {
+export function WithdrawInlineModal({ className, onWithdrawSuccess }: WithdrawInlineModalProps) {
   return (
     <div
       data-privana
@@ -409,7 +425,7 @@ export function WithdrawInlineModal({ className }: WithdrawInlineModalProps) {
         className
       )}
     >
-      <WithdrawModalContent />
+      <WithdrawModalContent onWithdrawSuccess={onWithdrawSuccess} />
     </div>
   )
 }

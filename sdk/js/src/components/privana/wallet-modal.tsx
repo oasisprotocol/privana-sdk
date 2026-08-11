@@ -30,6 +30,7 @@ export interface WalletModalHandlers extends DepositMethodHandlers {
   // The runtime return value is inspected internally to decide whether to show progress.
   onFundSession?: (args: { tokenId: string; amount: string }) => unknown
   onEndSession?: () => Promise<void>
+  onWithdrawSuccess?: () => void
 }
 
 function toInUseWei(value: string | bigint): bigint {
@@ -387,6 +388,7 @@ function WalletModalContent({
   onFundSession,
   onEndSession,
   onDepositSuccess,
+  onWithdrawSuccess,
   onClose,
   onCloseBlockedChange,
   ...depositHandlers
@@ -600,7 +602,14 @@ function WalletModalContent({
       )}
 
       {view === 'withdraw' && (
-        <WithdrawModalContent onBack={exitWithdraw} onPendingChange={setWithdrawPending} />
+        <WithdrawModalContent
+          onBack={exitWithdraw}
+          onPendingChange={setWithdrawPending}
+          onWithdrawSuccess={() => {
+            exitWithdraw()
+            onWithdrawSuccess?.()
+          }}
+        />
       )}
 
       {view === 'deposit' && (
