@@ -105,12 +105,16 @@ export function matchesOnRampTransaction(record: OnRampRecord, transactionId: st
   )
 }
 
-export function getOnRampVerificationKey(record: OnRampRecord): string {
-  return record.on_chain_tx_hash ?? record.transaction_id
-}
-
 export function getOnRampIntentId(record: OnRampRecord): string {
   return record.external_transaction_id ?? record.transaction_id
+}
+
+/**
+ * Local verification ownership follows the signed Privana intent. A provider
+ * payout transaction can contain transfers for more than one signed order.
+ */
+export function getOnRampVerificationKey(record: OnRampRecord): string {
+  return getOnRampIntentId(record)
 }
 
 export async function recordOnRampProviderDeposit(

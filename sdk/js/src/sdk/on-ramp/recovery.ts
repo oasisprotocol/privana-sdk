@@ -18,7 +18,9 @@ export const MAX_CREDITED_ONRAMP_VERIFICATIONS = 1_000
 export const MIN_ONRAMP_PENDING_REQUEST_INTERVAL_MS = 10_000
 const ONRAMP_INTENT_RETENTION_MS = 365 * 24 * 60 * 60 * 1000
 const ONRAMP_RECOVERY_VERSION = 1
-const ONRAMP_CREDIT_RECOVERY_VERSION = 1
+// Version 1 stored payout transaction hashes, which can span multiple signed
+// orders. Discard those broad markers instead of letting them hide an intent.
+const ONRAMP_CREDIT_RECOVERY_VERSION = 2
 
 export interface OnRampRecoveryScope {
   apiUrl: string

@@ -14,6 +14,7 @@ import {
 } from '../src/sdk/on-ramp/moonpay-adapter'
 import {
   assertOnRampRecordProvider,
+  getOnRampVerificationKey,
   matchesOnRampTransaction,
   recordOnRampProviderDeposit,
   resolveOnRampProviderEventTarget,
@@ -37,8 +38,8 @@ import {
 } from '../src/sdk/on-ramp/recovery'
 import {
   assertErc20OnRampToken,
-  deliveredErc20Amount,
   erc20MinDepositBaseUnits,
+  resolveErc20OnRampTransfer,
 } from '../src/sdk/on-ramp/receipt'
 import { settlePendingOnRampLock } from '../src/sdk/on-ramp/settlement'
 import type {
@@ -120,10 +121,12 @@ function transferLog({
   token = TOKEN,
   to = DEPOSIT,
   amount,
+  logIndex = 0,
 }: {
   token?: Address
   to?: Address
   amount: bigint
+  logIndex?: number | null
 }) {
   return {
     address: token,
@@ -133,6 +136,7 @@ function transferLog({
       args: { from: OTHER, to },
     }),
     data: encodeAbiParameters([{ type: 'uint256' }], [amount]),
+    logIndex,
   }
 }
 
@@ -402,7 +406,10 @@ describe('durable on-ramp recovery', () => {
         moonpay_transaction_id: undefined,
         moonpay_currency_code: undefined,
       })
-      expect(rememberCreditedOnRampVerification(scope, TX_HASH, 100)).toBe(true)
+      expect(getOnRampVerificationKey(completed)).toBe('intent-1')
+      expect(
+        rememberCreditedOnRampVerification(scope, getOnRampVerificationKey(completed), 100)
+      ).toBe(true)
 
       const reloadedKeys = loadCreditedOnRampVerifications(scope, 101).map(
         (verification) => verification.verificationKey
@@ -419,6 +426,64 @@ describe('durable on-ramp recovery', () => {
 
       expect(visible).toEqual([])
       expect(verificationStarts).toBe(0)
+    })
+  })
+
+  it('keeps two signed intents distinct when one provider payout transaction contains both', async () => {
+    await withBrowserStorage(async () => {
+      const scope = recoveryScope()
+      const first = makeRecord({
+        transaction_id: 'intent-1',
+        external_transaction_id: 'intent-1',
+        provider: 'transak',
+        provider_transaction_id: 'provider-1',
+        provider_asset_code: 'usdc',
+        moonpay_transaction_id: undefined,
+        moonpay_currency_code: undefined,
+        on_chain_tx_hash: TX_HASH,
+      })
+      const second = makeRecord({
+        transaction_id: 'intent-2',
+        external_transaction_id: 'intent-2',
+        provider: 'transak',
+        provider_transaction_id: 'provider-2',
+        provider_asset_code: 'usdc',
+        moonpay_transaction_id: undefined,
+        moonpay_currency_code: undefined,
+        on_chain_tx_hash: TX_HASH,
+      })
+
+      expect(getOnRampVerificationKey(first)).toBe('intent-1')
+      expect(getOnRampVerificationKey(second)).toBe('intent-2')
+      expect(rememberCreditedOnRampVerification(scope, getOnRampVerificationKey(first), 100)).toBe(
+        true
+      )
+
+      const reloadedKeys = loadCreditedOnRampVerifications(scope, 101).map(
+        (verification) => verification.verificationKey
+      )
+      expect(filterCreditedOnRampRecords([first, second], reloadedKeys)).toEqual([second])
+    })
+  })
+
+  it('discards version-1 payout-hash markers instead of hiding signed intents', async () => {
+    await withBrowserStorage(async () => {
+      const scope = recoveryScope()
+      expect(rememberCreditedOnRampVerification(scope, 'current-intent', 100)).toBe(true)
+
+      const storage = (globalThis.window as unknown as { localStorage: Storage }).localStorage
+      const key = storage.key(0)
+      expect(key).not.toBeNull()
+      storage.setItem(
+        key!,
+        JSON.stringify({
+          version: 1,
+          verifications: [{ verificationKey: TX_HASH, savedAt: 100 }],
+        })
+      )
+
+      expect(loadCreditedOnRampVerifications(scope, 101)).toEqual([])
+      expect(storage.getItem(key!)).toBeNull()
     })
   })
 
@@ -703,28 +768,47 @@ describe('on-chain credit authority', () => {
     ).toBeUndefined()
   })
 
-  it('sums only matching token transfers to the derived deposit address', () => {
-    const amount = deliveredErc20Amount(
+  it('selects one exact matching transfer and preserves its non-zero log index', () => {
+    const transfer = resolveErc20OnRampTransfer(
       [
-        transferLog({ amount: 4n }),
-        transferLog({ amount: 6n }),
-        transferLog({ amount: 100n, to: OTHER }),
-        transferLog({ amount: 100n, token: OTHER_TOKEN }),
+        transferLog({ amount: 100n, to: OTHER, logIndex: 4 }),
+        transferLog({ amount: 10n, logIndex: 11 }),
+        transferLog({ amount: 100n, token: OTHER_TOKEN, logIndex: 12 }),
       ],
       TOKEN as ViemAddress,
       DEPOSIT as ViemAddress
     )
-    expect(amount).toBe(10n)
+    expect(transfer).toEqual({ amount: 10n, logIndex: 11 })
   })
 
-  it('does not fall back to provider amounts when the receipt has no matching transfer', () => {
-    expect(
-      deliveredErc20Amount(
-        [transferLog({ amount: 100n, to: OTHER })],
+  it('fails closed when the receipt has no matching transfer', () => {
+    expect(() =>
+      resolveErc20OnRampTransfer(
+        [transferLog({ amount: 100n, to: OTHER, logIndex: 4 })],
         TOKEN as ViemAddress,
         DEPOSIT as ViemAddress
       )
-    ).toBe(0n)
+    ).toThrow('does not contain a matching ERC-20 Transfer')
+  })
+
+  it('fails closed when more than one transfer matches the token and deposit address', () => {
+    expect(() =>
+      resolveErc20OnRampTransfer(
+        [transferLog({ amount: 4n, logIndex: 10 }), transferLog({ amount: 6n, logIndex: 11 })],
+        TOKEN as ViemAddress,
+        DEPOSIT as ViemAddress
+      )
+    ).toThrow('multiple matching ERC-20 Transfer logs')
+  })
+
+  it('fails closed when the exact matching transfer has no valid log index', () => {
+    expect(() =>
+      resolveErc20OnRampTransfer(
+        [transferLog({ amount: 10n, logIndex: null })],
+        TOKEN as ViemAddress,
+        DEPOSIT as ViemAddress
+      )
+    ).toThrow('does not have a valid log index')
   })
 
   it('rejects native assets instead of treating a provider amount as authority', () => {
@@ -735,6 +819,34 @@ describe('on-chain credit authority', () => {
 })
 
 describe('on-ramp client wire format', () => {
+  it('preserves the exact receipt log index in the deposit-check request', async () => {
+    const originalFetch = globalThis.fetch
+    let requestBody: Record<string, unknown> | undefined
+    globalThis.fetch = async (_input, init) => {
+      requestBody = JSON.parse(String(init?.body))
+      return Response.json({ status: 'credited', amount: '287010000000000000000' })
+    }
+    try {
+      const client = new PrivanaClient({ baseUrl: BASE_URL })
+      await client.checkDeposit({
+        chain_id: CHAIN_ID,
+        tx_hash: TX_HASH,
+        amount: '287010000000000000000',
+        log_index: 11,
+      })
+      expect(requestBody).toEqual({
+        chain_type: 'evm',
+        chain_id: CHAIN_ID,
+        tx_hash: TX_HASH,
+        amount: '287010000000000000000',
+        log_index: 11,
+        version: 0,
+      })
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   it('sends at most ten repeated externalTransactionId query values', async () => {
     const originalFetch = globalThis.fetch
     let requestUrl = ''

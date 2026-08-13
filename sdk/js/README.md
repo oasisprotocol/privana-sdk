@@ -248,7 +248,8 @@ provider-specific adapters.
 
 **The provider delivers the purchased token directly to the server-derived
 Privana deposit address. Provider orders, amounts, events, and webhooks are
-correlation hints only; the matching on-chain transfer remains authoritative.**
+correlation hints only. One unambiguous matching on-chain transfer, including
+its exact receipt log index, remains authoritative.**
 
 Exported from a separate entry point so consumers who don't use the on-ramp
 don't pay the bundle cost of `@moonpay/moonpay-react`:
@@ -309,8 +310,8 @@ The form:
   reconcile both ids during provider reads,
 - treats MoonPay events as wake-up hints, polls the authenticated pending read
   for the provider transaction and on-chain hash, derives the delivered amount
-  from matching receipt logs, then triggers Privana verification
-  (`checkDeposit` + status polling).
+  and exact log index from one unambiguous matching receipt log, then triggers
+  Privana verification (`checkDeposit` + status polling).
 
 ### `useFiatOnRamp` for custom UI
 

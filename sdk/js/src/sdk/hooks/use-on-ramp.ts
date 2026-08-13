@@ -37,8 +37,9 @@ import {
 } from '../on-ramp/recovery'
 import {
   assertErc20OnRampToken,
-  deliveredErc20Amount,
   erc20MinDepositBaseUnits,
+  resolveErc20OnRampTransfer,
+  type OnRampDeliveredTransfer,
 } from '../on-ramp/receipt'
 import { settlePendingOnRampLock } from '../on-ramp/settlement'
 import {
@@ -195,10 +196,11 @@ export interface UseOnRampResult {
  * Provider-neutral purchase recovery and Privana credit flow.
  *
  * The provider delivers to the server-derived Privana deposit address. Provider
- * reads and UI events only discover a candidate transaction; the matching
- * receipt log supplies the amount and `/deposits/check` remains the sole credit
- * authority. Pending intents are retained locally only as bounded recovery
- * hints, never as order or credit state.
+ * reads and UI events only discover a candidate transaction. One unambiguous
+ * matching receipt log supplies the amount and exact log index;
+ * `/deposits/check` remains the sole credit authority. Pending intents are
+ * retained locally only as bounded recovery hints, never as order or credit
+ * state.
  */
 export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
   const {
@@ -1046,7 +1048,7 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
           )
         }
 
-        const amount = await resolveDeliveredAmount({
+        const delivered = await resolveDeliveredTransfer({
           onChainTxHash: record.on_chain_tx_hash,
           chainId: record.chain_id,
           walletAddress: record.wallet_address,
@@ -1062,12 +1064,17 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
           scopedMinDepositByChain,
           record.chain_id
         )
-        if (recordMinDepositBaseUnits !== undefined && amount < recordMinDepositBaseUnits) {
+        if (
+          recordMinDepositBaseUnits !== undefined &&
+          delivered.amount < recordMinDepositBaseUnits
+        ) {
           emitDebug('verification:below-minimum', {
-            deliveredAmount: amount.toString(),
+            deliveredAmount: delivered.amount.toString(),
             minDepositBaseUnits: String(recordMinDepositBaseUnits),
           })
-          throw new Error(`Delivered amount (${amount} base units) is below the minimum deposit.`)
+          throw new Error(
+            `Delivered amount (${delivered.amount} base units) is below the minimum deposit.`
+          )
         }
 
         if (
@@ -1079,12 +1086,14 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
         emitDebug('verification:check-deposit-request', {
           hash: record.on_chain_tx_hash,
           chainId: record.chain_id,
-          amount: amount.toString(),
+          amount: delivered.amount.toString(),
+          logIndex: delivered.logIndex,
         })
         await verify({
           hash: record.on_chain_tx_hash,
           chainId: record.chain_id,
-          amount,
+          amount: delivered.amount,
+          logIndex: delivered.logIndex,
         })
       } catch (err) {
         if (flowSessionRef.current !== flowSession) return
@@ -1369,7 +1378,7 @@ function summariseOnRampRecord(record: OnRampRecord): Record<string, unknown> {
   }
 }
 
-async function resolveDeliveredAmount({
+async function resolveDeliveredTransfer({
   onChainTxHash,
   chainId,
   walletAddress,
@@ -1383,10 +1392,9 @@ async function resolveDeliveredAmount({
   token: TokenConfig
   wagmiConfig: ReturnType<typeof useConfig>
   emitDebug: (event: string, payload?: Record<string, unknown>) => void
-}): Promise<bigint> {
+}): Promise<OnRampDeliveredTransfer> {
   assertErc20OnRampToken(token.contract)
 
-  let receiptError: unknown
   try {
     const receipt = await waitForTransactionReceipt(wagmiConfig, {
       hash: onChainTxHash as `0x${string}`,
@@ -1395,35 +1403,21 @@ async function resolveDeliveredAmount({
       pollingInterval: 4_000,
     })
 
-    const delivered = deliveredErc20Amount(receipt.logs, token.contract, walletAddress)
-
-    if (delivered > 0n) {
-      emitDebug('verification:amount-from-receipt', {
-        amount: delivered.toString(),
-        tokenAddress: token.contract,
-        depositAddressMatched: true,
-      })
-      return delivered
-    }
-
-    emitDebug('verification:amount-from-receipt-missing', {
+    const delivered = resolveErc20OnRampTransfer(receipt.logs, token.contract, walletAddress)
+    emitDebug('verification:amount-from-receipt', {
+      amount: delivered.amount.toString(),
+      logIndex: delivered.logIndex,
       tokenAddress: token.contract,
-      depositAddressMatched: false,
+      depositAddressMatched: true,
     })
+    return delivered
   } catch (err) {
     emitDebug('verification:amount-from-receipt-error', errorPayload(err))
-    receiptError = err
+    const errorDetail = err instanceof Error ? err.message : String(err)
+    throw new Error(
+      `Unable to derive delivered ${token.symbol} transfer from its receipt: ${errorDetail}`
+    )
   }
-
-  const errorDetail =
-    receiptError instanceof Error
-      ? receiptError.message
-      : receiptError === undefined
-        ? `no ${token.symbol} Transfer to the derived deposit address found`
-        : String(receiptError)
-  throw new Error(
-    `Unable to derive delivered ${token.symbol} amount from its receipt: ${errorDetail}`
-  )
 }
 
 function errorPayload(err: unknown): Record<string, unknown> {
