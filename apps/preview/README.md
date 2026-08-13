@@ -68,8 +68,9 @@ Then exercise recovery with fresh purchases:
 - retry a row while source-chain finality is still insufficient;
 - complete two purchases and verify that each intent credits exactly once.
 
-Finally, run the optional lock pass. Enable **Lock after credit**, enter the exact crypto
-amount you will select in Transak, sign the buffered lock before launch, and confirm the
-deposit credits before the lock is submitted to the configured Honoroll testnet service.
+Finally, run the optional lock pass. Enable **Lock after credit** and enter the target
+crypto amount. After Transak opens, adjust the editable fiat payment until the estimated
+crypto receipt is at least that target. Sign the buffered lock before launch, and confirm
+the deposit credits before the lock is submitted to the configured Honoroll testnet service.
 If lock submission fails, confirm the credited funds remain available and record the
 same-signature recovery state.

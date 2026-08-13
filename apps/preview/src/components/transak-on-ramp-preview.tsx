@@ -212,7 +212,7 @@ export function TransakOnRampPreview() {
 
           {lockAfterCredit && (
             <label className="block text-xs">
-              <span className="font-medium">Exact crypto amount to enter in Transak</span>
+              <span className="font-medium">Target crypto amount</span>
               <input
                 className="border-border bg-card mt-1 w-full rounded border px-2 py-1.5"
                 inputMode="decimal"
@@ -222,8 +222,8 @@ export function TransakOnRampPreview() {
                 onChange={(event) => setQuoteAmount(event.target.value.trim())}
               />
               <span className="text-muted-foreground mt-1 block">
-                Keep this identical to the crypto amount selected in the widget. The signed lock is
-                98% of this value.
+                After checkout opens, adjust the fiat payment until Transak estimates at least this
+                crypto amount. The signed lock is 98% of this target.
               </span>
             </label>
           )}

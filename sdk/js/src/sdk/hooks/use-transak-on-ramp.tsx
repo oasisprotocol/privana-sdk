@@ -68,6 +68,24 @@ export function getMountedTransakSessionError(
     : new Error('Close or expire the current Transak checkout before reopening')
 }
 
+export function getTransakSessionContextError({
+  currentGeneration,
+  expectedGeneration,
+  scopeChanged,
+}: {
+  currentGeneration: number
+  expectedGeneration: number
+  scopeChanged: boolean
+}): Error | null {
+  if (currentGeneration !== expectedGeneration) {
+    return new Error('Transak checkout request was cancelled')
+  }
+  if (scopeChanged) {
+    return new Error('On-ramp account or network changed while creating the session')
+  }
+  return null
+}
+
 export function getTransakSessionRequestError({
   currentGeneration,
   expectedGeneration,
@@ -81,12 +99,12 @@ export function getTransakSessionRequestError({
   activeIntentId: string | null
   expectedIntentId: string
 }): Error | null {
-  if (currentGeneration !== expectedGeneration) {
-    return new Error('Transak checkout request was cancelled')
-  }
-  if (scopeChanged) {
-    return new Error('On-ramp account or network changed while creating the session')
-  }
+  const contextError = getTransakSessionContextError({
+    currentGeneration,
+    expectedGeneration,
+    scopeChanged,
+  })
+  if (contextError) return contextError
   if (activeIntentId !== expectedIntentId) {
     return new Error('The Transak purchase intent is no longer active')
   }
@@ -201,12 +219,14 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
             quoteCurrencyAmount: request.quoteCurrencyAmount,
           })
           launchedIntentId = intent.transaction_id
-          const beforeSessionError = getTransakSessionRequestError({
+          // `prepareOnRampIntent` synchronously owns this intent in the shared
+          // core, but React may not have committed the wrapper's render-time
+          // `activeIntentId` yet. Guard only request ownership here; the full
+          // active-intent guard runs after the asynchronous session request.
+          const beforeSessionError = getTransakSessionContextError({
             currentGeneration: generationRef.current,
             expectedGeneration: generation,
             scopeChanged: scopeSessionRef.current !== scopeSession,
-            activeIntentId: activeIntentIdRef.current,
-            expectedIntentId: intent.transaction_id,
           })
           if (beforeSessionError) throw beforeSessionError
 

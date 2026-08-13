@@ -16,6 +16,7 @@ import {
 } from '../src/sdk/on-ramp/transak-frame'
 import {
   getMountedTransakSessionError,
+  getTransakSessionContextError,
   getTransakSessionRequestError,
   shouldSurfaceTransakSessionFailure,
 } from '../src/sdk/hooks/use-transak-on-ramp'
@@ -145,6 +146,31 @@ describe('Transak session failure ownership', () => {
     expect(getMountedTransakSessionError('reopen', true)?.message).toBe(
       'Close or expire the current Transak checkout before reopening'
     )
+  })
+
+  it('allows the initial session request before React commits the prepared intent state', () => {
+    expect(
+      getTransakSessionContextError({
+        currentGeneration: 1,
+        expectedGeneration: 1,
+        scopeChanged: false,
+      })
+    ).toBeNull()
+
+    expect(
+      getTransakSessionContextError({
+        currentGeneration: 2,
+        expectedGeneration: 1,
+        scopeChanged: false,
+      })?.message
+    ).toContain('cancelled')
+    expect(
+      getTransakSessionContextError({
+        currentGeneration: 1,
+        expectedGeneration: 1,
+        scopeChanged: true,
+      })?.message
+    ).toContain('account or network changed')
   })
 
   it('rejects a session request that no longer owns a live checkout', () => {
