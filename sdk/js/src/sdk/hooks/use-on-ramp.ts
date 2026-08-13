@@ -14,6 +14,7 @@ import {
   getOnRampIntentId,
   getOnRampVerificationKey,
   matchesOnRampTransaction,
+  recordOnRampProviderDeposit,
   resolveOnRampProviderEventTarget,
   verifyPendingOnRampsSequentially,
   type OnRampProviderAdapter,
@@ -23,12 +24,15 @@ import {
 import {
   createPendingOnRampReadCoordinator,
   discardInvalidOnRampIntent,
+  filterCreditedOnRampRecords,
   forgetUnresolvedOnRampIntent,
   getOnRampCloseRecoveryAction,
   getPendingOnRampsWithRecovery,
+  loadCreditedOnRampVerifications,
   loadUnresolvedOnRampIntents,
   MIN_ONRAMP_PENDING_REQUEST_INTERVAL_MS,
   rememberUnresolvedOnRampIntent,
+  rememberCreditedOnRampVerification,
   type OnRampRecoveryScope,
 } from '../on-ramp/recovery'
 import {
@@ -276,6 +280,7 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
    * wallet may be disconnected or on another account by credit time. */
   const lockOwnerRef = useRef<Address | null>(null)
   const triggeredVerificationKeysRef = useRef<Set<string>>(new Set())
+  const creditedVerificationKeysRef = useRef<Set<string>>(new Set())
   /** Resolves when the in-flight verification reaches a terminal state; the
    * auto-verify loop awaits it so rows verify one at a time. */
   const activeVerificationDoneRef = useRef<(() => void) | null>(null)
@@ -412,7 +417,15 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
     // provider after a deployment switch or rollback. The core verification
     // path is provider-neutral; only newly created intents and adapter events
     // must match the configured adapter.
-    return rows
+    const creditedKeys = recoveryScope
+      ? loadCreditedOnRampVerifications(recoveryScope).map(
+          (verification) => verification.verificationKey
+        )
+      : []
+    return filterCreditedOnRampRecords(rows, [
+      ...creditedKeys,
+      ...creditedVerificationKeysRef.current,
+    ])
   }, [emitDebug, executeOnRampPrivateRead, flowSession, recoveryScope])
 
   // All callers (mount refresh, embedded recovery, close/event delivery waits,
@@ -547,6 +560,20 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
         setStatus('credited')
       }
       if (record) {
+        creditedVerificationKeysRef.current.add(getOnRampVerificationKey(record))
+        setPending((rows) => filterCreditedOnRampRecords(rows, creditedVerificationKeysRef.current))
+        if (
+          recoveryScopeAtCredit &&
+          !rememberCreditedOnRampVerification(
+            recoveryScopeAtCredit,
+            getOnRampVerificationKey(record)
+          )
+        ) {
+          emitDebug('verification:credit-recovery-storage-unavailable')
+        }
+        if (recoveryScopeAtCredit) {
+          forgetUnresolvedOnRampIntent(recoveryScopeAtCredit, getOnRampIntentId(record))
+        }
         setFinalityProgress((prev) => {
           if (!(record.transaction_id in prev)) return prev
           const next = { ...prev }
@@ -571,26 +598,35 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
       }
       void (async () => {
         try {
-          if (record && depositTxHash.startsWith('0x')) {
-            emitDebug('onramp:mark-deposit-triggered-request', {
+          if (
+            record &&
+            adapter.recordDeposit &&
+            record.provider === adapter.provider &&
+            depositTxHash.startsWith('0x')
+          ) {
+            emitDebug('provider-deposit:record-request', {
+              provider: adapter.provider,
               depositTxHash,
             })
             const updated = await executeOnRampPrivateRead((readClient) =>
-              readClient.updateOnRamp(record.transaction_id, {
-                deposit_tx_hash: depositTxHash as HexString,
+              recordOnRampProviderDeposit(adapter, {
+                client: readClient,
+                record,
+                depositTxHash: depositTxHash as HexString,
               })
             )
-            emitDebug('onramp:mark-deposit-triggered-success', {
-              record: summariseOnRampRecord(updated),
+            emitDebug('provider-deposit:record-success', {
+              provider: adapter.provider,
+              record: updated ? summariseOnRampRecord(updated) : null,
             })
           }
         } catch (err) {
-          emitDebug('onramp:mark-deposit-triggered-error', errorPayload(err))
-          console.warn('Failed to mark on-ramp row complete:', err)
+          emitDebug('provider-deposit:record-error', {
+            provider: adapter.provider,
+            ...errorPayload(err),
+          })
+          console.warn('Failed to record provider deposit:', err)
         } finally {
-          if (record && recoveryScopeAtCredit) {
-            forgetUnresolvedOnRampIntent(recoveryScopeAtCredit, getOnRampIntentId(record))
-          }
           await refreshPending()
           clearActiveVerification(verificationKey)
           if (
@@ -647,6 +683,7 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
     resetDepositVerification()
     clearActiveVerification()
     triggeredVerificationKeysRef.current.clear()
+    creditedVerificationKeysRef.current.clear()
     setPending([])
     setFinalityProgress({})
     statusRef.current = 'idle'

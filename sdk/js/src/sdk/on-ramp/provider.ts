@@ -3,6 +3,7 @@ import type {
   Address,
   Bytes32,
   CreateOnRampIntentRequest,
+  HexString,
   OnRampProvider,
   OnRampRecord,
 } from '../types'
@@ -22,6 +23,12 @@ export interface OnRampProviderTransactionContext {
   chainId: number
 }
 
+export interface OnRampProviderDepositContext {
+  client: PrivanaClient
+  record: OnRampRecord
+  depositTxHash: HexString
+}
+
 /**
  * The deliberately small backend-facing provider seam. Provider launch UI
  * normalizes its callbacks into `OnRampProviderEvent`; the shared hook owns
@@ -32,6 +39,11 @@ export interface OnRampProviderAdapter {
   pollPendingWhileOpen: boolean
   buildIntentRequest(input: OnRampProviderIntentInput): CreateOnRampIntentRequest
   registerTransaction?(context: OnRampProviderTransactionContext): Promise<OnRampRecord | undefined>
+  /**
+   * Optional provider compatibility write after Privana has already credited
+   * the verified on-chain deposit. It never authorizes or gates credit.
+   */
+  recordDeposit?(context: OnRampProviderDepositContext): Promise<OnRampRecord | undefined>
 }
 
 export type OnRampProviderEventKind = 'transaction-created' | 'transaction-completed'
@@ -99,6 +111,14 @@ export function getOnRampVerificationKey(record: OnRampRecord): string {
 
 export function getOnRampIntentId(record: OnRampRecord): string {
   return record.external_transaction_id ?? record.transaction_id
+}
+
+export async function recordOnRampProviderDeposit(
+  adapter: OnRampProviderAdapter,
+  context: OnRampProviderDepositContext
+): Promise<OnRampRecord | undefined> {
+  if (context.record.provider !== adapter.provider) return undefined
+  return adapter.recordDeposit?.(context)
 }
 
 export async function verifyPendingOnRampsSequentially({

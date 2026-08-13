@@ -23,6 +23,19 @@ export interface CreateOnRampIntentRequest {
 
 export type CreateOnRampIntentResponse = OnRampRecord
 
+/** Request body / response of POST /v1/accounting/onramp/session. */
+export interface CreateOnRampSessionRequest {
+  transaction_id: string
+}
+
+export interface OnRampSessionResponse {
+  provider: 'transak'
+  /** Opaque, single-use URL. Do not persist, log, or modify it. */
+  url: string
+  /** Unix timestamp in seconds by which the URL must be loaded. */
+  expires_at: number
+}
+
 /** Request body / response of POST /api/onramp/{id}. */
 export interface UpdateOnRampRequest {
   wallet_address?: Address

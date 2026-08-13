@@ -9,6 +9,14 @@ export type {
   FiatOnRampDebugEvent,
   FiatOnRampStatus,
 } from './sdk/hooks/use-fiat-on-ramp'
+export { useTransakOnRamp } from './sdk/hooks/use-transak-on-ramp'
+export type {
+  UseTransakOnRampOptions,
+  UseTransakOnRampResult,
+  TransakOnRampLaunchRequest,
+  TransakOnRampDebugEvent,
+  TransakOnRampStatus,
+} from './sdk/hooks/use-transak-on-ramp'
 export type { OnRampPostDepositLockConfig } from './sdk/hooks/pending-lock'
 
 export { FiatOnRampForm } from './components/privana/fiat-on-ramp-form'
@@ -22,6 +30,8 @@ export type {
   SignOnRampUrlResponse,
   CreateOnRampIntentRequest,
   CreateOnRampIntentResponse,
+  CreateOnRampSessionRequest,
+  OnRampSessionResponse,
   UpdateOnRampRequest,
   UpdateOnRampResponse,
   PendingOnRampsResponse,

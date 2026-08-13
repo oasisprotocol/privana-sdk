@@ -47,6 +47,8 @@ import type {
   TokenListResponse,
   CreateOnRampIntentRequest,
   CreateOnRampIntentResponse,
+  CreateOnRampSessionRequest,
+  OnRampSessionResponse,
   PendingOnRampsResponse,
   SignOnRampUrlRequest,
   SignOnRampUrlResponse,
@@ -361,6 +363,12 @@ export class PrivanaClient {
       token_id: normalizeHex(request.token_id),
       chain_id: request.chain_id,
       moonpay_currency_code: request.moonpay_currency_code,
+    })
+  }
+
+  async createOnRampSession(request: CreateOnRampSessionRequest): Promise<OnRampSessionResponse> {
+    return this.http.post<OnRampSessionResponse>('/v1/accounting/onramp/session', {
+      transaction_id: request.transaction_id,
     })
   }
 

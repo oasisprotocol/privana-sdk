@@ -17,6 +17,10 @@ export const moonPayOnRampAdapter: OnRampProviderAdapter = {
       moonpay_transaction_id:
         intentId === providerTransactionId ? undefined : providerTransactionId,
     }),
+  recordDeposit: async ({ client, record, depositTxHash }) =>
+    client.updateOnRamp(record.transaction_id, {
+      deposit_tx_hash: depositTxHash,
+    }),
 }
 
 interface MoonPayTransactionEvent {

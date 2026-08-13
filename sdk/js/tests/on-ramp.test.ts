@@ -15,18 +15,23 @@ import {
 import {
   assertOnRampRecordProvider,
   matchesOnRampTransaction,
+  recordOnRampProviderDeposit,
   resolveOnRampProviderEventTarget,
   verifyPendingOnRampsSequentially,
 } from '../src/sdk/on-ramp/provider'
 import {
   createPendingOnRampReadCoordinator,
   discardInvalidOnRampIntent,
+  filterCreditedOnRampRecords,
   forgetUnresolvedOnRampIntent,
   getOnRampCloseRecoveryAction,
   getPendingOnRampsWithRecovery,
+  loadCreditedOnRampVerifications,
   loadUnresolvedOnRampIntents,
+  MAX_CREDITED_ONRAMP_VERIFICATIONS,
   MAX_UNRESOLVED_ONRAMP_INTENTS,
   MIN_ONRAMP_PENDING_REQUEST_INTERVAL_MS,
+  rememberCreditedOnRampVerification,
   rememberUnresolvedOnRampIntent,
   type OnRampRecoveryScope,
 } from '../src/sdk/on-ramp/recovery'
@@ -205,6 +210,32 @@ describe('MoonPay provider adapter', () => {
       },
     })
   })
+
+  it('keeps the post-credit MoonPay compatibility write inside the adapter', async () => {
+    let captured:
+      | {
+          transactionId: string
+          request: Record<string, unknown>
+        }
+      | undefined
+    const client = {
+      updateOnRamp: async (transactionId: string, request: Record<string, unknown>) => {
+        captured = { transactionId, request }
+        return makeRecord()
+      },
+    } as unknown as PrivanaClient
+
+    await recordOnRampProviderDeposit(moonPayOnRampAdapter, {
+      client,
+      record: makeRecord(),
+      depositTxHash: TX_HASH,
+    })
+
+    expect(captured).toEqual({
+      transactionId: 'intent-1',
+      request: { deposit_tx_hash: TX_HASH },
+    })
+  })
 })
 
 describe('provider event and record policy', () => {
@@ -309,7 +340,7 @@ describe('durable on-ramp recovery', () => {
     })
   })
 
-  it('isolates one invalid stored intent, removes only it, and retries the valid batch', async () => {
+  it('isolates one invalid stored intent, removes only it, and reuses the valid probe', async () => {
     const calls: string[][] = []
     const invalid: string[] = []
     const client = {
@@ -328,7 +359,7 @@ describe('durable on-ramp recovery', () => {
 
     expect(result.pending).toHaveLength(1)
     expect(invalid).toEqual(['bad'])
-    expect(calls).toEqual([['valid', 'bad'], ['valid'], ['bad'], ['valid']])
+    expect(calls).toEqual([['valid', 'bad'], ['valid'], ['bad']])
   })
 
   it('clears a definitively rejected active intent without deleting its recoverable lock', async () => {
@@ -359,6 +390,50 @@ describe('durable on-ramp recovery', () => {
         { transactionId: 'intent-1', savedAt: 100 },
       ])
       expect(loadPendingLock(OWNER, 'intent-1')).toBeDefined()
+    })
+  })
+
+  it('suppresses an already credited provider row after reload', async () => {
+    await withBrowserStorage(async () => {
+      const scope = recoveryScope()
+      const completed = makeRecord({
+        provider: 'transak',
+        provider_asset_code: 'usdc',
+        moonpay_transaction_id: undefined,
+        moonpay_currency_code: undefined,
+      })
+      expect(rememberCreditedOnRampVerification(scope, TX_HASH, 100)).toBe(true)
+
+      const reloadedKeys = loadCreditedOnRampVerifications(scope, 101).map(
+        (verification) => verification.verificationKey
+      )
+      const visible = filterCreditedOnRampRecords([completed], reloadedKeys)
+      let verificationStarts = 0
+      await verifyPendingOnRampsSequentially({
+        records: visible,
+        shouldStop: () => false,
+        wasTriggered: () => false,
+        trigger: async () => void verificationStarts++,
+        waitForTerminal: async () => undefined,
+      })
+
+      expect(visible).toEqual([])
+      expect(verificationStarts).toBe(0)
+    })
+  })
+
+  it('bounds credited recovery and keeps it isolated by authenticated scope', async () => {
+    await withBrowserStorage(async () => {
+      const scope = recoveryScope()
+      const otherScope = { ...scope, userAddress: OTHER }
+      for (let index = 0; index < MAX_CREDITED_ONRAMP_VERIFICATIONS + 1; index++) {
+        rememberCreditedOnRampVerification(scope, `deposit-${index}`, index + 1)
+      }
+
+      const credited = loadCreditedOnRampVerifications(scope, MAX_CREDITED_ONRAMP_VERIFICATIONS + 2)
+      expect(credited).toHaveLength(MAX_CREDITED_ONRAMP_VERIFICATIONS)
+      expect(credited[0]?.verificationKey).toBe('deposit-1')
+      expect(loadCreditedOnRampVerifications(otherScope, 2)).toEqual([])
     })
   })
 
