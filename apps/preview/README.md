@@ -16,6 +16,19 @@ NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=...
 NEXT_PUBLIC_MOONPAY_API_KEY=pk_test_...
 ```
 
+The component preview preserves the legacy MoonPay card flow when no explicit
+on-ramp provider is set. To exercise the provider-neutral product modal with
+Transak, also set:
+
+```env
+NEXT_PUBLIC_ONRAMP_PROVIDER=transak
+NEXT_PUBLIC_ONRAMP_TOKEN_ID=0x...
+NEXT_PUBLIC_ONRAMP_ASSET_CODE=usdc
+```
+
+If any explicit value is invalid or the token is not enabled, the card flow is
+shown as unavailable and does not fall back to MoonPay.
+
 Never place a Transak API key, API secret, Partner Access Token, widget URL, or Privana
 auth token in this file. Transak session creation is backend-only.
 

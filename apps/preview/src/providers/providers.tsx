@@ -5,7 +5,12 @@ import { WagmiProvider } from 'wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RainbowKitProvider, darkTheme, lightTheme } from '@rainbow-me/rainbowkit'
 import { wagmiConfig } from './wagmi-config'
-import { PrivanaProvider, NETWORK_CONFIG, type Network } from '@oasisprotocol/privana-sdk'
+import {
+  PrivanaProvider,
+  NETWORK_CONFIG,
+  type Network,
+  type OnRampConfig,
+} from '@oasisprotocol/privana-sdk'
 import { ThemeProvider, useTheme } from './theme-provider'
 import '@rainbow-me/rainbowkit/styles.css'
 
@@ -44,6 +49,18 @@ function RainbowKitWrapper({ children }: { children: ReactNode }) {
 export function Providers({ children, network = 'testnet' }: ProvidersProps) {
   const apiUrl = process.env.NEXT_PUBLIC_PRIVANA_API_URL?.trim() || NETWORK_CONFIG[network].apiUrl
   const moonpayApiKey = process.env.NEXT_PUBLIC_MOONPAY_API_KEY?.trim()
+  const onRampProvider = process.env.NEXT_PUBLIC_ONRAMP_PROVIDER?.trim()
+  const onRampTokenId = process.env.NEXT_PUBLIC_ONRAMP_TOKEN_ID?.trim()
+  const onRampAssetCode = process.env.NEXT_PUBLIC_ONRAMP_ASSET_CODE?.trim()
+  const hasExplicitOnRampConfig =
+    onRampProvider !== undefined || onRampTokenId !== undefined || onRampAssetCode !== undefined
+  const onRamp = hasExplicitOnRampConfig
+    ? ({
+        provider: onRampProvider ?? '',
+        tokenId: onRampTokenId ?? '',
+        providerAssetCode: onRampAssetCode ?? '',
+      } as OnRampConfig)
+    : undefined
   const hostedAuthClientId = process.env.NEXT_PUBLIC_PRIVANA_HOSTED_AUTH_CLIENT_ID?.trim()
   const hostedAuthRedirectUri = process.env.NEXT_PUBLIC_PRIVANA_HOSTED_AUTH_REDIRECT_URI?.trim()
   const [queryClient] = useState(
@@ -65,6 +82,7 @@ export function Providers({ children, network = 'testnet' }: ProvidersProps) {
           <RainbowKitWrapper>
             <PrivanaProvider
               networkConfig={{ ...NETWORK_CONFIG[network], apiUrl, moonpayApiKey }}
+              onRamp={onRamp}
               // Honoroll's registered service account on the testnet Accounting contract
               serviceAddress="0xDCFF0891F0Aea40b0ae4A7Ca3e00AD1012Fc2d16"
               serviceName="Honoroll Casino Testnet"

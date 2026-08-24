@@ -19,7 +19,13 @@ import {
   isHostedAuthSessionActive,
 } from '../auth'
 import { HostedAuthRequiredError } from '../client'
-import type { Address, HostedAuthConfig, HostedAuthSession, NetworkConfig } from '../types'
+import type {
+  Address,
+  HostedAuthConfig,
+  HostedAuthSession,
+  NetworkConfig,
+  OnRampConfig,
+} from '../types'
 import { NETWORK_CONFIG, type TokenConfig } from '../types'
 import { SUPPORTED_CHAINS, type ChainConfig } from '../types/chains'
 import { resolveMoonpayCurrencyCode } from '../moonpay-currency-codes'
@@ -30,6 +36,8 @@ export type TokensStatus = 'loading' | 'ready' | 'error'
 export interface PrivanaContextValue {
   client: PrivanaClient
   networkConfig: NetworkConfig
+  /** Explicit product on-ramp selection. Undefined preserves legacy MoonPay behavior. */
+  onRamp?: OnRampConfig
   enabledTokens: TokenConfig[]
   defaultToken: TokenConfig | undefined
   getTokenById: (id: string) => TokenConfig | undefined
@@ -107,6 +115,12 @@ export interface PrivanaProviderProps {
    */
   networkConfig?: Partial<NetworkConfig>
   /**
+   * Optional product-level card on-ramp selection. When omitted, the deposit
+   * modal preserves its legacy MoonPay behavior. An explicit selection locks
+   * card deposits to one provider, Privana token, and provider asset code.
+   */
+  onRamp?: OnRampConfig
+  /**
    * Optional list of token IDs to filter from the API response.
    * When provided, only tokens whose ID matches this list are enabled.
    * When omitted, all tokens returned by the API are enabled.
@@ -148,6 +162,7 @@ export interface PrivanaProviderProps {
 export function PrivanaProvider({
   children,
   networkConfig: networkConfigOverride,
+  onRamp,
   tokens,
   chains,
   pollingInterval = 10000,
@@ -188,6 +203,8 @@ export function PrivanaProvider({
     networkConfigOverride?.name,
     networkConfigOverride?.accountingContract,
     networkConfigOverride?.apiUrl,
+    networkConfigOverride?.moonpayApiUrl,
+    networkConfigOverride?.moonpayApiKey,
   ])
 
   const resolvedChains = useMemo(() => {
@@ -403,6 +420,7 @@ export function PrivanaProvider({
     () => ({
       client,
       networkConfig,
+      onRamp,
       enabledTokens,
       defaultToken: enabledTokens[0],
       getTokenById,
@@ -423,6 +441,7 @@ export function PrivanaProvider({
     [
       client,
       networkConfig,
+      onRamp,
       enabledTokens,
       getTokenById,
       getChainById,

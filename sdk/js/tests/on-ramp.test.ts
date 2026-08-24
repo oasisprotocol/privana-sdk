@@ -13,7 +13,9 @@ import {
   normalizeMoonPayProviderEvent,
 } from '../src/sdk/on-ramp/moonpay-adapter'
 import {
+  assertCreatedOnRampIntent,
   assertOnRampRecordProvider,
+  canRetryOnRampVerification,
   getOnRampVerificationKey,
   matchesOnRampTransaction,
   recordOnRampProviderDeposit,
@@ -243,6 +245,15 @@ describe('MoonPay provider adapter', () => {
 })
 
 describe('provider event and record policy', () => {
+  it('offers manual verification only after delivery and while no row is active', () => {
+    const delivered = makeRecord()
+    expect(canRetryOnRampVerification(delivered, null)).toBe(true)
+    expect(canRetryOnRampVerification(delivered, delivered.transaction_id)).toBe(false)
+    expect(canRetryOnRampVerification(makeRecord({ on_chain_tx_hash: undefined }), null)).toBe(
+      false
+    )
+  })
+
   it('correlates the active checkout and rejects a different adapter', () => {
     const active = resolveOnRampProviderEventTarget('moonpay', 'intent-1', {
       provider: 'moonpay',
@@ -285,6 +296,33 @@ describe('provider event and record policy', () => {
         'moonpay'
       )
     ).toThrow('does not match configured adapter')
+  })
+
+  it('accepts only an exact creation-response authority tuple', () => {
+    const expected = {
+      walletAddress: DEPOSIT,
+      tokenId: TOKEN_ID,
+      chainId: CHAIN_ID,
+      providerAssetCode: 'usdc_base',
+    }
+    expect(() => assertCreatedOnRampIntent(makeRecord(), 'moonpay', expected)).not.toThrow()
+
+    const mismatches: Array<[Partial<OnRampRecord>, string]> = [
+      [{ provider: 'transak' }, 'provider'],
+      [{ provider_asset_code: 'eth' }, 'asset'],
+      [{ provider_asset_code: null as unknown as string }, 'asset'],
+      [{ token_id: `0x${'bb'.repeat(32)}` as Bytes32 }, 'token'],
+      [{ token_id: null }, 'token'],
+      [{ chain_id: CHAIN_ID + 1 }, 'chain'],
+      [{ chain_id: null }, 'chain'],
+      [{ wallet_address: OWNER }, 'wallet'],
+      [{ wallet_address: null }, 'wallet'],
+    ]
+    for (const [override, message] of mismatches) {
+      expect(() => assertCreatedOnRampIntent(makeRecord(override), 'moonpay', expected)).toThrow(
+        message
+      )
+    }
   })
 })
 

@@ -16,9 +16,12 @@ import {
 } from '../src/sdk/on-ramp/transak-frame'
 import {
   getMountedTransakSessionError,
+  getTransakRecreateSessionError,
   getTransakSessionContextError,
   getTransakSessionRequestError,
+  hasTransakProviderEvidence,
   shouldSurfaceTransakSessionFailure,
+  transitionTransakSessionRecreation,
 } from '../src/sdk/hooks/use-transak-on-ramp'
 import { recordOnRampProviderDeposit } from '../src/sdk/on-ramp/provider'
 import type {
@@ -138,6 +141,37 @@ describe('Transak provider adapter', () => {
 })
 
 describe('Transak session failure ownership', () => {
+  it('scopes recreation evidence to the current signed intent', () => {
+    const unrelated: OnRampRecord = {
+      transaction_id: 'old-row',
+      external_transaction_id: 'old-intent',
+      provider: 'transak',
+      provider_asset_code: 'usdc',
+      status: 'completed',
+      on_chain_tx_hash: `0x${'22'.repeat(32)}`,
+      created_at: NOW / 1000,
+      updated_at: NOW / 1000,
+    }
+    const matching = { ...unrelated, external_transaction_id: INTENT_ID }
+
+    expect(
+      hasTransakProviderEvidence({
+        status: 'verifying',
+        activeIntentId: INTENT_ID,
+        pending: [unrelated],
+        activeVerificationRecord: unrelated,
+      })
+    ).toBe(false)
+    expect(
+      hasTransakProviderEvidence({
+        status: 'verifying',
+        activeIntentId: INTENT_ID,
+        pending: [matching],
+        activeVerificationRecord: matching,
+      })
+    ).toBe(true)
+  })
+
   it('rejects launch and reopen while a checkout is already mounted', () => {
     expect(getMountedTransakSessionError('launch', false)).toBeNull()
     expect(getMountedTransakSessionError('launch', true)?.message).toBe(
@@ -146,6 +180,48 @@ describe('Transak session failure ownership', () => {
     expect(getMountedTransakSessionError('reopen', true)?.message).toBe(
       'Close or expire the current Transak checkout before reopening'
     )
+  })
+
+  it('allows same-intent recreation only before provider UI activation', () => {
+    let state = transitionTransakSessionRecreation('none', 'intent-created')
+    expect(state).toBe('preload-only')
+    expect(
+      getTransakRecreateSessionError({
+        hasMountedSession: false,
+        activeIntentId: INTENT_ID,
+        canRecreateSession: state === 'preload-only',
+      })
+    ).toBeNull()
+
+    // A pre-load expiry or close does not add provider evidence, so eligibility
+    // remains unchanged until a new session is requested.
+    expect(state).toBe('preload-only')
+    state = transitionTransakSessionRecreation(state, 'provider-ui-activated')
+    expect(state).toBe('blocked')
+    expect(
+      getTransakRecreateSessionError({
+        hasMountedSession: false,
+        activeIntentId: INTENT_ID,
+        canRecreateSession: state === 'preload-only',
+      })?.message
+    ).toContain('already be in progress')
+  })
+
+  it('blocks recreation after provider evidence or completion recovery', () => {
+    const evidenceState = transitionTransakSessionRecreation(
+      transitionTransakSessionRecreation('none', 'intent-created'),
+      'provider-evidence'
+    )
+    expect(evidenceState).toBe('blocked')
+
+    expect(
+      getTransakRecreateSessionError({
+        hasMountedSession: false,
+        activeIntentId: null,
+        canRecreateSession: false,
+      })?.message
+    ).toContain('No unresolved')
+    expect(transitionTransakSessionRecreation(evidenceState, 'reset')).toBe('none')
   })
 
   it('allows the initial session request before React commits the prepared intent state', () => {

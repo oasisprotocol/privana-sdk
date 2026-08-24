@@ -10,6 +10,7 @@ import { useAccount, useConfig, useWalletClient } from 'wagmi'
 
 import { usePrivanaContext } from '../context/privana-provider'
 import {
+  assertCreatedOnRampIntent,
   assertOnRampRecordProvider,
   getOnRampIntentId,
   getOnRampVerificationKey,
@@ -100,16 +101,16 @@ export interface UseOnRampOptions {
    */
   postDepositLock?: OnRampPostDepositLockConfig
   /** Fired when the deposit is credited inside the Privana accounting module. */
-  onCredited?: (txHash: string) => void
+  onCredited?: (txHash: string, record: OnRampRecord) => void
   /** Fired when the pre-signed post-deposit lock is accepted by the API. */
-  onLockSubmitted?: (response: TransactionSubmissionResponse) => void
+  onLockSubmitted?: (response: TransactionSubmissionResponse, record: OnRampRecord) => void
   /**
    * Fired when the deposit credited but the pre-signed lock could not be
    * submitted. The funds sit in the user's available balance. Fresh signing
    * is safe only for failures known to precede any API attempt; otherwise
    * retry or reconcile the same signature. Falls back to `onError`.
    */
-  onLockFailed?: (error: PostDepositLockError) => void
+  onLockFailed?: (error: PostDepositLockError, record: OnRampRecord) => void
   onError?: (error: Error) => void
   /** Optional diagnostic event stream for previews/tests. No auth tokens or signatures are emitted. */
   onDebugEvent?: (event: OnRampDebugEvent) => void
@@ -484,7 +485,8 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
   // failures route to the dedicated callback (or onError as fallback) instead
   // of the flow's terminal error state.
   const submitPendingLockAfterCredit = useCallback(
-    async (transactionId: string, userAddress: string, creditedAmount: bigint) => {
+    async (record: OnRampRecord, userAddress: string, creditedAmount: bigint) => {
+      const transactionId = record.transaction_id
       try {
         const settlement = await settlePendingOnRampLock({
           client,
@@ -501,7 +503,8 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
             'not-found'
           )
           emitDebug('lock:not-found')
-          ;(onLockFailedRef.current ?? onErrorRef.current)?.(lockError)
+          if (onLockFailedRef.current) onLockFailedRef.current(lockError, record)
+          else onErrorRef.current?.(lockError)
           return
         }
         queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
@@ -511,7 +514,7 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
         emitDebug('lock:submitted', {
           submissionIdPresent: Boolean(settlement.response.submission_id),
         })
-        onLockSubmittedRef.current?.(settlement.response)
+        onLockSubmittedRef.current?.(settlement.response, record)
       } catch (err) {
         const error =
           err instanceof PostDepositLockError
@@ -527,7 +530,8 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
           reason: error.reason,
           message: error.message,
         })
-        ;(onLockFailedRef.current ?? onErrorRef.current)?.(error)
+        if (onLockFailedRef.current) onLockFailedRef.current(error, record)
+        else onErrorRef.current?.(error)
       }
     },
     [client, emitDebug, postDepositLock, queryClient]
@@ -587,15 +591,15 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
         // window, and the stored payload is keyed by the signer.
         const lockOwner = lockOwnerRef.current ?? privateReadAddress
         if (lockOwner) {
-          void submitPendingLockAfterCredit(record.transaction_id, lockOwner, creditedAmount)
+          void submitPendingLockAfterCredit(record, lockOwner, creditedAmount)
         } else if (postDepositLock) {
           emitDebug('lock:owner-unavailable')
-          ;(onLockFailedRef.current ?? onErrorRef.current)?.(
-            new PostDepositLockError(
-              'No wallet address available to look up the signed lock for this on-ramp',
-              'not-found'
-            )
+          const lockError = new PostDepositLockError(
+            'No wallet address available to look up the signed lock for this on-ramp',
+            'not-found'
           )
+          if (onLockFailedRef.current) onLockFailedRef.current(lockError, record)
+          else onErrorRef.current?.(lockError)
         }
       }
       void (async () => {
@@ -644,7 +648,7 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
           }
         }
       })()
-      onCreditedRef.current?.(depositTxHash)
+      if (record) onCreditedRef.current?.(depositTxHash, record)
     },
     onCheckTimeout: (depositTxHash) => {
       const record = activeVerificationRecordRef.current
@@ -758,28 +762,19 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
           quoteCurrencyAmountPresent: quoteCurrencyAmount !== undefined,
           depositAddressReady: true,
         })
+        const intentInput = {
+          walletAddress: scopedDepositAddress,
+          tokenId,
+          chainId: token.chainId,
+          providerAssetCode,
+        }
         const record = await executeOnRampPrivateRead((readClient) =>
-          readClient.createOnRampIntent(
-            adapter.buildIntentRequest({
-              walletAddress: scopedDepositAddress,
-              tokenId,
-              chainId: token.chainId,
-              providerAssetCode,
-            })
-          )
+          readClient.createOnRampIntent(adapter.buildIntentRequest(intentInput))
         )
         if (flowSessionRef.current !== flowSession) {
           throw new Error('On-ramp account or network changed while creating the intent')
         }
-        assertOnRampRecordProvider(record, adapter.provider)
-        if (!record.provider_asset_code) {
-          throw new Error('On-ramp intent response is missing provider_asset_code')
-        }
-        if (record.provider_asset_code.toLowerCase() !== providerAssetCode.toLowerCase()) {
-          throw new Error(
-            `On-ramp intent asset ${record.provider_asset_code} does not match requested asset ${providerAssetCode}`
-          )
-        }
+        assertCreatedOnRampIntent(record, adapter.provider, intentInput)
         if (postDepositLock && lockOwner && lockAmount !== undefined) {
           // Re-fetch the wallet client bound to the signing chain: the
           // render-time client can go stale across the chain switch above and

@@ -44,6 +44,8 @@ export interface UseTransakOnRampResult extends Omit<
 > {
   isLaunching: boolean
   isWidgetOpen: boolean
+  /** True only while the current intent has never reached a provider UI. */
+  canRecreateSession: boolean
   /** Hardened iframe for the current in-memory session, or null when closed. */
   widget: ReactNode
   /** Create a fresh intent and session from an explicit user launch. */
@@ -58,6 +60,23 @@ interface TransakSessionRequest {
   promise: Promise<void>
 }
 
+export type TransakSessionRecreationState = 'none' | 'preload-only' | 'blocked'
+export type TransakSessionRecreationEvent =
+  | 'reset'
+  | 'intent-created'
+  | 'provider-ui-activated'
+  | 'provider-evidence'
+
+export function transitionTransakSessionRecreation(
+  state: TransakSessionRecreationState,
+  event: TransakSessionRecreationEvent
+): TransakSessionRecreationState {
+  if (event === 'reset') return 'none'
+  if (event === 'intent-created') return 'preload-only'
+  if (state === 'none') return 'none'
+  return 'blocked'
+}
+
 export function getMountedTransakSessionError(
   action: 'launch' | 'reopen',
   hasMountedSession: boolean
@@ -66,6 +85,28 @@ export function getMountedTransakSessionError(
   return action === 'launch'
     ? new Error('Close the current Transak checkout before launching another')
     : new Error('Close or expire the current Transak checkout before reopening')
+}
+
+export function getTransakRecreateSessionError({
+  hasMountedSession,
+  activeIntentId,
+  canRecreateSession,
+}: {
+  hasMountedSession: boolean
+  activeIntentId: string | null
+  canRecreateSession: boolean
+}): Error | null {
+  const mountedError = getMountedTransakSessionError('reopen', hasMountedSession)
+  if (mountedError) return mountedError
+  if (!activeIntentId) {
+    return new Error('No unresolved Transak intent is available to reopen')
+  }
+  if (!canRecreateSession) {
+    return new Error(
+      'This Transak purchase may already be in progress; continue recovery instead of reopening checkout'
+    )
+  }
+  return null
 }
 
 export function getTransakSessionContextError({
@@ -136,6 +177,28 @@ export function shouldSurfaceTransakSessionFailure({
   return !(ownsActiveVerification && (status === 'verifying' || status === 'credited'))
 }
 
+export function hasTransakProviderEvidence({
+  status,
+  activeIntentId,
+  pending,
+  activeVerificationRecord,
+}: {
+  status: TransakOnRampStatus
+  activeIntentId: string | null
+  pending: readonly OnRampRecord[]
+  activeVerificationRecord: OnRampRecord | null
+}): boolean {
+  if (!activeIntentId) return false
+  const ownsRecord = (record: OnRampRecord) => matchesOnRampTransaction(record, activeIntentId)
+
+  return (
+    pending.some(ownsRecord) ||
+    (activeVerificationRecord !== null && ownsRecord(activeVerificationRecord)) ||
+    status === 'awaiting-delivery' ||
+    status === 'credited'
+  )
+}
+
 /** Thin Transak session and iframe adapter over the shared on-ramp state machine. */
 export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOnRampResult {
   const { iframeTitle, iframeClassName, ...coreOptions } = options
@@ -152,6 +215,9 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
 
   const [session, setSessionState] = useState<TransakWidgetSession | null>(null)
   const [isLaunching, setIsLaunching] = useState(false)
+  const [sessionRecreationState, setSessionRecreationState] =
+    useState<TransakSessionRecreationState>('none')
+  const sessionRecreationStateRef = useRef<TransakSessionRecreationState>('none')
   const sessionRef = useRef<TransakWidgetSession | null>(null)
   const mountedSessionScopeRef = useRef<symbol | null>(null)
   const generationRef = useRef(0)
@@ -170,6 +236,8 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
   )
   const activeVerificationRecordRef = useRef(activeVerificationRecord)
   activeVerificationRecordRef.current = activeVerificationRecord
+  const pendingRef = useRef(core.pending)
+  pendingRef.current = core.pending
   const coreStatusRef = useRef(core.status)
   coreStatusRef.current = core.status
   const [apiUrl, chainId, privateReadAddress] = privateReadQueryScope
@@ -186,6 +254,19 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
     mountedSessionScopeRef.current = nextScope
     setSessionState(next)
   }, [])
+
+  const updateSessionRecreation = useCallback((event: TransakSessionRecreationEvent) => {
+    const next = transitionTransakSessionRecreation(sessionRecreationStateRef.current, event)
+    sessionRecreationStateRef.current = next
+    setSessionRecreationState(next)
+  }, [])
+  const hasProviderEvidence = hasTransakProviderEvidence({
+    status: core.status,
+    activeIntentId: core.activeIntentId,
+    pending: core.pending,
+    activeVerificationRecord,
+  })
+  const canRecreateSession = sessionRecreationState === 'preload-only' && !hasProviderEvidence
 
   const requestSession = useCallback(
     (intentId: string, generation: number) =>
@@ -211,6 +292,7 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
 
       const generation = ++generationRef.current
       setIsLaunching(true)
+      updateSessionRecreation('reset')
       let launchedIntentId: string | null = null
       const pendingRequest = (async () => {
         try {
@@ -219,6 +301,9 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
             quoteCurrencyAmount: request.quoteCurrencyAmount,
           })
           launchedIntentId = intent.transaction_id
+          // A failed or expired session can be recreated only until the first
+          // provider frame becomes interactive.
+          updateSessionRecreation('intent-created')
           // `prepareOnRampIntent` synchronously owns this intent in the shared
           // core, but React may not have committed the wrapper's render-time
           // `activeIntentId` yet. Guard only request ownership here; the full
@@ -266,18 +351,34 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
       sessionRequestRef.current = { generation, promise: pendingRequest }
       return pendingRequest
     },
-    [handleProviderLaunchFailed, prepareOnRampIntent, requestSession, scopeSession, setSession]
+    [
+      handleProviderLaunchFailed,
+      prepareOnRampIntent,
+      requestSession,
+      scopeSession,
+      setSession,
+      updateSessionRecreation,
+    ]
   )
 
   const recreateSession = useCallback((): Promise<void> => {
     const currentRequest = sessionRequestRef.current
     if (currentRequest?.generation === generationRef.current) return currentRequest.promise
-    const mountedSessionError = getMountedTransakSessionError('reopen', sessionRef.current !== null)
-    if (mountedSessionError) return Promise.reject(mountedSessionError)
     const intentId = activeIntentIdRef.current
-    if (!intentId) {
-      return Promise.reject(new Error('No unresolved Transak intent is available to reopen'))
-    }
+    const hasProviderEvidence = hasTransakProviderEvidence({
+      status: coreStatusRef.current,
+      activeIntentId: intentId,
+      pending: pendingRef.current,
+      activeVerificationRecord: activeVerificationRecordRef.current,
+    })
+    const recreateError = getTransakRecreateSessionError({
+      hasMountedSession: sessionRef.current !== null,
+      activeIntentId: intentId,
+      canRecreateSession:
+        sessionRecreationStateRef.current === 'preload-only' && !hasProviderEvidence,
+    })
+    if (recreateError) return Promise.reject(recreateError)
+    if (!intentId) return Promise.reject(new Error('No unresolved Transak intent is available'))
 
     const generation = ++generationRef.current
     setIsLaunching(true)
@@ -335,9 +436,10 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
       const current = sessionRef.current
       if (!current || current.generation !== generation || generationRef.current !== generation)
         return
+      updateSessionRecreation('provider-ui-activated')
       handleProviderLaunchReady()
     },
-    [handleProviderLaunchReady]
+    [handleProviderLaunchReady, updateSessionRecreation]
   )
 
   const handleFrameExpired = useCallback(
@@ -371,6 +473,10 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
       if (!current || current.generation !== generation || generationRef.current !== generation)
         return
 
+      // Any authenticated action proves that the provider UI loaded. Never
+      // create a second provider order under this signed intent.
+      updateSessionRecreation('provider-ui-activated')
+
       switch (action.type) {
         case 'ready':
           handleProviderLaunchReady()
@@ -385,7 +491,13 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
           await closeWidget()
       }
     },
-    [closeWidget, handleProviderEvent, handleProviderLaunchReady, refreshPending]
+    [
+      closeWidget,
+      handleProviderEvent,
+      handleProviderLaunchReady,
+      refreshPending,
+      updateSessionRecreation,
+    ]
   )
 
   useEffect(() => {
@@ -396,10 +508,21 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
   }, [core.activeIntentId, setSession])
 
   useEffect(() => {
+    if (!core.activeIntentId) {
+      updateSessionRecreation('reset')
+      return
+    }
+    if (hasProviderEvidence) {
+      updateSessionRecreation('provider-evidence')
+    }
+  }, [core.activeIntentId, hasProviderEvidence, updateSessionRecreation])
+
+  useEffect(() => {
     generationRef.current++
     setSession(null, null)
     setIsLaunching(false)
-  }, [scopeSession, setSession])
+    updateSessionRecreation('reset')
+  }, [scopeSession, setSession, updateSessionRecreation])
 
   useEffect(
     () => () => {
@@ -454,6 +577,7 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
     refreshPending,
     isLaunching,
     isWidgetOpen: scopedSession !== null,
+    canRecreateSession,
     widget,
     launch,
     recreateSession,

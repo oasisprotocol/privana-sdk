@@ -96,6 +96,42 @@ export function assertOnRampRecordProvider(
   }
 }
 
+/**
+ * A newly created signed intent is launch authority, so every field that can
+ * redirect delivery or credit must echo the exact request. Pending recovery
+ * records remain more permissive because older records can omit these fields.
+ */
+export function assertCreatedOnRampIntent(
+  record: OnRampRecord,
+  configuredProvider: OnRampProvider,
+  expected: OnRampProviderIntentInput
+): void {
+  assertOnRampRecordProvider(record, configuredProvider)
+  if (
+    typeof record.provider_asset_code !== 'string' ||
+    record.provider_asset_code.toLowerCase() !== expected.providerAssetCode.toLowerCase()
+  ) {
+    throw new Error(
+      `On-ramp intent asset ${record.provider_asset_code} does not match requested asset ${expected.providerAssetCode}`
+    )
+  }
+  if (
+    typeof record.token_id !== 'string' ||
+    record.token_id.toLowerCase() !== expected.tokenId.toLowerCase()
+  ) {
+    throw new Error('On-ramp intent token does not match the requested token')
+  }
+  if (record.chain_id !== expected.chainId) {
+    throw new Error('On-ramp intent chain does not match the requested chain')
+  }
+  if (
+    typeof record.wallet_address !== 'string' ||
+    record.wallet_address.toLowerCase() !== expected.walletAddress.toLowerCase()
+  ) {
+    throw new Error('On-ramp intent wallet does not match the Privana deposit address')
+  }
+}
+
 export function matchesOnRampTransaction(record: OnRampRecord, transactionId: string): boolean {
   return (
     record.transaction_id === transactionId ||
@@ -115,6 +151,13 @@ export function getOnRampIntentId(record: OnRampRecord): string {
  */
 export function getOnRampVerificationKey(record: OnRampRecord): string {
   return getOnRampIntentId(record)
+}
+
+export function canRetryOnRampVerification(
+  record: OnRampRecord,
+  activeVerificationId: string | null
+): boolean {
+  return Boolean(record.on_chain_tx_hash) && activeVerificationId === null
 }
 
 export async function recordOnRampProviderDeposit(

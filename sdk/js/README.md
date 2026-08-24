@@ -246,6 +246,31 @@ recovery, receipt verification, `/deposits/check`, credit, and optional
 post-credit locking. MoonPay and Transak launch and widget behavior live in thin
 provider-specific adapters.
 
+The SDK product modals select one provider, token, and provider-side asset at
+the `PrivanaProvider` boundary:
+
+```tsx
+<PrivanaProvider
+  networkConfig={networkConfig}
+  onRamp={{
+    provider: 'transak',
+    tokenId: '0x...',
+    providerAssetCode: 'usdc',
+  }}
+>
+  <App />
+</PrivanaProvider>
+```
+
+An explicit configuration locks card purchases to that token and fails closed
+if the provider, token, or asset is invalid. When `onRamp` is omitted, the
+product modal preserves its existing MoonPay behavior using
+`networkConfig.moonpayApiKey` and the token's MoonPay mapping.
+
+For Transak, the product modal requires a target at least 5% above Privana's
+on-chain minimum. This margin reduces the risk that provider estimate movement
+delivers a paid purchase below the amount that Privana can verify.
+
 **The provider delivers the purchased token directly to the server-derived
 Privana deposit address. Provider orders, amounts, events, and webhooks are
 correlation hints only. One unambiguous matching on-chain transfer, including
@@ -376,12 +401,16 @@ function TransakCheckout({ tokenId }) {
 }
 ```
 
-`recreateSession()` is an explicit retry for the current unresolved intent after
-the previous iframe has closed or expired. The adapter uses the backend URL
-byte-for-byte, preserves the browser `Referer`, and accepts messages only from
-the current iframe at the exact documented Transak origin. Widget messages are
-polling hints only. Authenticated `/onramp/pending` reads and the matching
-on-chain ERC-20 transfer remain the recovery and credit path.
+`recreateSession()` retries the current unresolved intent only when its session
+failed or expired before the provider iframe became interactive. After the
+provider UI activates or order evidence exists, the adapter refuses to create a
+second provider order under that intent. Unmount the direct hook to abandon its
+local checkout UI; durable signed-intent recovery remains available. The
+adapter uses the backend URL byte-for-byte, preserves the browser `Referer`, and
+accepts messages only from the current iframe at the exact documented Transak
+origin. Widget messages are polling hints only. Authenticated
+`/onramp/pending` reads and the matching on-chain ERC-20 transfer remain the
+recovery and credit path.
 
 ### Pending / recovery
 

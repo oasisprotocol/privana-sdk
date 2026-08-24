@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useAccount } from 'wagmi'
 import { formatUnits, zeroAddress } from 'viem'
 import { MoonPayProvider } from '@moonpay/moonpay-react'
@@ -11,8 +11,16 @@ import { toast } from 'sonner'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useDeposit, isSignedLockUsable, type PostDepositLockError } from '@/sdk/hooks'
 import { useDepositAddress } from '@/sdk/hooks/use-deposit-address'
+import { usePrivateReadRequest } from '@/sdk/hooks/use-private-read-request'
 import { getExternalDepositMinimum } from '@/sdk/hooks/external-deposit-lock'
 import { useExternalDepositLock } from '@/sdk/hooks/use-external-deposit-lock'
+import {
+  createProductOnRampFlowSnapshot,
+  createProductOnRampOutcomeCallbacks,
+  matchesProductOnRampScope,
+  resolveProductOnRamp,
+  type ProductOnRampFlowSnapshot,
+} from '@/sdk/on-ramp/product-config'
 import { cn, parseTokenAmount } from '@/lib/utils'
 import { TokenSelectorView } from './token-selector-view'
 import { CreditCardWidgetView } from './credit-card-widget-view'
@@ -31,12 +39,17 @@ type DepositMethodTab = 'crypto' | 'credit-card'
 
 // Mounting MoonPayProvider injects MoonPay's web-sdk script from their CDN, so
 // it wraps only the credit-card subtree instead of the app root — the other
-// deposit flows never pay that cost. Without `networkConfig.moonpayApiKey` the
-// children render bare and the credit-card flow stays fail-closed (purchase
-// limits never load, so the deposit button stays disabled).
-function MoonPayGate({ enabled, children }: { enabled: boolean; children: ReactNode }) {
-  const { networkConfig } = usePrivanaContext()
-  const apiKey = networkConfig.moonpayApiKey
+// deposit flows never pay that cost. The product flow passes its snapshotted
+// key so later configuration drift cannot remount or re-authorize the widget.
+function MoonPayGate({
+  enabled,
+  apiKey,
+  children,
+}: {
+  enabled: boolean
+  apiKey: string | undefined
+  children: ReactNode
+}) {
   if (!enabled || !apiKey) return <>{children}</>
   return <MoonPayProvider apiKey={apiKey}>{children}</MoonPayProvider>
 }
@@ -174,17 +187,58 @@ export function DepositModalContent({
   /** Renders a back chevron on the root method view (for embedding, e.g. WalletModal). */
   onExit?: () => void
 }) {
-  const { serviceName, enabledTokens, defaultToken, hostedAuthConfig, getChainById, getTokenById } =
-    usePrivanaContext()
+  const {
+    serviceName,
+    enabledTokens,
+    defaultToken,
+    hostedAuthConfig,
+    serviceAddress,
+    getChainById,
+    getTokenById,
+    networkConfig,
+    onRamp,
+  } = usePrivanaContext()
   const { address } = useAccount()
+  const { privateReadQueryScope } = usePrivateReadRequest()
+  const [privateReadApiUrl, accountingChainId, beneficiaryAddress] = privateReadQueryScope
   const appName = serviceName ?? 'Privana'
   const [activeTab, setActiveTab] = useState<DepositMethodTab>(defaultTab)
   const [view, setView] = useState<DepositViewName>('method')
   const [source, setSource] = useState<DepositSource>('connected')
   const [selectedTokenId, setSelectedTokenId] = useState(defaultToken?.id ?? '')
   const [amount, setAmount] = useState('')
+  const [cardFlow, setCardFlow] = useState<ProductOnRampFlowSnapshot | null>(null)
+  const [cardFlowActive, setCardFlowActive] = useState(false)
+  const [cardUnsafeToClose, setCardUnsafeToClose] = useState(false)
+  const nextCardFlowId = useRef(0)
 
-  const selectedToken = enabledTokens.find((t) => t.id === selectedTokenId) ?? defaultToken
+  const stateSelectedToken = enabledTokens.find((t) => t.id === selectedTokenId) ?? defaultToken
+  const cardOnRamp = useMemo(
+    () =>
+      resolveProductOnRamp({
+        config: onRamp,
+        enabledTokens,
+        legacyToken: stateSelectedToken,
+        moonpayApiKey: networkConfig.moonpayApiKey,
+      }),
+    [enabledTokens, networkConfig.moonpayApiKey, onRamp, stateSelectedToken]
+  )
+  const cardOnRampScope = useMemo(
+    () => ({
+      apiUrl: privateReadApiUrl,
+      accountingChainId,
+      accountingContract: networkConfig.accountingContract,
+      beneficiaryAddress,
+    }),
+    [accountingChainId, beneficiaryAddress, networkConfig.accountingContract, privateReadApiUrl]
+  )
+  // Do not mount a submitted flow for a different API, Accounting deployment,
+  // or beneficiary while the effect below clears its parent-owned state.
+  const mountedCardFlow =
+    cardFlow && matchesProductOnRampScope(cardFlow.scope, cardOnRampScope) ? cardFlow : null
+  const displayedCardOnRamp =
+    view === 'credit-card-widget' && mountedCardFlow ? mountedCardFlow.selection : cardOnRamp
+  const selectedToken = source === 'credit-card' ? displayedCardOnRamp.token : stateSelectedToken
   const externalDepositAddress = useDepositAddress({
     enabled: source === 'external' && (view === 'deposit' || view === 'external-deposit'),
   })
@@ -207,6 +261,9 @@ export function DepositModalContent({
       setView('method')
       setAmount('')
       setSelectedTokenId('')
+      setCardFlow(null)
+      setCardFlowActive(false)
+      setCardUnsafeToClose(false)
     }
   }, [address, hostedAuthConfig])
 
@@ -236,9 +293,38 @@ export function DepositModalContent({
   // success view would show transfer steps that never happened), so without
   // a host callback there is nothing to do here.
   const finishCardPurchase = () => {
+    setCardFlowActive(false)
+    setCardUnsafeToClose(false)
     setAmount('')
     onDepositSuccess?.()
   }
+
+  const leaveCardPurchase = useCallback(() => {
+    setCardFlow(null)
+    setCardFlowActive(false)
+    setCardUnsafeToClose(false)
+    setAmount('')
+    setView('deposit')
+  }, [])
+
+  useEffect(() => {
+    if (cardFlow && !matchesProductOnRampScope(cardFlow.scope, cardOnRampScope)) {
+      leaveCardPurchase()
+    }
+  }, [cardFlow, cardOnRampScope, leaveCardPurchase])
+
+  const cardOutcomeCallbacks = mountedCardFlow
+    ? createProductOnRampOutcomeCallbacks({
+        requiresLock: mountedCardFlow.requiresLock,
+        onComplete: finishCardPurchase,
+        onLockFailed: (err) => {
+          setCardFlowActive(false)
+          setCardUnsafeToClose(false)
+          setLockFailure(err)
+          onLockFailed?.(err)
+        },
+      })
+    : null
 
   const {
     txHash,
@@ -324,7 +410,8 @@ export function DepositModalContent({
   const isUnsafeToClose =
     ((isGettingAddress || isSendingTransaction) && !cancelled) ||
     externalLock.isSigning ||
-    externalLock.isSubmittingLock
+    externalLock.isSubmittingLock ||
+    cardUnsafeToClose
   useEffect(() => {
     onCloseBlockedChange?.(isUnsafeToClose)
   }, [isUnsafeToClose, onCloseBlockedChange])
@@ -377,6 +464,28 @@ export function DepositModalContent({
     if (args.source === 'credit-card') {
       // The pre-signed lock for card purchases is created inside the on-ramp
       // flow itself — see the postDepositLock wiring in CreditCardWidgetView.
+      if (cardFlow && cardFlowActive) {
+        setView('credit-card-widget')
+        return
+      }
+      try {
+        setCardFlow(
+          createProductOnRampFlowSnapshot({
+            id: ++nextCardFlowId.current,
+            selection: cardOnRamp,
+            amount: args.amount,
+            allowance,
+            lockServiceAddress: serviceAddress,
+            moonpayApiKey: networkConfig.moonpayApiKey,
+            scope: cardOnRampScope,
+          })
+        )
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Card purchase is unavailable')
+        return
+      }
+      setCardFlowActive(false)
+      setCardUnsafeToClose(false)
       setView('credit-card-widget')
       return
     }
@@ -505,6 +614,12 @@ export function DepositModalContent({
     setCancelled(false)
     resetDeposit()
     if (view === 'external-deposit') setView('deposit')
+    if (view === 'credit-card-widget') {
+      setCardFlow(null)
+      setCardFlowActive(false)
+      setCardUnsafeToClose(false)
+      setView('deposit')
+    }
   }
 
   const handleExternalLockRetry = () => {
@@ -538,7 +653,7 @@ export function DepositModalContent({
     view === 'external-deposit'
       ? { to: 'deposit' as const, label: 'Deposit from External Wallet' }
       : view === 'credit-card-widget'
-        ? { to: 'deposit' as const, label: 'Buy with credit card and deposit' }
+        ? { to: 'deposit' as const, label: 'Buy with card and deposit' }
         : view === 'select-token'
           ? { to: 'deposit' as const, label: 'Deposit' }
           : { to: 'method' as const, label: 'Deposit Method' }
@@ -547,6 +662,14 @@ export function DepositModalContent({
     if (view === 'external-deposit' && externalLock.session) {
       toast.error('Cancel the active deposit from the address screen before going back')
       return
+    }
+    if (view === 'credit-card-widget' && (cardUnsafeToClose || cardFlowActive)) {
+      toast.error('Finish or recover the active card purchase before going back')
+      return
+    }
+    if (view === 'credit-card-widget') {
+      setCardFlow(null)
+      setCardUnsafeToClose(false)
     }
     if (back.to === 'method') {
       setAmount('')
@@ -671,14 +794,12 @@ export function DepositModalContent({
         <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
           <div className="flex flex-col gap-2">
             <h2 className="text-foreground text-[28px] leading-8 font-medium">
-              {activeTab === 'crypto'
-                ? 'Choose the deposit method'
-                : 'Buy with credit card and deposit'}
+              {activeTab === 'crypto' ? 'Choose the deposit method' : 'Buy with card and deposit'}
             </h2>
             <p className="text-muted-foreground text-sm">
               {activeTab === 'crypto'
                 ? 'Choose the deposit method.'
-                : 'Use credit card to buy crypto and deposit'}
+                : 'Buy crypto by card and deposit it into your account.'}
             </p>
           </div>
 
@@ -706,8 +827,8 @@ export function DepositModalContent({
           ) : (
             <div className="flex flex-col gap-3">
               <MethodOption
-                title="Moonpay"
-                description="on selected address"
+                title="Buy with card"
+                description="Purchase and deposit directly into your account."
                 onClick={() => {
                   onSelectCreditCard?.()
                   openDeposit('credit-card')
@@ -719,10 +840,18 @@ export function DepositModalContent({
       )}
 
       {activeView === 'deposit' && (
-        <MoonPayGate enabled={source === 'credit-card'}>
+        <MoonPayGate
+          enabled={
+            source === 'credit-card' &&
+            cardOnRamp.provider === 'moonpay' &&
+            !cardOnRamp.unavailableReason
+          }
+          apiKey={networkConfig.moonpayApiKey}
+        >
           <DepositView
             source={source}
             selectedToken={selectedToken}
+            onRamp={cardOnRamp}
             amount={amount}
             allowance={allowance}
             externalMinimum={externalMinimum}
@@ -759,23 +888,26 @@ export function DepositModalContent({
         />
       )}
 
-      {activeView === 'credit-card-widget' && (
-        <MoonPayGate enabled>
+      {activeView === 'credit-card-widget' && mountedCardFlow && (
+        <MoonPayGate
+          enabled={mountedCardFlow.selection.provider === 'moonpay'}
+          apiKey={mountedCardFlow.moonpayApiKey}
+        >
           <CreditCardWidgetView
-            token={selectedToken}
-            amount={amount}
-            allowance={allowance}
-            // Mirrors the crypto path's lock gating: with an allowance the
-            // host learns of success only once the lock is accepted. The
-            // on-ramp hook also reports resumed background rows through these
-            // same callbacks, which at worst ends the deposit view early or
-            // surfaces an earlier purchase's lock failure — both re-promptable.
-            onCredited={allowance ? undefined : finishCardPurchase}
-            onLockSubmitted={finishCardPurchase}
-            onLockFailed={(err) => {
-              setLockFailure(err)
-              onLockFailed?.(err)
-            }}
+            key={mountedCardFlow.id}
+            token={mountedCardFlow.selection.token}
+            onRamp={mountedCardFlow.selection}
+            amount={mountedCardFlow.amount}
+            allowance={mountedCardFlow.allowance}
+            lockServiceAddress={mountedCardFlow.lockServiceAddress}
+            onUnsafeToCloseChange={setCardUnsafeToClose}
+            onActiveFlowChange={setCardFlowActive}
+            // Both provider leaves route only this snapshot's signed intent.
+            // With an allowance, host success waits for lock acceptance.
+            onCredited={cardOutcomeCallbacks?.onCredited}
+            onLockSubmitted={cardOutcomeCallbacks?.onLockSubmitted}
+            onLockFailed={cardOutcomeCallbacks?.onLockFailed}
+            onLeave={leaveCardPurchase}
           />
         </MoonPayGate>
       )}
