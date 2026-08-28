@@ -6,6 +6,7 @@ import type { TokenConfig } from '../types/tokens'
 
 const BYTES32_PATTERN = /^0x[0-9a-fA-F]{64}$/
 const PROVIDER_ASSET_CODE_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/
+const TRANSAK_MINIMUM_TARGET_PERCENT = 105n
 
 export interface ProductOnRampSelection {
   provider: OnRampProvider | null
@@ -189,6 +190,11 @@ export function matchesProductOnRampScope(
 
 export function isMoonPayProductOnRamp(selection: ProductOnRampSelection): boolean {
   return selection.provider === 'moonpay' && !selection.unavailableReason
+}
+
+/** Add the provider-delivery margin and round up in token base units. */
+export function getTransakMinimumTargetBaseUnits(minimum: bigint): bigint {
+  return (minimum * TRANSAK_MINIMUM_TARGET_PERCENT + 99n) / 100n
 }
 
 /**

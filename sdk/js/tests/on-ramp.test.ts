@@ -7,6 +7,7 @@ import {
 } from 'viem'
 import { AccountingApiError, PrivanaClient } from '../src/sdk/client'
 import { checkDepositWithFinalityRetry } from '../src/sdk/hooks/deposit-finality'
+import { bindOnRampFlowSession } from '../src/sdk/hooks/use-on-ramp'
 import { clearPendingLock, loadPendingLock, savePendingLock } from '../src/sdk/hooks/pending-lock'
 import {
   moonPayOnRampAdapter,
@@ -153,6 +154,26 @@ function lockPayload(overrides: Partial<LockFundsRequest> = {}): LockFundsReques
     ...overrides,
   }
 }
+
+describe('on-ramp flow session lifecycle', () => {
+  it('invalidates unmounted work without clearing a newer flow session', () => {
+    const first = Symbol('first')
+    const second = Symbol('second')
+    const ref: { current: symbol | null } = { current: first }
+
+    const cleanupFirst = bindOnRampFlowSession(ref, first)
+    bindOnRampFlowSession(ref, second)
+    cleanupFirst()
+    expect(ref.current).toBe(second)
+
+    const cleanupSecond = bindOnRampFlowSession(ref, second)
+    cleanupSecond()
+    expect(ref.current).toBeNull()
+
+    bindOnRampFlowSession(ref, second)
+    expect(ref.current).toBe(second)
+  })
+})
 
 describe('MoonPay provider adapter', () => {
   it('builds only the MoonPay compatibility field in a provider-neutral intent request', () => {

@@ -18,6 +18,7 @@ export type {
   TransakOnRampStatus,
 } from './sdk/hooks/use-transak-on-ramp'
 export type { OnRampPostDepositLockConfig } from './sdk/hooks/pending-lock'
+export { getTransakMinimumTargetBaseUnits } from './sdk/on-ramp/product-config'
 
 export { FiatOnRampForm } from './components/privana/fiat-on-ramp-form'
 export type { FiatOnRampFormProps } from './components/privana/fiat-on-ramp-form'

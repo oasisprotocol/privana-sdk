@@ -1,10 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { formatUnits } from 'viem'
+import { formatUnits, parseUnits } from 'viem'
 import { useAccount } from 'wagmi'
 import { useBalance } from '@oasisprotocol/privana-sdk'
-import { useTransakOnRamp, type TransakOnRampDebugEvent } from '@oasisprotocol/privana-sdk/on-ramp'
+import {
+  getTransakMinimumTargetBaseUnits,
+  useTransakOnRamp,
+  type TransakOnRampDebugEvent,
+} from '@oasisprotocol/privana-sdk/on-ramp'
 import { SectionLabel } from './preview-layout'
 
 const TRANSAK_TOKEN_ID = '0xe0cf8bcfab4702a9404ff78f0d28cb60561ace07e918f9634d039943fd26a7c3'
@@ -64,6 +68,7 @@ export function TransakOnRampPreview() {
     refreshPending,
     isLaunching,
     isWidgetOpen,
+    canRecreateSession,
     widget,
     launch,
     recreateSession,
@@ -89,7 +94,23 @@ export function TransakOnRampPreview() {
     onDebugEvent: appendDebugEvent,
   })
 
-  const quoteAmountIsValid = quoteAmount.trim() !== '' && Number(quoteAmount) > 0
+  let quoteAmountBaseUnits: bigint | undefined
+  if (selectedToken && quoteAmount.trim()) {
+    try {
+      quoteAmountBaseUnits = parseUnits(quoteAmount, selectedToken.decimals)
+    } catch {
+      // Keep launch disabled for malformed or over-precision input.
+    }
+  }
+  const minimumTargetBaseUnits =
+    minDepositBaseUnits === undefined
+      ? undefined
+      : getTransakMinimumTargetBaseUnits(minDepositBaseUnits)
+  const quoteAmountMeetsMinimum =
+    quoteAmountBaseUnits !== undefined &&
+    quoteAmountBaseUnits > 0n &&
+    minimumTargetBaseUnits !== undefined &&
+    quoteAmountBaseUnits >= minimumTargetBaseUnits
   const settingsLocked = Boolean(activeIntentId || isLaunching || isWidgetOpen)
   const canLaunch =
     isConnected &&
@@ -97,8 +118,8 @@ export function TransakOnRampPreview() {
     !activeIntentId &&
     !isLaunching &&
     !isWidgetOpen &&
-    (!lockAfterCredit || quoteAmountIsValid)
-  const canReopen = Boolean(activeIntentId) && !isLaunching && !isWidgetOpen
+    (!lockAfterCredit || quoteAmountMeetsMinimum)
+  const canReopen = Boolean(activeIntentId) && canRecreateSession && !isLaunching && !isWidgetOpen
   const isApprovedOrigin = browserOrigin === EXPECTED_STAGING_ORIGIN
 
   const runAction = useCallback(async (label: string, action: () => Promise<void>) => {
@@ -224,6 +245,11 @@ export function TransakOnRampPreview() {
               <span className="text-muted-foreground mt-1 block">
                 After checkout opens, adjust the fiat payment until Transak estimates at least this
                 crypto amount. The signed lock is 98% of this target.
+              </span>
+              <span className="text-muted-foreground mt-1 block">
+                {selectedToken && minimumTargetBaseUnits !== undefined
+                  ? `Minimum target: ${formatUnits(minimumTargetBaseUnits, selectedToken.decimals)} ${selectedToken.symbol}, including the 5% delivery buffer.`
+                  : 'Loading minimum target…'}
               </span>
             </label>
           )}

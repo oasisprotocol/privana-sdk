@@ -10,19 +10,16 @@ import {
   type UseTransakOnRampResult,
 } from '@/sdk/hooks/use-transak-on-ramp'
 import { canRetryOnRampVerification, matchesOnRampTransaction } from '@/sdk/on-ramp/provider'
-import { matchesFrozenOnRampToken } from '@/sdk/on-ramp/product-config'
+import {
+  getTransakMinimumTargetBaseUnits,
+  matchesFrozenOnRampToken,
+} from '@/sdk/on-ramp/product-config'
 import type { Allowance } from '@/sdk/types/allowance'
 import type { Address, OnRampRecord } from '@/sdk/types'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import type { PostDepositLockError } from '@/sdk/hooks/pending-lock'
 
 type UseTransakOnRampHook = typeof useTransakOnRamp
-const TRANSAK_MINIMUM_TARGET_PERCENT = 105n
-
-/** Add the original 5% provider-delivery margin and round up in token base units. */
-export function getTransakMinimumTargetBaseUnits(minimum: bigint): bigint {
-  return (minimum * TRANSAK_MINIMUM_TARGET_PERCENT + 99n) / 100n
-}
 
 export { matchesFrozenOnRampToken }
 
@@ -344,7 +341,9 @@ export function TransakCardWidgetView({
             ? 'Opening checkout…'
             : activeIntentId
               ? 'Reopen card checkout'
-              : 'Open card checkout'}
+              : allowance
+                ? 'Sign policy and open checkout'
+                : 'Open card checkout'}
         </Button>
       ) : (
         <p className="text-muted-foreground text-sm">

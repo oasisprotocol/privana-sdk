@@ -70,6 +70,17 @@ import type {
 const DEFAULT_DELIVERY_TIMEOUT_MS = 120_000
 const DEFAULT_VERIFICATION_TIMEOUT_MS = 10 * 60_000
 const DEFAULT_FINALITY_RETRY_INTERVAL_MS = 15_000
+
+export function bindOnRampFlowSession(
+  ref: { current: symbol | null },
+  flowSession: symbol
+): () => void {
+  ref.current = flowSession
+  return () => {
+    if (ref.current === flowSession) ref.current = null
+  }
+}
+
 export type OnRampFlowStatus =
   | 'idle'
   /** Provider launch succeeded; the user is completing the purchase. */
@@ -252,8 +263,9 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
   // A unique render-session token prevents async work from an earlier
   // user/API/chain/token scope from mutating the current flow, including A→B→A.
   const flowSession = useMemo(() => Symbol(flowIdentity), [flowIdentity])
-  const flowSessionRef = useRef(flowSession)
+  const flowSessionRef = useRef<symbol | null>(flowSession)
   flowSessionRef.current = flowSession
+  useEffect(() => bindOnRampFlowSession(flowSessionRef, flowSession), [flowSession])
 
   const [status, setStatus] = useState<OnRampFlowStatus>('idle')
   const [pending, setPending] = useState<OnRampRecord[]>([])

@@ -5,13 +5,13 @@ import { zeroAddress } from 'viem'
 import {
   createProductOnRampFlowSnapshot,
   createProductOnRampOutcomeCallbacks,
+  getTransakMinimumTargetBaseUnits,
   isMoonPayProductOnRamp,
   matchesProductOnRampScope,
   resolveProductOnRamp,
 } from '../src/sdk/on-ramp/product-config'
 import { ProductOnRampProviderBranch } from '../src/components/privana/credit-card-widget-view'
 import {
-  getTransakMinimumTargetBaseUnits,
   isTransakCardFlowUnsafe,
   matchesFrozenOnRampToken,
   runTransakCheckoutAction,
@@ -357,7 +357,17 @@ describe('product card on-ramp configuration', () => {
       })
     )
     expect(markup).toContain('Open card checkout')
-    expect(hookRenders).toBe(1)
+    const policyMarkup = renderToStaticMarkup(
+      createElement(TransakCardWidgetView, {
+        token,
+        providerAssetCode: 'usdc',
+        amount: '100.08',
+        allowance: { value: '100000000000000000000', lockDuration: 3600 },
+        useOnRamp,
+      })
+    )
+    expect(policyMarkup).toContain('Sign policy and open checkout')
+    expect(hookRenders).toBe(2)
     expect(launchCalls).toBe(0)
     expect(recreateCalls).toBe(0)
   })

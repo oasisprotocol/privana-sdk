@@ -62,12 +62,21 @@ browser to preserve `Referer`. Widget URLs are single-use and expire after five
 minutes. See the official [Create Widget URL](https://docs.transak.com/api/public/create-widget-url)
 and [Partner FAQ](https://docs.transak.com/guides/partner-faqs).
 
+### Product modal acceptance
+
+Review the shipped flow from `/`: open **Deposit Modal**, select **Credit Card** and
+**Buy with card**, enter the target amount, then choose **Continue**. Confirm the next
+screen shows the target receipt before the checkout action and, when a policy is present,
+labels that action **Sign policy and open checkout**. Localhost can verify this path up to
+the launch boundary; complete the purchase after deploying the same preview to the exact
+Transak-approved staging origin.
+
 ### Manual test order
 
 Run the basic purchase first with **Lock after credit** off:
 
 1. Record the initial Privana balance, deposit address, and time.
-2. Launch Transak and complete one staging USDC/Base purchase.
+2. Launch Transak and complete one staging USDC purchase that delivers Base Sepolia TRNSK.
 3. Confirm the UI progresses through delivery and verification to `credited`.
 4. Confirm the balance increase equals the matching ERC-20 `Transfer` log amount.
 5. Save the diagnostic JSON, intent ID, provider order ID, source transaction hash,

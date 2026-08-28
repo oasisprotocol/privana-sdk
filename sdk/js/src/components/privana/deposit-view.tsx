@@ -48,6 +48,7 @@ export function DepositView({
   const isExternal = source === 'external'
   const isCreditCard = source === 'credit-card'
   const isMoonPayCard = isCreditCard && isMoonPayProductOnRamp(onRamp)
+  const isTransakCard = isCreditCard && onRamp.provider === 'transak'
   const isNative = selectedToken?.contract === zeroAddress
   const { data: nativeBalanceData } = useBalance({
     address,
@@ -143,7 +144,9 @@ export function DepositView({
             Buy with card and deposit
           </h2>
           <p className="text-muted-foreground text-sm">
-            Enter your deposit amount and proceed to sign a policy.
+            {isTransakCard
+              ? 'Enter your target deposit amount and continue.'
+              : 'Enter your deposit amount and proceed to sign a policy.'}
           </p>
         </div>
       ) : (
@@ -295,7 +298,13 @@ export function DepositView({
         }}
         className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {needsConnect ? 'Connect Wallet' : allowance ? 'Sign Policy and Deposit' : 'Deposit'}
+        {needsConnect
+          ? 'Connect Wallet'
+          : isTransakCard
+            ? 'Continue'
+            : allowance
+              ? 'Sign Policy and Deposit'
+              : 'Deposit'}
       </button>
     </div>
   )
