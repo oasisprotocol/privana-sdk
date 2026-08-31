@@ -49,7 +49,7 @@ export function BaseIcon({ className, size = 24 }: IconProps) {
   )
 }
 
-export function WETHIcon({ className, size = 24 }: IconProps) {
+export function EthereumIcon({ className, size = 24 }: IconProps) {
   return (
     <svg
       width={size}
@@ -90,8 +90,9 @@ export function getTokenIcon(symbol: string | null | undefined, size?: number) {
   switch ((symbol ?? '').toUpperCase()) {
     case 'USDC':
       return <USDCIcon size={iconSize} />
+    case 'ETH':
     case 'WETH':
-      return <WETHIcon size={iconSize} />
+      return <EthereumIcon size={iconSize} />
     default:
       return (
         <div
