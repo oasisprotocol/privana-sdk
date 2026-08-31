@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import type { Allowance } from '@/sdk/types/allowance'
 import type { PostDepositLockError } from '@/sdk/hooks/pending-lock'
@@ -47,53 +47,38 @@ export function CreditCardWidgetView({
     )
   }
 
+  if (onRamp.provider === 'transak') {
+    return (
+      <TransakCardWidgetView
+        token={token}
+        providerAssetCode={onRamp.providerAssetCode}
+        amount={amount}
+        allowance={allowance}
+        lockServiceAddress={lockServiceAddress}
+        onCredited={onCredited}
+        onLockSubmitted={onLockSubmitted}
+        onLockFailed={onLockFailed}
+        onLeave={onLeave}
+        onUnsafeToCloseChange={onUnsafeToCloseChange}
+        onActiveFlowChange={onActiveFlowChange}
+      />
+    )
+  }
+
   return (
-    <ProductOnRampProviderBranch
-      provider={onRamp.provider}
-      moonpay={
-        <MoonPayCardWidgetView
-          token={token}
-          amount={amount}
-          allowance={allowance}
-          lockServiceAddress={lockServiceAddress}
-          onCredited={onCredited}
-          onLockSubmitted={onLockSubmitted}
-          onLockFailed={onLockFailed}
-          onLeaveFlow={onLeave}
-          onUnsafeToCloseChange={onUnsafeToCloseChange}
-          onActiveFlowChange={onActiveFlowChange}
-        />
-      }
-      transak={
-        <TransakCardWidgetView
-          token={token}
-          providerAssetCode={onRamp.providerAssetCode}
-          amount={amount}
-          allowance={allowance}
-          lockServiceAddress={lockServiceAddress}
-          onCredited={onCredited}
-          onLockSubmitted={onLockSubmitted}
-          onLockFailed={onLockFailed}
-          onLeave={onLeave}
-          onUnsafeToCloseChange={onUnsafeToCloseChange}
-          onActiveFlowChange={onActiveFlowChange}
-        />
-      }
+    <MoonPayCardWidgetView
+      token={token}
+      amount={amount}
+      allowance={allowance}
+      lockServiceAddress={lockServiceAddress}
+      onCredited={onCredited}
+      onLockSubmitted={onLockSubmitted}
+      onLockFailed={onLockFailed}
+      onLeaveFlow={onLeave}
+      onUnsafeToCloseChange={onUnsafeToCloseChange}
+      onActiveFlowChange={onActiveFlowChange}
     />
   )
-}
-
-/** The deliberately direct product branch. It has no runtime provider registry. */
-export function ProductOnRampProviderBranch({
-  provider,
-  moonpay,
-  transak,
-}: {
-  provider: 'moonpay' | 'transak'
-  moonpay: ReactNode
-  transak: ReactNode
-}) {
-  return provider === 'transak' ? transak : moonpay
 }
 
 function MoonPayCardWidgetView({

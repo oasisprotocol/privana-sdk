@@ -9,6 +9,7 @@ import {
   type TransakWidgetSession,
 } from '../on-ramp/transak-adapter'
 import { matchesOnRampTransaction } from '../on-ramp/provider'
+import { getOnRampTokenFingerprint } from '../on-ramp/product-config'
 import type { OnRampRecord } from '../types'
 import {
   useOnRamp,
@@ -241,7 +242,13 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
   const coreStatusRef = useRef(core.status)
   coreStatusRef.current = core.status
   const [apiUrl, chainId, privateReadAddress] = privateReadQueryScope
-  const scopeIdentity = `${apiUrl}\u0000${chainId}\u0000${privateReadAddress ?? ''}\u0000${coreOptions.tokenId}`
+  const scopeIdentity = [
+    apiUrl,
+    chainId,
+    privateReadAddress?.toLowerCase() ?? '',
+    coreOptions.tokenId.toLowerCase(),
+    getOnRampTokenFingerprint(core.selectedToken),
+  ].join('\u0000')
   // A new symbol for every account/API/chain/token transition also catches
   // A -> B -> A changes. It prevents an old iframe or session response from
   // becoming actionable during the render before the shared core resets.

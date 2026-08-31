@@ -118,7 +118,7 @@ export function TransakOnRampPreview() {
     !activeIntentId &&
     !isLaunching &&
     !isWidgetOpen &&
-    (!lockAfterCredit || quoteAmountMeetsMinimum)
+    quoteAmountMeetsMinimum
   const canReopen = Boolean(activeIntentId) && canRecreateSession && !isLaunching && !isWidgetOpen
   const isApprovedOrigin = browserOrigin === EXPECTED_STAGING_ORIGIN
 
@@ -231,28 +231,27 @@ export function TransakOnRampPreview() {
             </span>
           </label>
 
-          {lockAfterCredit && (
-            <label className="block text-xs">
-              <span className="font-medium">Target crypto amount</span>
-              <input
-                className="border-border bg-card mt-1 w-full rounded border px-2 py-1.5"
-                inputMode="decimal"
-                placeholder={`Amount in ${selectedToken?.symbol ?? 'TRNSK'}`}
-                value={quoteAmount}
-                disabled={settingsLocked}
-                onChange={(event) => setQuoteAmount(event.target.value.trim())}
-              />
-              <span className="text-muted-foreground mt-1 block">
-                After checkout opens, adjust the fiat payment until Transak estimates at least this
-                crypto amount. The signed lock is 98% of this target.
-              </span>
-              <span className="text-muted-foreground mt-1 block">
-                {selectedToken && minimumTargetBaseUnits !== undefined
-                  ? `Minimum target: ${formatUnits(minimumTargetBaseUnits, selectedToken.decimals)} ${selectedToken.symbol}, including the 5% delivery buffer.`
-                  : 'Loading minimum target…'}
-              </span>
-            </label>
-          )}
+          <label className="block text-xs">
+            <span className="font-medium">Target crypto amount</span>
+            <input
+              className="border-border bg-card mt-1 w-full rounded border px-2 py-1.5"
+              inputMode="decimal"
+              placeholder={`Amount in ${selectedToken?.symbol ?? 'TRNSK'}`}
+              value={quoteAmount}
+              disabled={settingsLocked}
+              onChange={(event) => setQuoteAmount(event.target.value.trim())}
+            />
+            <span className="text-muted-foreground mt-1 block">
+              After checkout opens, adjust the fiat payment until Transak estimates at least this
+              crypto amount.
+              {lockAfterCredit && ' The signed lock is 98% of this target.'}
+            </span>
+            <span className="text-muted-foreground mt-1 block">
+              {selectedToken && minimumTargetBaseUnits !== undefined
+                ? `Minimum target: ${formatUnits(minimumTargetBaseUnits, selectedToken.decimals)} ${selectedToken.symbol}, including the 5% delivery buffer.`
+                : 'Loading minimum target…'}
+            </span>
+          </label>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -261,12 +260,12 @@ export function TransakOnRampPreview() {
             className="bg-primary text-primary-foreground rounded px-3 py-2 text-xs font-medium disabled:opacity-50"
             disabled={!canLaunch}
             onClick={() =>
-              void runAction('Launching Transak', () =>
-                launch({
+              void runAction('Launching Transak', async () => {
+                await launch({
                   providerAssetCode: TRANSAK_ASSET_CODE,
                   quoteCurrencyAmount: lockAfterCredit ? quoteAmount : undefined,
                 })
-              )
+              })
             }
           >
             {isLaunching ? 'Launching…' : 'Launch Transak'}

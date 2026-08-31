@@ -197,6 +197,13 @@ export function getTransakMinimumTargetBaseUnits(minimum: bigint): bigint {
   return (minimum * TRANSAK_MINIMUM_TARGET_PERCENT + 99n) / 100n
 }
 
+export function getOnRampTokenFingerprint(token: TokenConfig | undefined): string {
+  if (!token) return ''
+  return [token.id.toLowerCase(), token.contract.toLowerCase(), token.chainId, token.decimals].join(
+    '\u0000'
+  )
+}
+
 /**
  * The frozen snapshot token is the launch authority. The shared core resolves
  * its token from live configuration by id, so a host config change between
@@ -206,13 +213,7 @@ export function matchesFrozenOnRampToken(
   frozen: TokenConfig,
   live: TokenConfig | undefined
 ): boolean {
-  return (
-    live !== undefined &&
-    live.id.toLowerCase() === frozen.id.toLowerCase() &&
-    live.contract.toLowerCase() === frozen.contract.toLowerCase() &&
-    live.chainId === frozen.chainId &&
-    live.decimals === frozen.decimals
-  )
+  return live !== undefined && getOnRampTokenFingerprint(live) === getOnRampTokenFingerprint(frozen)
 }
 
 /** One outcome policy shared by both product provider leaves. */

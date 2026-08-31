@@ -26,6 +26,7 @@ import {
 import {
   createPendingOnRampReadCoordinator,
   discardInvalidOnRampIntent,
+  finalizeCreditedOnRampIntent,
   filterCreditedOnRampRecords,
   forgetUnresolvedOnRampIntent,
   getOnRampCloseRecoveryAction,
@@ -87,7 +88,7 @@ function makeRecord(overrides: Partial<OnRampRecord> = {}): OnRampRecord {
   }
 }
 
-function createStorageStub(): Storage {
+function createStorageStub(rejectWrite?: (key: string) => boolean): Storage {
   const values = new Map<string, string>()
   return {
     get length() {
@@ -97,16 +98,22 @@ function createStorageStub(): Storage {
     getItem: (key) => values.get(key) ?? null,
     key: (index) => [...values.keys()][index] ?? null,
     removeItem: (key) => void values.delete(key),
-    setItem: (key, value) => values.set(key, String(value)),
+    setItem: (key, value) => {
+      if (rejectWrite?.(key)) throw new Error('Storage write rejected')
+      values.set(key, String(value))
+    },
   }
 }
 
-async function withBrowserStorage(run: () => Promise<void>): Promise<void> {
+async function withBrowserStorage(
+  run: () => Promise<void>,
+  rejectWrite?: (key: string) => boolean
+): Promise<void> {
   const globals = globalThis as { window?: unknown }
   const original = globals.window
   globals.window = {
-    localStorage: createStorageStub(),
-    sessionStorage: createStorageStub(),
+    localStorage: createStorageStub(rejectWrite),
+    sessionStorage: createStorageStub(rejectWrite),
   }
   try {
     await run()
@@ -486,6 +493,47 @@ describe('durable on-ramp recovery', () => {
       expect(visible).toEqual([])
       expect(verificationStarts).toBe(0)
     })
+  })
+
+  it('finalizes an unresolved intent only after its credited marker is durable', async () => {
+    await withBrowserStorage(async () => {
+      const scope = recoveryScope()
+      const record = makeRecord({
+        provider: 'transak',
+        provider_asset_code: 'usdc',
+        moonpay_transaction_id: undefined,
+        moonpay_currency_code: undefined,
+      })
+      rememberUnresolvedOnRampIntent(scope, record.transaction_id, 100)
+
+      expect(finalizeCreditedOnRampIntent(scope, record, 101)).toBe(true)
+      expect(loadUnresolvedOnRampIntents(scope, 102)).toEqual([])
+      expect(loadCreditedOnRampVerifications(scope, 102)).toEqual([
+        { verificationKey: getOnRampVerificationKey(record), savedAt: 101 },
+      ])
+    })
+  })
+
+  it('retains the unresolved intent when its credited marker cannot be stored', async () => {
+    await withBrowserStorage(
+      async () => {
+        const scope = recoveryScope()
+        const record = makeRecord({
+          provider: 'transak',
+          provider_asset_code: 'usdc',
+          moonpay_transaction_id: undefined,
+          moonpay_currency_code: undefined,
+        })
+        rememberUnresolvedOnRampIntent(scope, record.transaction_id, 100)
+
+        expect(finalizeCreditedOnRampIntent(scope, record, 101)).toBe(false)
+        expect(loadCreditedOnRampVerifications(scope, 102)).toEqual([])
+        expect(loadUnresolvedOnRampIntents(scope, 102)).toEqual([
+          { transactionId: record.transaction_id, savedAt: 100 },
+        ])
+      },
+      (key) => key.startsWith('privana:onramp-credited:')
+    )
   })
 
   it('keeps two signed intents distinct when one provider payout transaction contains both', async () => {

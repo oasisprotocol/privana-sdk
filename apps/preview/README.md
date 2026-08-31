@@ -71,28 +71,17 @@ labels that action **Sign policy and open checkout**. Localhost can verify this 
 the launch boundary; complete the purchase after deploying the same preview to the exact
 Transak-approved staging origin.
 
-### Manual test order
+### Controlled staging purchase
 
-Run the basic purchase first with **Lock after credit** off:
+Run one purchase with **Lock after credit** off:
 
 1. Record the initial Privana balance, deposit address, and time.
-2. Launch Transak and complete one staging USDC purchase that delivers Base Sepolia TRNSK.
+2. Enter at least the displayed minimum target, launch Transak, confirm “You receive” meets it,
+   then complete one staging USDC purchase that delivers Base Sepolia TRNSK.
 3. Confirm the UI progresses through delivery and verification to `credited`.
 4. Confirm the balance increase equals the matching ERC-20 `Transfer` log amount.
 5. Save the diagnostic JSON, intent ID, provider order ID, source transaction hash,
    deposit ID, and timestamps. Do not save session URLs, auth tokens, or signatures.
 
-Then exercise recovery with fresh purchases:
-
-- close the widget before a provider event, refresh the page, and finish from the
-  pending list;
-- let a session expire, then use **Reopen checkout** and confirm a fresh URL is used;
-- retry a row while source-chain finality is still insufficient;
-- complete two purchases and verify that each intent credits exactly once.
-
-Finally, run the optional lock pass. Enable **Lock after credit** and enter the target
-crypto amount. After Transak opens, adjust the editable fiat payment until the estimated
-crypto receipt is at least that target. Sign the buffered lock before launch, and confirm
-the deposit credits before the lock is submitted to the configured Honoroll testnet service.
-If lock submission fails, confirm the credited funds remain available and record the
-same-signature recovery state.
+The broader recovery and optional lock test matrix is tracked in
+[issue #113](https://github.com/oasisprotocol/privana-sdk/issues/113).

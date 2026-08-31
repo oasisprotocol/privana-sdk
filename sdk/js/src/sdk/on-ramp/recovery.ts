@@ -6,7 +6,7 @@ import {
   removeBrowserStorageItem,
   setBrowserStorageItem,
 } from '../hooks/browser-storage'
-import { getOnRampVerificationKey } from './provider'
+import { getOnRampIntentId, getOnRampVerificationKey } from './provider'
 
 export const MAX_UNRESOLVED_ONRAMP_INTENTS = 10
 export const MAX_CREDITED_ONRAMP_VERIFICATIONS = 1_000
@@ -209,6 +209,21 @@ export function rememberCreditedOnRampVerification(
   )
   verifications.push({ verificationKey, savedAt: now })
   return writeCreditedVerifications(scope, verifications.slice(-MAX_CREDITED_ONRAMP_VERIFICATIONS))
+}
+
+/** Advance durable recovery from an unresolved intent to a credited marker. */
+export function finalizeCreditedOnRampIntent(
+  scope: OnRampRecoveryScope,
+  record: OnRampRecord,
+  now = Date.now()
+): boolean {
+  const remembered = rememberCreditedOnRampVerification(
+    scope,
+    getOnRampVerificationKey(record),
+    now
+  )
+  if (remembered) forgetUnresolvedOnRampIntent(scope, getOnRampIntentId(record), now)
+  return remembered
 }
 
 export function filterCreditedOnRampRecords(

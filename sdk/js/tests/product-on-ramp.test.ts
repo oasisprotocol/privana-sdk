@@ -7,14 +7,12 @@ import {
   createProductOnRampOutcomeCallbacks,
   getTransakMinimumTargetBaseUnits,
   isMoonPayProductOnRamp,
+  matchesFrozenOnRampToken,
   matchesProductOnRampScope,
   resolveProductOnRamp,
 } from '../src/sdk/on-ramp/product-config'
-import { ProductOnRampProviderBranch } from '../src/components/privana/credit-card-widget-view'
 import {
-  isTransakCardFlowUnsafe,
-  matchesFrozenOnRampToken,
-  runTransakCheckoutAction,
+  assertTransakCheckoutPreconditions,
   TransakCardWidgetView,
 } from '../src/components/privana/transak-card-widget-view'
 import type {
@@ -150,30 +148,6 @@ describe('product card on-ramp configuration', () => {
       expect(selection.provider).toBeNull()
       expect(selection.unavailableReason).toContain('invalid')
     }
-  })
-
-  it('renders exactly one direct provider branch', () => {
-    const moonpay = createElement('span', null, 'moonpay-leaf')
-    const transak = createElement('span', null, 'transak-leaf')
-
-    expect(
-      renderToStaticMarkup(
-        createElement(ProductOnRampProviderBranch, {
-          provider: 'moonpay',
-          moonpay,
-          transak,
-        })
-      )
-    ).toBe('<span>moonpay-leaf</span>')
-    expect(
-      renderToStaticMarkup(
-        createElement(ProductOnRampProviderBranch, {
-          provider: 'transak',
-          moonpay,
-          transak,
-        })
-      )
-    ).toBe('<span>transak-leaf</span>')
   })
 
   it('freezes amount, lock policy, service address, and deployment scope', () => {
@@ -372,83 +346,42 @@ describe('product card on-ramp configuration', () => {
     expect(recreateCalls).toBe(0)
   })
 
-  it('creates a fresh Transak intent only from the explicit checkout action', async () => {
-    const calls: unknown[] = []
-    await runTransakCheckoutAction({
-      activeIntentId: null,
-      canOpen: true,
-      canRecreateSession: false,
-      request: { providerAssetCode: 'usdc', quoteCurrencyAmount: '100.08' },
-      launch: async (request) => {
-        calls.push(['launch', request])
-      },
-      recreateSession: async () => {
-        calls.push(['recreate'])
-      },
-    })
-    expect(calls).toEqual([
-      ['launch', { providerAssetCode: 'usdc', quoteCurrencyAmount: '100.08' }],
-    ])
-  })
-
-  it('refuses the checkout action when launch preconditions fail, even imperatively', async () => {
-    const calls: unknown[] = []
-    const launch = async (request: unknown) => {
-      calls.push(['launch', request])
-    }
-    const recreateSession = async () => {
-      calls.push(['recreate'])
-    }
-    const request = { providerAssetCode: 'usdc', quoteCurrencyAmount: '100.08' }
-
+  it('refuses the checkout action when launch preconditions fail, even imperatively', () => {
     // Fresh launch with failed gates (unknown minimum, token drift, etc.).
-    await expect(
-      runTransakCheckoutAction({
+    expect(() =>
+      assertTransakCheckoutPreconditions({
         activeIntentId: null,
         canOpen: false,
         canRecreateSession: false,
-        request,
-        launch,
-        recreateSession,
       })
-    ).rejects.toThrow('Card checkout is unavailable')
+    ).toThrow('Card checkout is unavailable')
 
     // Session recreation must obey the same gates: recreatable intent, gates failed.
-    await expect(
-      runTransakCheckoutAction({
+    expect(() =>
+      assertTransakCheckoutPreconditions({
         activeIntentId: 'intent-1',
         canOpen: false,
         canRecreateSession: true,
-        request,
-        launch,
-        recreateSession,
       })
-    ).rejects.toThrow('Card checkout is unavailable')
+    ).toThrow('Card checkout is unavailable')
 
     // Non-recreatable intent keeps its specific recovery guidance.
-    await expect(
-      runTransakCheckoutAction({
+    expect(() =>
+      assertTransakCheckoutPreconditions({
         activeIntentId: 'intent-1',
         canOpen: false,
         canRecreateSession: false,
-        request,
-        launch,
-        recreateSession,
       })
-    ).rejects.toThrow('Continue signed-intent recovery')
-
-    expect(calls).toEqual([])
+    ).toThrow('Continue signed-intent recovery')
 
     // Recreation still works when every gate passes.
-    await runTransakCheckoutAction({
-      activeIntentId: 'intent-1',
-      canOpen: true,
-      canRecreateSession: true,
-      request,
-      launch,
-      recreateSession,
-    })
-    expect(calls).toEqual([['recreate']])
+    expect(() =>
+      assertTransakCheckoutPreconditions({
+        activeIntentId: 'intent-1',
+        canOpen: true,
+        canRecreateSession: true,
+      })
+    ).not.toThrow()
   })
 
   it('adds a rounded-up 5% safety margin to the Transak deposit minimum', () => {
@@ -462,6 +395,9 @@ describe('product card on-ramp configuration', () => {
     expect(matchesFrozenOnRampToken(token, { ...token, id: TOKEN_ID.toUpperCase() as never })).toBe(
       true
     )
+    expect(
+      matchesFrozenOnRampToken(token, { ...token, symbol: 'DISPLAY', name: 'Display only' })
+    ).toBe(true)
     expect(matchesFrozenOnRampToken(token, undefined)).toBe(false)
     for (const live of [
       { ...token, id: OTHER_TOKEN_ID },
@@ -582,12 +518,6 @@ describe('product card on-ramp configuration', () => {
     expect(markup).toContain('exact recovery')
     expect(options?.postDepositLock?.serviceAddress).toBe(LOCK_SERVICE_ADDRESS)
     expect(options?.tokenId).toBe(TOKEN_ID)
-  })
-
-  it('blocks close only during Transak launch/signing and lock settlement', () => {
-    expect(isTransakCardFlowUnsafe({ isLaunching: false, lockPending: false })).toBe(false)
-    expect(isTransakCardFlowUnsafe({ isLaunching: true, lockPending: false })).toBe(true)
-    expect(isTransakCardFlowUnsafe({ isLaunching: false, lockPending: true })).toBe(true)
   })
 
   it('completes no-lock purchases on credit and locked purchases only after lock acceptance', () => {

@@ -12,7 +12,6 @@ import { usePrivanaContext } from '../context/privana-provider'
 import {
   assertCreatedOnRampIntent,
   assertOnRampRecordProvider,
-  getOnRampIntentId,
   getOnRampVerificationKey,
   matchesOnRampTransaction,
   recordOnRampProviderDeposit,
@@ -25,15 +24,14 @@ import {
 import {
   createPendingOnRampReadCoordinator,
   discardInvalidOnRampIntent,
+  finalizeCreditedOnRampIntent,
   filterCreditedOnRampRecords,
-  forgetUnresolvedOnRampIntent,
   getOnRampCloseRecoveryAction,
   getPendingOnRampsWithRecovery,
   loadCreditedOnRampVerifications,
   loadUnresolvedOnRampIntents,
   MIN_ONRAMP_PENDING_REQUEST_INTERVAL_MS,
   rememberUnresolvedOnRampIntent,
-  rememberCreditedOnRampVerification,
   type OnRampRecoveryScope,
 } from '../on-ramp/recovery'
 import {
@@ -580,17 +578,13 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
       if (record) {
         creditedVerificationKeysRef.current.add(getOnRampVerificationKey(record))
         setPending((rows) => filterCreditedOnRampRecords(rows, creditedVerificationKeysRef.current))
-        if (
-          recoveryScopeAtCredit &&
-          !rememberCreditedOnRampVerification(
-            recoveryScopeAtCredit,
-            getOnRampVerificationKey(record)
-          )
-        ) {
-          emitDebug('verification:credit-recovery-storage-unavailable')
-        }
-        if (recoveryScopeAtCredit) {
-          forgetUnresolvedOnRampIntent(recoveryScopeAtCredit, getOnRampIntentId(record))
+        const finalizeRecovery = () => {
+          if (
+            recoveryScopeAtCredit &&
+            !finalizeCreditedOnRampIntent(recoveryScopeAtCredit, record)
+          ) {
+            emitDebug('verification:credit-recovery-storage-unavailable')
+          }
         }
         setFinalityProgress((prev) => {
           if (!(record.transaction_id in prev)) return prev
@@ -603,7 +597,10 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
         // window, and the stored payload is keyed by the signer.
         const lockOwner = lockOwnerRef.current ?? privateReadAddress
         if (lockOwner) {
-          void submitPendingLockAfterCredit(record, lockOwner, creditedAmount)
+          // Keep durable recovery until the post-credit lock attempt settles.
+          void submitPendingLockAfterCredit(record, lockOwner, creditedAmount).finally(
+            finalizeRecovery
+          )
         } else if (postDepositLock) {
           emitDebug('lock:owner-unavailable')
           const lockError = new PostDepositLockError(
@@ -612,6 +609,9 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
           )
           if (onLockFailedRef.current) onLockFailedRef.current(lockError, record)
           else onErrorRef.current?.(lockError)
+          finalizeRecovery()
+        } else {
+          finalizeRecovery()
         }
       }
       void (async () => {

@@ -4,11 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CircleCheckIcon, Loader2 } from 'lucide-react'
 import { formatUnits, parseUnits } from 'viem'
 import { Button } from '@/components/ui/button'
-import {
-  useTransakOnRamp,
-  type TransakOnRampLaunchRequest,
-  type UseTransakOnRampResult,
-} from '@/sdk/hooks/use-transak-on-ramp'
+import { useTransakOnRamp } from '@/sdk/hooks/use-transak-on-ramp'
 import { canRetryOnRampVerification, matchesOnRampTransaction } from '@/sdk/on-ramp/provider'
 import {
   getTransakMinimumTargetBaseUnits,
@@ -20,8 +16,6 @@ import type { TokenConfig } from '@/sdk/types/tokens'
 import type { PostDepositLockError } from '@/sdk/hooks/pending-lock'
 
 type UseTransakOnRampHook = typeof useTransakOnRamp
-
-export { matchesFrozenOnRampToken }
 
 export interface TransakCardWidgetViewProps {
   token: TokenConfig
@@ -37,29 +31,6 @@ export interface TransakCardWidgetViewProps {
   onActiveFlowChange?: (active: boolean) => void
   /** Test seam; production always uses the real hook. */
   useOnRamp?: UseTransakOnRampHook
-}
-
-export async function runTransakCheckoutAction({
-  activeIntentId,
-  canOpen,
-  canRecreateSession,
-  request,
-  launch,
-  recreateSession,
-}: {
-  activeIntentId: string | null
-  canOpen: boolean
-  canRecreateSession: boolean
-  request: TransakOnRampLaunchRequest
-  launch: UseTransakOnRampResult['launch']
-  recreateSession: UseTransakOnRampResult['recreateSession']
-}): Promise<void> {
-  assertTransakCheckoutPreconditions({ activeIntentId, canOpen, canRecreateSession })
-  if (!activeIntentId) {
-    await launch(request)
-    return
-  }
-  await recreateSession()
 }
 
 /**
@@ -82,16 +53,6 @@ export function assertTransakCheckoutPreconditions({
   if (!canOpen) {
     throw new Error('Card checkout is unavailable; close this purchase and start again')
   }
-}
-
-export function isTransakCardFlowUnsafe({
-  isLaunching,
-  lockPending,
-}: {
-  isLaunching: boolean
-  lockPending: boolean
-}): boolean {
-  return isLaunching || lockPending
 }
 
 export function TransakCardWidgetView({
@@ -233,7 +194,7 @@ export function TransakCardWidgetView({
     onActiveFlowChange?.(ownedFlowActive)
   }, [onActiveFlowChange, ownedFlowActive])
 
-  const unsafeToClose = isTransakCardFlowUnsafe({ isLaunching, lockPending })
+  const unsafeToClose = isLaunching || lockPending
   useEffect(() => {
     onUnsafeToCloseChange?.(unsafeToClose)
     return () => onUnsafeToCloseChange?.(false)
@@ -249,14 +210,8 @@ export function TransakCardWidgetView({
       setLockSettled(false)
       setOwnedTerminal(false)
       if (!activeIntentId) ownedIntentIdRef.current = null
-      await runTransakCheckoutAction({
-        activeIntentId,
-        canOpen,
-        canRecreateSession,
-        request: { providerAssetCode, quoteCurrencyAmount: amount },
-        launch,
-        recreateSession,
-      })
+      if (activeIntentId) await recreateSession()
+      else await launch({ providerAssetCode, quoteCurrencyAmount: amount })
     } catch (nextError) {
       setActionError(
         nextError instanceof Error ? nextError : new Error('Failed to open card checkout')
