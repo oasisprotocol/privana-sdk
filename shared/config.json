@@ -11,6 +11,24 @@
       "name": "Ethereum Sepolia",
       "explorerUrl": "https://sepolia.etherscan.io",
       "explorerName": "Etherscan"
+    },
+    {
+      "id": 1,
+      "name": "Ethereum",
+      "explorerUrl": "https://etherscan.io",
+      "explorerName": "Etherscan"
+    },
+    {
+      "id": 8453,
+      "name": "Base",
+      "explorerUrl": "https://basescan.org",
+      "explorerName": "BaseScan"
+    },
+    {
+      "id": 999,
+      "name": "HyperEVM",
+      "explorerUrl": "https://hyperevmscan.io",
+      "explorerName": "HyperEVMScan"
     }
   ],
   "networks": {
