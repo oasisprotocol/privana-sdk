@@ -13,13 +13,14 @@ interface TokenSelectorViewProps {
  * Simple single-column token picker shared by the Deposit and Withdraw modals.
  */
 export function TokenSelectorView({ selectedTokenId, onSelect }: TokenSelectorViewProps) {
-  const { enabledTokens } = usePrivanaContext()
+  const { enabledTokens, getChainById } = usePrivanaContext()
 
   return (
     <div className="bg-muted flex flex-col rounded-[10px] p-3">
       <div className="flex max-h-72 flex-col gap-1 overflow-y-auto">
         {enabledTokens.map((token) => {
           const isSelected = selectedTokenId === token.id
+          const chainName = getChainById(token.chainId)?.name
           return (
             <button
               key={token.id}
@@ -35,7 +36,7 @@ export function TokenSelectorView({ selectedTokenId, onSelect }: TokenSelectorVi
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-foreground text-sm font-medium">{token.symbol}</div>
-                <div className="text-muted-foreground text-[11px]">{token.name}</div>
+                <div className="text-muted-foreground text-[11px]">on {chainName ?? '—'}</div>
               </div>
               {isSelected && (
                 <div className="bg-primary flex h-4 w-4 shrink-0 items-center justify-center rounded-full">

@@ -49,7 +49,7 @@ export function BaseIcon({ className, size = 24 }: IconProps) {
   )
 }
 
-export function WETHIcon({ className, size = 24 }: IconProps) {
+export function EthereumIcon({ className, size = 24 }: IconProps) {
   return (
     <svg
       width={size}
@@ -85,20 +85,21 @@ export function WETHIcon({ className, size = 24 }: IconProps) {
   )
 }
 
-export function getTokenIcon(symbol: string, size?: number) {
+export function getTokenIcon(symbol: string | null | undefined, size?: number) {
   const iconSize = size ?? 24
-  switch (symbol.toUpperCase()) {
+  switch ((symbol ?? '').toUpperCase()) {
     case 'USDC':
       return <USDCIcon size={iconSize} />
+    case 'ETH':
     case 'WETH':
-      return <WETHIcon size={iconSize} />
+      return <EthereumIcon size={iconSize} />
     default:
       return (
         <div
           className="bg-muted flex items-center justify-center rounded-full text-xs font-bold"
           style={{ width: iconSize, height: iconSize }}
         >
-          {symbol.slice(0, 2)}
+          {(symbol ?? '?').slice(0, 2)}
         </div>
       )
   }
@@ -107,8 +108,12 @@ export function getTokenIcon(symbol: string, size?: number) {
 export function getChainIcon(chainId: number, size?: number) {
   const iconSize = size ?? 24
   switch (chainId) {
+    case 8453:
     case 84532:
       return <BaseIcon size={iconSize} />
+    case 1:
+    case 11155111:
+      return <EthereumIcon size={iconSize} />
     default:
       return (
         <div
