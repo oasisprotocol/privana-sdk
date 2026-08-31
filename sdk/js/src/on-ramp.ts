@@ -31,6 +31,7 @@ export type {
   SignOnRampUrlResponse,
   CreateOnRampIntentRequest,
   CreateOnRampIntentResponse,
+  OnRampIpAttestation,
   CreateOnRampSessionRequest,
   OnRampSessionResponse,
   UpdateOnRampRequest,

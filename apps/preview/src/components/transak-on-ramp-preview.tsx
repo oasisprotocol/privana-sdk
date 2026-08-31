@@ -29,6 +29,8 @@ function errorMessage(error: Error): string {
 export function TransakOnRampPreview() {
   const { address, isConnected } = useAccount()
   const [lockAfterCredit, setLockAfterCredit] = useState(false)
+  const [deferWidgetMount, setDeferWidgetMount] = useState(false)
+  const [mountDeferredWidget, setMountDeferredWidget] = useState(false)
   const [quoteAmount, setQuoteAmount] = useState('')
   const [actionMessage, setActionMessage] = useState<string | null>(null)
   const [debugEvents, setDebugEvents] = useState<TransakOnRampDebugEvent[]>([])
@@ -121,6 +123,8 @@ export function TransakOnRampPreview() {
     quoteAmountMeetsMinimum
   const canReopen = Boolean(activeIntentId) && canRecreateSession && !isLaunching && !isWidgetOpen
   const isApprovedOrigin = browserOrigin === EXPECTED_STAGING_ORIGIN
+  const hasDeferredWidget = Boolean(widget) && deferWidgetMount && !mountDeferredWidget
+  const shouldMountWidget = Boolean(widget) && (!deferWidgetMount || mountDeferredWidget)
 
   const runAction = useCallback(async (label: string, action: () => Promise<void>) => {
     setActionMessage(`${label}…`)
@@ -231,6 +235,25 @@ export function TransakOnRampPreview() {
             </span>
           </label>
 
+          <label className="flex items-start gap-2 text-xs">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={deferWidgetMount}
+              disabled={settingsLocked}
+              onChange={(event) => {
+                setDeferWidgetMount(event.target.checked)
+                setMountDeferredWidget(false)
+              }}
+            />
+            <span>
+              <span className="font-medium">Defer iframe mount</span>
+              <span className="text-muted-foreground block">
+                Preview diagnostic. Holds a new session unmounted until you mount it manually.
+              </span>
+            </span>
+          </label>
+
           <label className="block text-xs">
             <span className="font-medium">Target crypto amount</span>
             <input
@@ -261,6 +284,7 @@ export function TransakOnRampPreview() {
             disabled={!canLaunch}
             onClick={() =>
               void runAction('Launching Transak', async () => {
+                setMountDeferredWidget(false)
                 await launch({
                   providerAssetCode: TRANSAK_ASSET_CODE,
                   quoteCurrencyAmount: lockAfterCredit ? quoteAmount : undefined,
@@ -282,10 +306,24 @@ export function TransakOnRampPreview() {
             type="button"
             className="border-border bg-background rounded border px-3 py-2 text-xs font-medium disabled:opacity-50"
             disabled={!canReopen}
-            onClick={() => void runAction('Reopening checkout', recreateSession)}
+            onClick={() =>
+              void runAction('Reopening checkout', async () => {
+                setMountDeferredWidget(false)
+                await recreateSession()
+              })
+            }
           >
             Reopen checkout
           </button>
+          {hasDeferredWidget && (
+            <button
+              type="button"
+              className="border-border bg-background rounded border px-3 py-2 text-xs font-medium"
+              onClick={() => setMountDeferredWidget(true)}
+            >
+              Mount deferred checkout
+            </button>
+          )}
           <button
             type="button"
             className="border-border bg-background rounded border px-3 py-2 text-xs font-medium"
@@ -302,7 +340,7 @@ export function TransakOnRampPreview() {
         )}
       </div>
 
-      {widget && (
+      {shouldMountWidget && (
         <div className="border-border bg-card mt-4 overflow-hidden rounded-xl border">
           <div className="border-border flex items-center justify-between border-b px-4 py-2 text-xs">
             <span className="font-semibold">Transak checkout</span>

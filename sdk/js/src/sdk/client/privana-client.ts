@@ -369,6 +369,7 @@ export class PrivanaClient {
   async createOnRampSession(request: CreateOnRampSessionRequest): Promise<OnRampSessionResponse> {
     return this.http.post<OnRampSessionResponse>('/v1/accounting/onramp/session', {
       transaction_id: request.transaction_id,
+      ip_attestation: request.ip_attestation,
     })
   }
 

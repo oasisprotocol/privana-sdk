@@ -33,9 +33,21 @@ export interface CreateOnRampIntentRequest {
 
 export type CreateOnRampIntentResponse = OnRampRecord
 
+/** Opaque edge-signed claim. Pass through without inspecting or modifying it. */
+export interface OnRampIpAttestation {
+  readonly v: 1
+  readonly ip: string
+  readonly iat: number
+  readonly exp: number
+  readonly nonce: string
+  readonly sig: string
+}
+
 /** Request body / response of POST /v1/accounting/onramp/session. */
 export interface CreateOnRampSessionRequest {
   transaction_id: string
+  /** Required by attested mode; omitted only by legacy header-mode callers. */
+  ip_attestation?: OnRampIpAttestation
 }
 
 export interface OnRampSessionResponse {

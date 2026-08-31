@@ -45,22 +45,28 @@ Open `http://localhost:3000/on-ramp`. The Transak tab is selected by default and
 the registered Base Sepolia TRNSK token. Connect a wallet and approve SIWE when the
 first authenticated staging request prompts for it.
 
-Localhost is suitable for checking the harness, authentication, token/deposit data,
-and backend errors. Do not start a purchase until all of these deployment gates are
-confirmed:
+Localhost can validate the SDK UI and launch boundary only. End-to-end checkout
+requires the deployed Testnet backend, the same-origin Cloudflare attestation route,
+and an exact HTTPS origin approved by Transak. Do not start a purchase until all of
+these deployment gates are confirmed:
 
 1. Staging selects `ONRAMP_PROVIDER=transak`.
-2. The backend receives a trusted proxy-owned client-IP header and its stable egress IP
-   is allowlisted by Transak.
-3. The preview is served from `https://app.testnet.privana.finance` or another exact
+2. The Cloudflare zone rate-limit rule is verified to run before the Worker.
+3. The same-origin `/__onramp-ip-attest` Worker and backend attested mode share the
+   provisioned secret.
+4. The backend's stable egress IPs are verified and allowlisted by Transak.
+5. The preview is served from `https://app.testnet.privana.finance` or another exact
    staging origin approved by Transak.
-4. The ROFL deployment has one active worker/token refresher and enough Base Sepolia
+6. The ROFL deployment has one active worker/token refresher and enough Base Sepolia
    gas.
 
 Transak requires the configured `referrerDomain` to match the approved website and the
 browser to preserve `Referer`. Widget URLs are single-use and expire after five
 minutes. See the official [Create Widget URL](https://docs.transak.com/api/public/create-widget-url)
 and [Partner FAQ](https://docs.transak.com/guides/partner-faqs).
+
+For the no-payment expiry check, enable **Defer iframe mount**, launch a session,
+wait beyond its expiry, then choose **Mount deferred checkout**.
 
 ### Product modal acceptance
 
