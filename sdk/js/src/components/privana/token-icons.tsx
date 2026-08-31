@@ -108,8 +108,12 @@ export function getTokenIcon(symbol: string | null | undefined, size?: number) {
 export function getChainIcon(chainId: number, size?: number) {
   const iconSize = size ?? 24
   switch (chainId) {
+    case 8453:
     case 84532:
       return <BaseIcon size={iconSize} />
+    case 1:
+    case 11155111:
+      return <EthereumIcon size={iconSize} />
     default:
       return (
         <div
