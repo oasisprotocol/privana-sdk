@@ -23,8 +23,8 @@
     "mainnet": {
       "chainId": 23294,
       "name": "Sapphire Mainnet",
-      "accountingContract": "0x0000000000000000000000000000000000000000",
-      "apiUrl": ""
+      "accountingContract": "0x5f16C90a0F410AE4Cdb76d9964f5FFDDeE305876",
+      "apiUrl": "https://api.privana.finance"
     }
   }
 }
