@@ -85,9 +85,9 @@ export function WETHIcon({ className, size = 24 }: IconProps) {
   )
 }
 
-export function getTokenIcon(symbol: string, size?: number) {
+export function getTokenIcon(symbol: string | null | undefined, size?: number) {
   const iconSize = size ?? 24
-  switch (symbol.toUpperCase()) {
+  switch ((symbol ?? '').toUpperCase()) {
     case 'USDC':
       return <USDCIcon size={iconSize} />
     case 'WETH':
@@ -98,7 +98,7 @@ export function getTokenIcon(symbol: string, size?: number) {
           className="bg-muted flex items-center justify-center rounded-full text-xs font-bold"
           style={{ width: iconSize, height: iconSize }}
         >
-          {symbol.slice(0, 2)}
+          {(symbol ?? '?').slice(0, 2)}
         </div>
       )
   }
