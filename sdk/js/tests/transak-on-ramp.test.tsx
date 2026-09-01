@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { PrivanaClient } from '../src/sdk/client'
+import { AccountingApiError, PrivanaClient } from '../src/sdk/client'
+import { executeSiwePrivateReadRequest } from '../src/sdk/hooks/use-private-read-request'
 import {
   normalizeTransakWidgetMessage,
   requestTransakWidgetSession,
@@ -28,6 +29,7 @@ import type {
   Address,
   Bytes32,
   CreateOnRampSessionRequest,
+  OnRampIpAttestation,
   OnRampRecord,
   OnRampSessionResponse,
 } from '../src/sdk/types'
@@ -38,6 +40,19 @@ const TOKEN_ID = `0x${'aa'.repeat(32)}` as Bytes32
 const INTENT_ID = 'signed-intent-1'
 const WIDGET_URL = 'https://global-stg.transak.com/?sessionId=opaque-token'
 const NOW = 1_800_000_000_000
+const TEST_ORIGIN = 'https://app.testnet.privana.finance'
+const INTENT_HASH = '6bdf3b7de575169b5fc37269f6c0af116e3d5d3fd083b7af5bb9c2a3263c5941'
+
+function ipAttestation(sequence: number): OnRampIpAttestation {
+  return {
+    v: 1,
+    ip: '8.8.8.8',
+    iat: NOW / 1000,
+    exp: NOW / 1000 + 60,
+    nonce: sequence.toString(16).padStart(32, '0'),
+    sig: sequence.toString(16).padStart(64, '0'),
+  }
+}
 
 function sessionResponse(overrides: Partial<OnRampSessionResponse> = {}): OnRampSessionResponse {
   return {
@@ -45,6 +60,20 @@ function sessionResponse(overrides: Partial<OnRampSessionResponse> = {}): OnRamp
     url: WIDGET_URL,
     expires_at: NOW / 1000 + 300,
     ...overrides,
+  }
+}
+
+async function withTestBrowserOrigin<T>(operation: () => Promise<T>): Promise<T> {
+  const originalLocation = Object.getOwnPropertyDescriptor(globalThis, 'location')
+  Object.defineProperty(globalThis, 'location', {
+    configurable: true,
+    value: { origin: TEST_ORIGIN },
+  })
+  try {
+    return await operation()
+  } finally {
+    if (originalLocation) Object.defineProperty(globalThis, 'location', originalLocation)
+    else Reflect.deleteProperty(globalThis, 'location')
   }
 }
 
@@ -108,8 +137,15 @@ describe('Transak provider adapter', () => {
     expect(updateCalls).toBe(0)
   })
 
-  it('requests a session only when explicitly invoked and always returns a fresh response', async () => {
+  it('fetches fresh intent-bound attestations for initial and recreated sessions', async () => {
     const requests: CreateOnRampSessionRequest[] = []
+    const attestationRequests: Array<{ input: string; init?: RequestInit }> = []
+    let attestationCount = 0
+    const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
+      attestationRequests.push({ input: String(input), init })
+      attestationCount++
+      return Response.json(ipAttestation(attestationCount))
+    }
     const client = {
       createOnRampSession: async (request: CreateOnRampSessionRequest) => {
         requests.push(request)
@@ -120,23 +156,140 @@ describe('Transak provider adapter', () => {
     } as Pick<PrivanaClient, 'createOnRampSession'>
 
     expect(requests).toEqual([])
-    const first = await requestTransakWidgetSession({
-      client,
-      intentId: INTENT_ID,
-      generation: 1,
-      now: () => NOW,
-    })
-    const second = await requestTransakWidgetSession({
-      client,
-      intentId: INTENT_ID,
-      generation: 2,
-      now: () => NOW,
-    })
+    const [first, second] = await withTestBrowserOrigin(async () => [
+      await requestTransakWidgetSession({
+        client,
+        intentId: INTENT_ID,
+        generation: 1,
+        now: () => NOW,
+        fetcher,
+      }),
+      await requestTransakWidgetSession({
+        client,
+        intentId: INTENT_ID,
+        generation: 2,
+        now: () => NOW,
+        fetcher,
+      }),
+    ])
 
-    expect(requests).toEqual([{ transaction_id: INTENT_ID }, { transaction_id: INTENT_ID }])
+    expect(
+      attestationRequests.map(({ input, init }) => ({
+        input,
+        method: init?.method,
+        contentType: new Headers(init?.headers).get('content-type'),
+        body: JSON.parse(String(init?.body)),
+        cache: init?.cache,
+        credentials: init?.credentials,
+        redirect: init?.redirect,
+        signalAborted: init?.signal?.aborted,
+      }))
+    ).toEqual([
+      {
+        input: `${TEST_ORIGIN}/__onramp-ip-attest`,
+        method: 'POST',
+        contentType: 'application/json',
+        body: { intentHash: INTENT_HASH },
+        cache: 'no-store',
+        credentials: 'omit',
+        redirect: 'error',
+        signalAborted: false,
+      },
+      {
+        input: `${TEST_ORIGIN}/__onramp-ip-attest`,
+        method: 'POST',
+        contentType: 'application/json',
+        body: { intentHash: INTENT_HASH },
+        cache: 'no-store',
+        credentials: 'omit',
+        redirect: 'error',
+        signalAborted: false,
+      },
+    ])
+    expect(requests).toEqual([
+      { transaction_id: INTENT_ID, ip_attestation: ipAttestation(1) },
+      { transaction_id: INTENT_ID, ip_attestation: ipAttestation(2) },
+    ])
     expect(first.url).toEndWith('session-1')
     expect(second.url).toEndWith('session-2')
     expect(second.generation).toBe(2)
+  })
+
+  it('fails closed when the attestation route fails or returns invalid JSON', async () => {
+    let sessionCalls = 0
+    const client = {
+      createOnRampSession: async () => {
+        sessionCalls++
+        return sessionResponse()
+      },
+    } as Pick<PrivanaClient, 'createOnRampSession'>
+
+    await withTestBrowserOrigin(async () => {
+      await expect(
+        requestTransakWidgetSession({
+          client,
+          intentId: INTENT_ID,
+          generation: 1,
+          fetcher: async () => new Response(null, { status: 503 }),
+        })
+      ).rejects.toThrow('failed with HTTP 503')
+      await expect(
+        requestTransakWidgetSession({
+          client,
+          intentId: INTENT_ID,
+          generation: 2,
+          fetcher: async () => new Response('{'),
+        })
+      ).rejects.toThrow('response is malformed')
+    })
+
+    expect(sessionCalls).toBe(0)
+  })
+
+  it('fetches a new attestation inside an authenticated private-read retry', async () => {
+    const requests: CreateOnRampSessionRequest[] = []
+    let attestationCount = 0
+    const readClient = {
+      createOnRampSession: async (request: CreateOnRampSessionRequest) => {
+        requests.push(request)
+        if (requests.length === 1) throw new AccountingApiError('Unauthorized', 401)
+        return sessionResponse()
+      },
+    } as unknown as PrivanaClient
+    const authClient = {
+      withPrivateReadToken: () => readClient,
+      clearPrivateReadToken: () => undefined,
+    } as Pick<PrivanaClient, 'withPrivateReadToken' | 'clearPrivateReadToken'>
+    const tokenRefreshes: boolean[] = []
+
+    const session = await withTestBrowserOrigin(() =>
+      executeSiwePrivateReadRequest({
+        client: authClient,
+        scopeKey: 'transak-attestation-retry',
+        getToken: async (forceRefresh) => {
+          tokenRefreshes.push(forceRefresh)
+          return forceRefresh ? 'fresh-token' : 'stale-token'
+        },
+        request: (client) =>
+          requestTransakWidgetSession({
+            client,
+            intentId: INTENT_ID,
+            generation: 1,
+            now: () => NOW,
+            fetcher: async () => {
+              attestationCount++
+              return Response.json(ipAttestation(attestationCount))
+            },
+          }),
+      })
+    )
+
+    expect(tokenRefreshes).toEqual([false, true])
+    expect(requests).toEqual([
+      { transaction_id: INTENT_ID, ip_attestation: ipAttestation(1) },
+      { transaction_id: INTENT_ID, ip_attestation: ipAttestation(2) },
+    ])
+    expect(session.url).toBe(WIDGET_URL)
   })
 })
 
@@ -351,24 +504,36 @@ describe('Transak session failure ownership', () => {
 })
 
 describe('Transak session wire and validation', () => {
-  it('posts only the signed intent through the scoped private-read client', async () => {
+  it('keeps attestation optional in the low-level client and passes it through unchanged', async () => {
     const originalFetch = globalThis.fetch
-    let requestUrl = ''
-    let requestInit: RequestInit | undefined
+    const requests: Array<{ url: string; init?: RequestInit }> = []
     globalThis.fetch = async (input, init) => {
-      requestUrl = String(input)
-      requestInit = init
+      requests.push({ url: String(input), init })
       return Response.json(sessionResponse())
     }
     try {
       const client = new PrivanaClient({ baseUrl: BASE_URL }).withPrivateReadToken('siwe-token')
-      const response = await client.createOnRampSession({ transaction_id: INTENT_ID })
+      const headerModeResponse = await client.createOnRampSession({ transaction_id: INTENT_ID })
+      const attestedModeResponse = await client.createOnRampSession({
+        transaction_id: INTENT_ID,
+        ip_attestation: ipAttestation(1),
+      })
 
-      expect(requestUrl).toBe(`${BASE_URL}/v1/accounting/onramp/session`)
-      expect(requestInit?.method).toBe('POST')
-      expect(JSON.parse(String(requestInit?.body))).toEqual({ transaction_id: INTENT_ID })
-      expect(new Headers(requestInit?.headers).get('X-SIWE-Token')).toBe('siwe-token')
-      expect(response).toEqual(sessionResponse())
+      expect(requests.map(({ url }) => url)).toEqual([
+        `${BASE_URL}/v1/accounting/onramp/session`,
+        `${BASE_URL}/v1/accounting/onramp/session`,
+      ])
+      expect(requests.map(({ init }) => init?.method)).toEqual(['POST', 'POST'])
+      expect(requests.map(({ init }) => JSON.parse(String(init?.body)))).toEqual([
+        { transaction_id: INTENT_ID },
+        { transaction_id: INTENT_ID, ip_attestation: ipAttestation(1) },
+      ])
+      expect(requests.map(({ init }) => new Headers(init?.headers).get('X-SIWE-Token'))).toEqual([
+        'siwe-token',
+        'siwe-token',
+      ])
+      expect(headerModeResponse).toEqual(sessionResponse())
+      expect(attestedModeResponse).toEqual(sessionResponse())
     } finally {
       globalThis.fetch = originalFetch
     }

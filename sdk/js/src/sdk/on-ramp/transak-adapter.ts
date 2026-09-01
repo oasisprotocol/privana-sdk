@@ -1,9 +1,13 @@
 import type { PrivanaClient } from '../client'
-import type { OnRampSessionResponse } from '../types'
+import type { OnRampIpAttestation, OnRampSessionResponse } from '../types'
 import type { OnRampProviderAdapter, OnRampProviderEvent } from './provider'
 
 const MAX_INTENT_ID_LENGTH = 512
 const MAX_WIDGET_URL_LENGTH = 8192
+const TRANSAK_IP_ATTESTATION_PATH = '/__onramp-ip-attest'
+const TRANSAK_IP_ATTESTATION_TIMEOUT_MS = 10_000
+
+type TransakAttestationFetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
 const TRANSAK_WIDGET_ORIGINS = new Set([
   'https://global-stg.transak.com',
@@ -47,17 +51,75 @@ export async function requestTransakWidgetSession({
   intentId,
   generation,
   now = Date.now,
+  fetcher = globalThis.fetch,
 }: {
   client: Pick<PrivanaClient, 'createOnRampSession'>
   intentId: string
   generation: number
   now?: () => number
+  fetcher?: TransakAttestationFetcher
 }): Promise<TransakWidgetSession> {
   if (!intentId || intentId.length > MAX_INTENT_ID_LENGTH) {
     throw new Error('Transak session requires a valid on-ramp intent')
   }
-  const response = await client.createOnRampSession({ transaction_id: intentId })
+  const ipAttestation = await fetchTransakIpAttestation({
+    intentId,
+    fetcher,
+  })
+  const response = await client.createOnRampSession({
+    transaction_id: intentId,
+    ip_attestation: ipAttestation,
+  })
   return validateTransakWidgetSession(response, intentId, generation, now())
+}
+
+async function fetchTransakIpAttestation({
+  intentId,
+  fetcher,
+}: {
+  intentId: string
+  fetcher: TransakAttestationFetcher
+}): Promise<OnRampIpAttestation> {
+  const subtleCrypto = globalThis.crypto?.subtle
+  const origin = globalThis.location?.origin
+  if (typeof fetcher !== 'function' || !subtleCrypto || !origin || origin === 'null') {
+    throw new Error('Secure client-IP attestation is unavailable')
+  }
+
+  const digest = await subtleCrypto.digest('SHA-256', new TextEncoder().encode(intentId))
+  const intentHash = Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, '0')
+  ).join('')
+
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), TRANSAK_IP_ATTESTATION_TIMEOUT_MS)
+  try {
+    let response: Response
+    try {
+      response = await fetcher(`${origin}${TRANSAK_IP_ATTESTATION_PATH}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ intentHash }),
+        cache: 'no-store',
+        credentials: 'omit',
+        redirect: 'error',
+        signal: controller.signal,
+      })
+    } catch (error) {
+      throw new Error('Client-IP attestation request failed', { cause: error })
+    }
+    if (!response.ok) {
+      throw new Error(`Client-IP attestation request failed with HTTP ${response.status}`)
+    }
+
+    try {
+      return (await response.json()) as OnRampIpAttestation
+    } catch (error) {
+      throw new Error('Client-IP attestation response is malformed', { cause: error })
+    }
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }
 
 export function validateTransakWidgetSession(

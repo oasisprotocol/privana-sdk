@@ -401,6 +401,11 @@ function TransakCheckout({ tokenId }) {
 }
 ```
 
+Before each session request, including an authenticated retry or explicit
+reopen, the SDK sends only the SHA-256 hash of the signed intent to the
+same-origin `/__onramp-ip-attest` Worker and passes its fresh opaque claim to
+the backend. The host must deploy that route on its Transak-approved origin.
+
 `recreateSession()` retries the current unresolved intent only when its session
 failed or expired before the provider iframe became interactive. After the
 provider UI activates or order evidence exists, the adapter refuses to create a
