@@ -2,6 +2,7 @@ import { useAccount, useBalance, useReadContract } from 'wagmi'
 import { erc20Abi, formatUnits, zeroAddress } from 'viem'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import type { Allowance } from '@/sdk/types/allowance'
+import { isMoonPayProductOnRamp, type ProductOnRampSelection } from '@/sdk/on-ramp/product-config'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useMoonpayLimits } from '@/sdk/hooks/use-moonpay-limits'
 import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
@@ -13,6 +14,7 @@ import type { DepositSource } from './deposit-modal'
 export function DepositView({
   source,
   selectedToken,
+  onRamp,
   amount,
   allowance,
   externalMinimum,
@@ -24,6 +26,7 @@ export function DepositView({
 }: {
   source: DepositSource
   selectedToken: TokenConfig | undefined
+  onRamp: ProductOnRampSelection
   amount: string
   allowance?: Allowance
   /** `undefined` while loading, `null` when unavailable, otherwise base units. */
@@ -44,6 +47,8 @@ export function DepositView({
   const isConnectedSource = source === 'connected'
   const isExternal = source === 'external'
   const isCreditCard = source === 'credit-card'
+  const isMoonPayCard = isCreditCard && isMoonPayProductOnRamp(onRamp)
+  const isTransakCard = isCreditCard && onRamp.provider === 'transak'
   const isNative = selectedToken?.contract === zeroAddress
   const { data: nativeBalanceData } = useBalance({
     address,
@@ -64,11 +69,8 @@ export function DepositView({
       ? formatTokenAmount(walletBalance.toString(), selectedToken.decimals)
       : '0.00'
 
-  // The credit-card amount is the token amount MoonPay should deliver
-  // (quoteCurrencyAmount — the pre-signed lock needs an exact crypto target).
-  // Gate it against MoonPay's fiat minimum so the user can't sign the policy
-  // for an amount MoonPay would reject once the widget opens; the ~1:1
-  // comparison holds because card purchases are limited to USD-stable tokens.
+  // MoonPay alone exposes this fiat-limit endpoint. Transak uses the
+  // configured token and the backend-issued widget session instead.
   const {
     minBuyAmount: moonpayMinBuy,
     isLoading: moonpayLimitsLoading,
@@ -76,13 +78,13 @@ export function DepositView({
   } = useMoonpayLimits({
     currencyCode: selectedToken?.moonpayCurrencyCode,
     apiBaseUrl: networkConfig.moonpayApiUrl,
-    enabled: isCreditCard,
+    enabled: isMoonPayCard,
   })
 
   const hasValidAmount = !!amount && parseFloat(amount) > 0
-  // Card purchases keep a 2-decimal cap so the quote string stays simple for
-  // MoonPay; other sources take a token amount capped by the token's decimals.
-  const maxAmountDecimals = isCreditCard ? 2 : selectedToken?.decimals
+  // MoonPay keeps its existing two-decimal quote cap. Other sources, including
+  // Transak, accept the configured token's precision.
+  const maxAmountDecimals = isMoonPayCard ? 2 : selectedToken?.decimals
   const tooManyDecimals =
     hasValidAmount &&
     maxAmountDecimals != null &&
@@ -96,12 +98,9 @@ export function DepositView({
     walletBalance != null &&
     parseTokenAmount(amount, selectedToken.decimals) > walletBalance
   const belowMoonpayMin =
-    isCreditCard && hasValidAmount && moonpayMinBuy != null && parseFloat(amount) < moonpayMinBuy
-  const moonpayLimitsUnready =
-    isCreditCard && !!selectedToken?.moonpayCurrencyCode && moonpayMinBuy == null
-  // No MoonPay currency mapping for this token.
-  const creditCardUnavailable =
-    isCreditCard && !!selectedToken && !selectedToken.moonpayCurrencyCode
+    isMoonPayCard && hasValidAmount && moonpayMinBuy != null && parseFloat(amount) < moonpayMinBuy
+  const moonpayLimitsUnready = isMoonPayCard && !!onRamp.providerAssetCode && moonpayMinBuy == null
+  const creditCardUnavailable = isCreditCard && !!onRamp.unavailableReason
   const externalTokenUnavailable = isExternal && !!selectedToken && isNative
   const externalMinimumRequired = isExternal && !!allowance && !!selectedToken
   const externalMinimumLoading = externalMinimumRequired && externalMinimum === undefined
@@ -142,10 +141,12 @@ export function DepositView({
       {isCreditCard ? (
         <div className="flex flex-col gap-2">
           <h2 className="text-foreground text-[28px] leading-8 font-medium">
-            Buy with credit card and deposit
+            Buy with card and deposit
           </h2>
           <p className="text-muted-foreground text-sm">
-            Enter your deposit amount and proceed to sign a policy.
+            {isTransakCard
+              ? 'Enter your target deposit amount and continue.'
+              : 'Enter your deposit amount and proceed to sign a policy.'}
           </p>
         </div>
       ) : (
@@ -168,7 +169,7 @@ export function DepositView({
           onClick={onSelectToken}
           // Frozen while signing: the policy signature captures the values at
           // click time, so the form must not drift under the wallet prompt.
-          disabled={isSubmitting}
+          disabled={isSubmitting || (isCreditCard && onRamp.tokenSelectionLocked)}
           className="border-border bg-input flex w-full cursor-pointer items-center gap-3 rounded-lg border p-3 text-left disabled:cursor-not-allowed disabled:opacity-50"
         >
           {selectedToken ? (
@@ -184,9 +185,11 @@ export function DepositView({
           ) : (
             <span className="text-muted-foreground flex-1 text-sm">Select token</span>
           )}
-          <div className="text-muted-foreground flex h-5 w-5 items-center justify-center">
-            <ChevronRightIcon />
-          </div>
+          {(!isCreditCard || !onRamp.tokenSelectionLocked) && (
+            <div className="text-muted-foreground flex h-5 w-5 items-center justify-center">
+              <ChevronRightIcon />
+            </div>
+          )}
         </button>
       </div>
 
@@ -256,18 +259,16 @@ export function DepositView({
             Couldn’t load the minimum deposit. Please try again.
           </p>
         )}
-        {isCreditCard && moonpayLimitsError && (
+        {isMoonPayCard && moonpayLimitsError && (
           <p className="text-destructive text-sm">
             Couldn’t load purchase limits. Please try again.
           </p>
         )}
-        {isCreditCard && moonpayLimitsLoading && (
+        {isMoonPayCard && moonpayLimitsLoading && (
           <p className="text-muted-foreground text-sm">Checking purchase limits…</p>
         )}
         {creditCardUnavailable && (
-          <p className="text-destructive text-sm">
-            {selectedToken?.symbol ?? 'This token'} isn’t available for card purchases yet.
-          </p>
+          <p className="text-destructive text-sm">{onRamp.unavailableReason}</p>
         )}
         {externalTokenUnavailable && (
           <p className="text-destructive text-sm">
@@ -297,7 +298,13 @@ export function DepositView({
         }}
         className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {needsConnect ? 'Connect Wallet' : allowance ? 'Sign Policy and Deposit' : 'Deposit'}
+        {needsConnect
+          ? 'Connect Wallet'
+          : isTransakCard
+            ? 'Continue'
+            : allowance
+              ? 'Sign Policy and Deposit'
+              : 'Deposit'}
       </button>
     </div>
   )

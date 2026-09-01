@@ -10,10 +10,11 @@ import { useAccount, useConfig, useWalletClient } from 'wagmi'
 
 import { usePrivanaContext } from '../context/privana-provider'
 import {
+  assertCreatedOnRampIntent,
   assertOnRampRecordProvider,
-  getOnRampIntentId,
   getOnRampVerificationKey,
   matchesOnRampTransaction,
+  recordOnRampProviderDeposit,
   resolveOnRampProviderEventTarget,
   verifyPendingOnRampsSequentially,
   type OnRampProviderAdapter,
@@ -23,9 +24,11 @@ import {
 import {
   createPendingOnRampReadCoordinator,
   discardInvalidOnRampIntent,
-  forgetUnresolvedOnRampIntent,
+  finalizeCreditedOnRampIntent,
+  filterCreditedOnRampRecords,
   getOnRampCloseRecoveryAction,
   getPendingOnRampsWithRecovery,
+  loadCreditedOnRampVerifications,
   loadUnresolvedOnRampIntents,
   MIN_ONRAMP_PENDING_REQUEST_INTERVAL_MS,
   rememberUnresolvedOnRampIntent,
@@ -33,8 +36,9 @@ import {
 } from '../on-ramp/recovery'
 import {
   assertErc20OnRampToken,
-  deliveredErc20Amount,
   erc20MinDepositBaseUnits,
+  resolveErc20OnRampTransfer,
+  type OnRampDeliveredTransfer,
 } from '../on-ramp/receipt'
 import { settlePendingOnRampLock } from '../on-ramp/settlement'
 import {
@@ -64,6 +68,17 @@ import type {
 const DEFAULT_DELIVERY_TIMEOUT_MS = 120_000
 const DEFAULT_VERIFICATION_TIMEOUT_MS = 10 * 60_000
 const DEFAULT_FINALITY_RETRY_INTERVAL_MS = 15_000
+
+export function bindOnRampFlowSession(
+  ref: { current: symbol | null },
+  flowSession: symbol
+): () => void {
+  ref.current = flowSession
+  return () => {
+    if (ref.current === flowSession) ref.current = null
+  }
+}
+
 export type OnRampFlowStatus =
   | 'idle'
   /** Provider launch succeeded; the user is completing the purchase. */
@@ -95,16 +110,16 @@ export interface UseOnRampOptions {
    */
   postDepositLock?: OnRampPostDepositLockConfig
   /** Fired when the deposit is credited inside the Privana accounting module. */
-  onCredited?: (txHash: string) => void
+  onCredited?: (txHash: string, record: OnRampRecord) => void
   /** Fired when the pre-signed post-deposit lock is accepted by the API. */
-  onLockSubmitted?: (response: TransactionSubmissionResponse) => void
+  onLockSubmitted?: (response: TransactionSubmissionResponse, record: OnRampRecord) => void
   /**
    * Fired when the deposit credited but the pre-signed lock could not be
    * submitted. The funds sit in the user's available balance. Fresh signing
    * is safe only for failures known to precede any API attempt; otherwise
    * retry or reconcile the same signature. Falls back to `onError`.
    */
-  onLockFailed?: (error: PostDepositLockError) => void
+  onLockFailed?: (error: PostDepositLockError, record: OnRampRecord) => void
   onError?: (error: Error) => void
   /** Optional diagnostic event stream for previews/tests. No auth tokens or signatures are emitted. */
   onDebugEvent?: (event: OnRampDebugEvent) => void
@@ -191,10 +206,11 @@ export interface UseOnRampResult {
  * Provider-neutral purchase recovery and Privana credit flow.
  *
  * The provider delivers to the server-derived Privana deposit address. Provider
- * reads and UI events only discover a candidate transaction; the matching
- * receipt log supplies the amount and `/deposits/check` remains the sole credit
- * authority. Pending intents are retained locally only as bounded recovery
- * hints, never as order or credit state.
+ * reads and UI events only discover a candidate transaction. One unambiguous
+ * matching receipt log supplies the amount and exact log index;
+ * `/deposits/check` remains the sole credit authority. Pending intents are
+ * retained locally only as bounded recovery hints, never as order or credit
+ * state.
  */
 export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
   const {
@@ -245,8 +261,9 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
   // A unique render-session token prevents async work from an earlier
   // user/API/chain/token scope from mutating the current flow, including A→B→A.
   const flowSession = useMemo(() => Symbol(flowIdentity), [flowIdentity])
-  const flowSessionRef = useRef(flowSession)
+  const flowSessionRef = useRef<symbol | null>(flowSession)
   flowSessionRef.current = flowSession
+  useEffect(() => bindOnRampFlowSession(flowSessionRef, flowSession), [flowSession])
 
   const [status, setStatus] = useState<OnRampFlowStatus>('idle')
   const [pending, setPending] = useState<OnRampRecord[]>([])
@@ -276,6 +293,7 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
    * wallet may be disconnected or on another account by credit time. */
   const lockOwnerRef = useRef<Address | null>(null)
   const triggeredVerificationKeysRef = useRef<Set<string>>(new Set())
+  const creditedVerificationKeysRef = useRef<Set<string>>(new Set())
   /** Resolves when the in-flight verification reaches a terminal state; the
    * auto-verify loop awaits it so rows verify one at a time. */
   const activeVerificationDoneRef = useRef<(() => void) | null>(null)
@@ -412,7 +430,15 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
     // provider after a deployment switch or rollback. The core verification
     // path is provider-neutral; only newly created intents and adapter events
     // must match the configured adapter.
-    return rows
+    const creditedKeys = recoveryScope
+      ? loadCreditedOnRampVerifications(recoveryScope).map(
+          (verification) => verification.verificationKey
+        )
+      : []
+    return filterCreditedOnRampRecords(rows, [
+      ...creditedKeys,
+      ...creditedVerificationKeysRef.current,
+    ])
   }, [emitDebug, executeOnRampPrivateRead, flowSession, recoveryScope])
 
   // All callers (mount refresh, embedded recovery, close/event delivery waits,
@@ -469,7 +495,8 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
   // failures route to the dedicated callback (or onError as fallback) instead
   // of the flow's terminal error state.
   const submitPendingLockAfterCredit = useCallback(
-    async (transactionId: string, userAddress: string, creditedAmount: bigint) => {
+    async (record: OnRampRecord, userAddress: string, creditedAmount: bigint) => {
+      const transactionId = record.transaction_id
       try {
         const settlement = await settlePendingOnRampLock({
           client,
@@ -486,7 +513,8 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
             'not-found'
           )
           emitDebug('lock:not-found')
-          ;(onLockFailedRef.current ?? onErrorRef.current)?.(lockError)
+          if (onLockFailedRef.current) onLockFailedRef.current(lockError, record)
+          else onErrorRef.current?.(lockError)
           return
         }
         queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
@@ -496,7 +524,7 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
         emitDebug('lock:submitted', {
           submissionIdPresent: Boolean(settlement.response.submission_id),
         })
-        onLockSubmittedRef.current?.(settlement.response)
+        onLockSubmittedRef.current?.(settlement.response, record)
       } catch (err) {
         const error =
           err instanceof PostDepositLockError
@@ -512,7 +540,8 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
           reason: error.reason,
           message: error.message,
         })
-        ;(onLockFailedRef.current ?? onErrorRef.current)?.(error)
+        if (onLockFailedRef.current) onLockFailedRef.current(error, record)
+        else onErrorRef.current?.(error)
       }
     },
     [client, emitDebug, postDepositLock, queryClient]
@@ -547,6 +576,16 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
         setStatus('credited')
       }
       if (record) {
+        creditedVerificationKeysRef.current.add(getOnRampVerificationKey(record))
+        setPending((rows) => filterCreditedOnRampRecords(rows, creditedVerificationKeysRef.current))
+        const finalizeRecovery = () => {
+          if (
+            recoveryScopeAtCredit &&
+            !finalizeCreditedOnRampIntent(recoveryScopeAtCredit, record)
+          ) {
+            emitDebug('verification:credit-recovery-storage-unavailable')
+          }
+        }
         setFinalityProgress((prev) => {
           if (!(record.transaction_id in prev)) return prev
           const next = { ...prev }
@@ -558,39 +597,54 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
         // window, and the stored payload is keyed by the signer.
         const lockOwner = lockOwnerRef.current ?? privateReadAddress
         if (lockOwner) {
-          void submitPendingLockAfterCredit(record.transaction_id, lockOwner, creditedAmount)
+          // Keep durable recovery until the post-credit lock attempt settles.
+          void submitPendingLockAfterCredit(record, lockOwner, creditedAmount).finally(
+            finalizeRecovery
+          )
         } else if (postDepositLock) {
           emitDebug('lock:owner-unavailable')
-          ;(onLockFailedRef.current ?? onErrorRef.current)?.(
-            new PostDepositLockError(
-              'No wallet address available to look up the signed lock for this on-ramp',
-              'not-found'
-            )
+          const lockError = new PostDepositLockError(
+            'No wallet address available to look up the signed lock for this on-ramp',
+            'not-found'
           )
+          if (onLockFailedRef.current) onLockFailedRef.current(lockError, record)
+          else onErrorRef.current?.(lockError)
+          finalizeRecovery()
+        } else {
+          finalizeRecovery()
         }
       }
       void (async () => {
         try {
-          if (record && depositTxHash.startsWith('0x')) {
-            emitDebug('onramp:mark-deposit-triggered-request', {
+          if (
+            record &&
+            adapter.recordDeposit &&
+            record.provider === adapter.provider &&
+            depositTxHash.startsWith('0x')
+          ) {
+            emitDebug('provider-deposit:record-request', {
+              provider: adapter.provider,
               depositTxHash,
             })
             const updated = await executeOnRampPrivateRead((readClient) =>
-              readClient.updateOnRamp(record.transaction_id, {
-                deposit_tx_hash: depositTxHash as HexString,
+              recordOnRampProviderDeposit(adapter, {
+                client: readClient,
+                record,
+                depositTxHash: depositTxHash as HexString,
               })
             )
-            emitDebug('onramp:mark-deposit-triggered-success', {
-              record: summariseOnRampRecord(updated),
+            emitDebug('provider-deposit:record-success', {
+              provider: adapter.provider,
+              record: updated ? summariseOnRampRecord(updated) : null,
             })
           }
         } catch (err) {
-          emitDebug('onramp:mark-deposit-triggered-error', errorPayload(err))
-          console.warn('Failed to mark on-ramp row complete:', err)
+          emitDebug('provider-deposit:record-error', {
+            provider: adapter.provider,
+            ...errorPayload(err),
+          })
+          console.warn('Failed to record provider deposit:', err)
         } finally {
-          if (record && recoveryScopeAtCredit) {
-            forgetUnresolvedOnRampIntent(recoveryScopeAtCredit, getOnRampIntentId(record))
-          }
           await refreshPending()
           clearActiveVerification(verificationKey)
           if (
@@ -606,7 +660,7 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
           }
         }
       })()
-      onCreditedRef.current?.(depositTxHash)
+      if (record) onCreditedRef.current?.(depositTxHash, record)
     },
     onCheckTimeout: (depositTxHash) => {
       const record = activeVerificationRecordRef.current
@@ -647,6 +701,7 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
     resetDepositVerification()
     clearActiveVerification()
     triggeredVerificationKeysRef.current.clear()
+    creditedVerificationKeysRef.current.clear()
     setPending([])
     setFinalityProgress({})
     statusRef.current = 'idle'
@@ -719,28 +774,19 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
           quoteCurrencyAmountPresent: quoteCurrencyAmount !== undefined,
           depositAddressReady: true,
         })
+        const intentInput = {
+          walletAddress: scopedDepositAddress,
+          tokenId,
+          chainId: token.chainId,
+          providerAssetCode,
+        }
         const record = await executeOnRampPrivateRead((readClient) =>
-          readClient.createOnRampIntent(
-            adapter.buildIntentRequest({
-              walletAddress: scopedDepositAddress,
-              tokenId,
-              chainId: token.chainId,
-              providerAssetCode,
-            })
-          )
+          readClient.createOnRampIntent(adapter.buildIntentRequest(intentInput))
         )
         if (flowSessionRef.current !== flowSession) {
           throw new Error('On-ramp account or network changed while creating the intent')
         }
-        assertOnRampRecordProvider(record, adapter.provider)
-        if (!record.provider_asset_code) {
-          throw new Error('On-ramp intent response is missing provider_asset_code')
-        }
-        if (record.provider_asset_code.toLowerCase() !== providerAssetCode.toLowerCase()) {
-          throw new Error(
-            `On-ramp intent asset ${record.provider_asset_code} does not match requested asset ${providerAssetCode}`
-          )
-        }
+        assertCreatedOnRampIntent(record, adapter.provider, intentInput)
         if (postDepositLock && lockOwner && lockAmount !== undefined) {
           // Re-fetch the wallet client bound to the signing chain: the
           // render-time client can go stale across the chain switch above and
@@ -1009,7 +1055,7 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
           )
         }
 
-        const amount = await resolveDeliveredAmount({
+        const delivered = await resolveDeliveredTransfer({
           onChainTxHash: record.on_chain_tx_hash,
           chainId: record.chain_id,
           walletAddress: record.wallet_address,
@@ -1025,12 +1071,17 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
           scopedMinDepositByChain,
           record.chain_id
         )
-        if (recordMinDepositBaseUnits !== undefined && amount < recordMinDepositBaseUnits) {
+        if (
+          recordMinDepositBaseUnits !== undefined &&
+          delivered.amount < recordMinDepositBaseUnits
+        ) {
           emitDebug('verification:below-minimum', {
-            deliveredAmount: amount.toString(),
+            deliveredAmount: delivered.amount.toString(),
             minDepositBaseUnits: String(recordMinDepositBaseUnits),
           })
-          throw new Error(`Delivered amount (${amount} base units) is below the minimum deposit.`)
+          throw new Error(
+            `Delivered amount (${delivered.amount} base units) is below the minimum deposit.`
+          )
         }
 
         if (
@@ -1042,12 +1093,14 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
         emitDebug('verification:check-deposit-request', {
           hash: record.on_chain_tx_hash,
           chainId: record.chain_id,
-          amount: amount.toString(),
+          amount: delivered.amount.toString(),
+          logIndex: delivered.logIndex,
         })
         await verify({
           hash: record.on_chain_tx_hash,
           chainId: record.chain_id,
-          amount,
+          amount: delivered.amount,
+          logIndex: delivered.logIndex,
         })
       } catch (err) {
         if (flowSessionRef.current !== flowSession) return
@@ -1332,7 +1385,7 @@ function summariseOnRampRecord(record: OnRampRecord): Record<string, unknown> {
   }
 }
 
-async function resolveDeliveredAmount({
+async function resolveDeliveredTransfer({
   onChainTxHash,
   chainId,
   walletAddress,
@@ -1346,10 +1399,9 @@ async function resolveDeliveredAmount({
   token: TokenConfig
   wagmiConfig: ReturnType<typeof useConfig>
   emitDebug: (event: string, payload?: Record<string, unknown>) => void
-}): Promise<bigint> {
+}): Promise<OnRampDeliveredTransfer> {
   assertErc20OnRampToken(token.contract)
 
-  let receiptError: unknown
   try {
     const receipt = await waitForTransactionReceipt(wagmiConfig, {
       hash: onChainTxHash as `0x${string}`,
@@ -1358,35 +1410,21 @@ async function resolveDeliveredAmount({
       pollingInterval: 4_000,
     })
 
-    const delivered = deliveredErc20Amount(receipt.logs, token.contract, walletAddress)
-
-    if (delivered > 0n) {
-      emitDebug('verification:amount-from-receipt', {
-        amount: delivered.toString(),
-        tokenAddress: token.contract,
-        depositAddressMatched: true,
-      })
-      return delivered
-    }
-
-    emitDebug('verification:amount-from-receipt-missing', {
+    const delivered = resolveErc20OnRampTransfer(receipt.logs, token.contract, walletAddress)
+    emitDebug('verification:amount-from-receipt', {
+      amount: delivered.amount.toString(),
+      logIndex: delivered.logIndex,
       tokenAddress: token.contract,
-      depositAddressMatched: false,
+      depositAddressMatched: true,
     })
+    return delivered
   } catch (err) {
     emitDebug('verification:amount-from-receipt-error', errorPayload(err))
-    receiptError = err
+    const errorDetail = err instanceof Error ? err.message : String(err)
+    throw new Error(
+      `Unable to derive delivered ${token.symbol} transfer from its receipt: ${errorDetail}`
+    )
   }
-
-  const errorDetail =
-    receiptError instanceof Error
-      ? receiptError.message
-      : receiptError === undefined
-        ? `no ${token.symbol} Transfer to the derived deposit address found`
-        : String(receiptError)
-  throw new Error(
-    `Unable to derive delivered ${token.symbol} amount from its receipt: ${errorDetail}`
-  )
 }
 
 function errorPayload(err: unknown): Record<string, unknown> {

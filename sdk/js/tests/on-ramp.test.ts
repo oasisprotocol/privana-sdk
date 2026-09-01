@@ -7,33 +7,43 @@ import {
 } from 'viem'
 import { AccountingApiError, PrivanaClient } from '../src/sdk/client'
 import { checkDepositWithFinalityRetry } from '../src/sdk/hooks/deposit-finality'
+import { bindOnRampFlowSession } from '../src/sdk/hooks/use-on-ramp'
 import { clearPendingLock, loadPendingLock, savePendingLock } from '../src/sdk/hooks/pending-lock'
 import {
   moonPayOnRampAdapter,
   normalizeMoonPayProviderEvent,
 } from '../src/sdk/on-ramp/moonpay-adapter'
 import {
+  assertCreatedOnRampIntent,
   assertOnRampRecordProvider,
+  canRetryOnRampVerification,
+  getOnRampVerificationKey,
   matchesOnRampTransaction,
+  recordOnRampProviderDeposit,
   resolveOnRampProviderEventTarget,
   verifyPendingOnRampsSequentially,
 } from '../src/sdk/on-ramp/provider'
 import {
   createPendingOnRampReadCoordinator,
   discardInvalidOnRampIntent,
+  finalizeCreditedOnRampIntent,
+  filterCreditedOnRampRecords,
   forgetUnresolvedOnRampIntent,
   getOnRampCloseRecoveryAction,
   getPendingOnRampsWithRecovery,
+  loadCreditedOnRampVerifications,
   loadUnresolvedOnRampIntents,
+  MAX_CREDITED_ONRAMP_VERIFICATIONS,
   MAX_UNRESOLVED_ONRAMP_INTENTS,
   MIN_ONRAMP_PENDING_REQUEST_INTERVAL_MS,
+  rememberCreditedOnRampVerification,
   rememberUnresolvedOnRampIntent,
   type OnRampRecoveryScope,
 } from '../src/sdk/on-ramp/recovery'
 import {
   assertErc20OnRampToken,
-  deliveredErc20Amount,
   erc20MinDepositBaseUnits,
+  resolveErc20OnRampTransfer,
 } from '../src/sdk/on-ramp/receipt'
 import { settlePendingOnRampLock } from '../src/sdk/on-ramp/settlement'
 import type {
@@ -78,7 +88,7 @@ function makeRecord(overrides: Partial<OnRampRecord> = {}): OnRampRecord {
   }
 }
 
-function createStorageStub(): Storage {
+function createStorageStub(rejectWrite?: (key: string) => boolean): Storage {
   const values = new Map<string, string>()
   return {
     get length() {
@@ -88,16 +98,22 @@ function createStorageStub(): Storage {
     getItem: (key) => values.get(key) ?? null,
     key: (index) => [...values.keys()][index] ?? null,
     removeItem: (key) => void values.delete(key),
-    setItem: (key, value) => values.set(key, String(value)),
+    setItem: (key, value) => {
+      if (rejectWrite?.(key)) throw new Error('Storage write rejected')
+      values.set(key, String(value))
+    },
   }
 }
 
-async function withBrowserStorage(run: () => Promise<void>): Promise<void> {
+async function withBrowserStorage(
+  run: () => Promise<void>,
+  rejectWrite?: (key: string) => boolean
+): Promise<void> {
   const globals = globalThis as { window?: unknown }
   const original = globals.window
   globals.window = {
-    localStorage: createStorageStub(),
-    sessionStorage: createStorageStub(),
+    localStorage: createStorageStub(rejectWrite),
+    sessionStorage: createStorageStub(rejectWrite),
   }
   try {
     await run()
@@ -115,10 +131,12 @@ function transferLog({
   token = TOKEN,
   to = DEPOSIT,
   amount,
+  logIndex = 0,
 }: {
   token?: Address
   to?: Address
   amount: bigint
+  logIndex?: number | null
 }) {
   return {
     address: token,
@@ -128,6 +146,7 @@ function transferLog({
       args: { from: OTHER, to },
     }),
     data: encodeAbiParameters([{ type: 'uint256' }], [amount]),
+    logIndex,
   }
 }
 
@@ -142,6 +161,26 @@ function lockPayload(overrides: Partial<LockFundsRequest> = {}): LockFundsReques
     ...overrides,
   }
 }
+
+describe('on-ramp flow session lifecycle', () => {
+  it('invalidates unmounted work without clearing a newer flow session', () => {
+    const first = Symbol('first')
+    const second = Symbol('second')
+    const ref: { current: symbol | null } = { current: first }
+
+    const cleanupFirst = bindOnRampFlowSession(ref, first)
+    bindOnRampFlowSession(ref, second)
+    cleanupFirst()
+    expect(ref.current).toBe(second)
+
+    const cleanupSecond = bindOnRampFlowSession(ref, second)
+    cleanupSecond()
+    expect(ref.current).toBeNull()
+
+    bindOnRampFlowSession(ref, second)
+    expect(ref.current).toBe(second)
+  })
+})
 
 describe('MoonPay provider adapter', () => {
   it('builds only the MoonPay compatibility field in a provider-neutral intent request', () => {
@@ -205,9 +244,44 @@ describe('MoonPay provider adapter', () => {
       },
     })
   })
+
+  it('keeps the post-credit MoonPay compatibility write inside the adapter', async () => {
+    let captured:
+      | {
+          transactionId: string
+          request: Record<string, unknown>
+        }
+      | undefined
+    const client = {
+      updateOnRamp: async (transactionId: string, request: Record<string, unknown>) => {
+        captured = { transactionId, request }
+        return makeRecord()
+      },
+    } as unknown as PrivanaClient
+
+    await recordOnRampProviderDeposit(moonPayOnRampAdapter, {
+      client,
+      record: makeRecord(),
+      depositTxHash: TX_HASH,
+    })
+
+    expect(captured).toEqual({
+      transactionId: 'intent-1',
+      request: { deposit_tx_hash: TX_HASH },
+    })
+  })
 })
 
 describe('provider event and record policy', () => {
+  it('offers manual verification only after delivery and while no row is active', () => {
+    const delivered = makeRecord()
+    expect(canRetryOnRampVerification(delivered, null)).toBe(true)
+    expect(canRetryOnRampVerification(delivered, delivered.transaction_id)).toBe(false)
+    expect(canRetryOnRampVerification(makeRecord({ on_chain_tx_hash: undefined }), null)).toBe(
+      false
+    )
+  })
+
   it('correlates the active checkout and rejects a different adapter', () => {
     const active = resolveOnRampProviderEventTarget('moonpay', 'intent-1', {
       provider: 'moonpay',
@@ -250,6 +324,33 @@ describe('provider event and record policy', () => {
         'moonpay'
       )
     ).toThrow('does not match configured adapter')
+  })
+
+  it('accepts only an exact creation-response authority tuple', () => {
+    const expected = {
+      walletAddress: DEPOSIT,
+      tokenId: TOKEN_ID,
+      chainId: CHAIN_ID,
+      providerAssetCode: 'usdc_base',
+    }
+    expect(() => assertCreatedOnRampIntent(makeRecord(), 'moonpay', expected)).not.toThrow()
+
+    const mismatches: Array<[Partial<OnRampRecord>, string]> = [
+      [{ provider: 'transak' }, 'provider'],
+      [{ provider_asset_code: 'eth' }, 'asset'],
+      [{ provider_asset_code: null as unknown as string }, 'asset'],
+      [{ token_id: `0x${'bb'.repeat(32)}` as Bytes32 }, 'token'],
+      [{ token_id: null }, 'token'],
+      [{ chain_id: CHAIN_ID + 1 }, 'chain'],
+      [{ chain_id: null }, 'chain'],
+      [{ wallet_address: OWNER }, 'wallet'],
+      [{ wallet_address: null }, 'wallet'],
+    ]
+    for (const [override, message] of mismatches) {
+      expect(() => assertCreatedOnRampIntent(makeRecord(override), 'moonpay', expected)).toThrow(
+        message
+      )
+    }
   })
 })
 
@@ -309,7 +410,7 @@ describe('durable on-ramp recovery', () => {
     })
   })
 
-  it('isolates one invalid stored intent, removes only it, and retries the valid batch', async () => {
+  it('isolates one invalid stored intent, removes only it, and reuses the valid probe', async () => {
     const calls: string[][] = []
     const invalid: string[] = []
     const client = {
@@ -328,7 +429,7 @@ describe('durable on-ramp recovery', () => {
 
     expect(result.pending).toHaveLength(1)
     expect(invalid).toEqual(['bad'])
-    expect(calls).toEqual([['valid', 'bad'], ['valid'], ['bad'], ['valid']])
+    expect(calls).toEqual([['valid', 'bad'], ['valid'], ['bad']])
   })
 
   it('clears a definitively rejected active intent without deleting its recoverable lock', async () => {
@@ -359,6 +460,152 @@ describe('durable on-ramp recovery', () => {
         { transactionId: 'intent-1', savedAt: 100 },
       ])
       expect(loadPendingLock(OWNER, 'intent-1')).toBeDefined()
+    })
+  })
+
+  it('suppresses an already credited provider row after reload', async () => {
+    await withBrowserStorage(async () => {
+      const scope = recoveryScope()
+      const completed = makeRecord({
+        provider: 'transak',
+        provider_asset_code: 'usdc',
+        moonpay_transaction_id: undefined,
+        moonpay_currency_code: undefined,
+      })
+      expect(getOnRampVerificationKey(completed)).toBe('intent-1')
+      expect(
+        rememberCreditedOnRampVerification(scope, getOnRampVerificationKey(completed), 100)
+      ).toBe(true)
+
+      const reloadedKeys = loadCreditedOnRampVerifications(scope, 101).map(
+        (verification) => verification.verificationKey
+      )
+      const visible = filterCreditedOnRampRecords([completed], reloadedKeys)
+      let verificationStarts = 0
+      await verifyPendingOnRampsSequentially({
+        records: visible,
+        shouldStop: () => false,
+        wasTriggered: () => false,
+        trigger: async () => void verificationStarts++,
+        waitForTerminal: async () => undefined,
+      })
+
+      expect(visible).toEqual([])
+      expect(verificationStarts).toBe(0)
+    })
+  })
+
+  it('finalizes an unresolved intent only after its credited marker is durable', async () => {
+    await withBrowserStorage(async () => {
+      const scope = recoveryScope()
+      const record = makeRecord({
+        provider: 'transak',
+        provider_asset_code: 'usdc',
+        moonpay_transaction_id: undefined,
+        moonpay_currency_code: undefined,
+      })
+      rememberUnresolvedOnRampIntent(scope, record.transaction_id, 100)
+
+      expect(finalizeCreditedOnRampIntent(scope, record, 101)).toBe(true)
+      expect(loadUnresolvedOnRampIntents(scope, 102)).toEqual([])
+      expect(loadCreditedOnRampVerifications(scope, 102)).toEqual([
+        { verificationKey: getOnRampVerificationKey(record), savedAt: 101 },
+      ])
+    })
+  })
+
+  it('retains the unresolved intent when its credited marker cannot be stored', async () => {
+    await withBrowserStorage(
+      async () => {
+        const scope = recoveryScope()
+        const record = makeRecord({
+          provider: 'transak',
+          provider_asset_code: 'usdc',
+          moonpay_transaction_id: undefined,
+          moonpay_currency_code: undefined,
+        })
+        rememberUnresolvedOnRampIntent(scope, record.transaction_id, 100)
+
+        expect(finalizeCreditedOnRampIntent(scope, record, 101)).toBe(false)
+        expect(loadCreditedOnRampVerifications(scope, 102)).toEqual([])
+        expect(loadUnresolvedOnRampIntents(scope, 102)).toEqual([
+          { transactionId: record.transaction_id, savedAt: 100 },
+        ])
+      },
+      (key) => key.startsWith('privana:onramp-credited:')
+    )
+  })
+
+  it('keeps two signed intents distinct when one provider payout transaction contains both', async () => {
+    await withBrowserStorage(async () => {
+      const scope = recoveryScope()
+      const first = makeRecord({
+        transaction_id: 'intent-1',
+        external_transaction_id: 'intent-1',
+        provider: 'transak',
+        provider_transaction_id: 'provider-1',
+        provider_asset_code: 'usdc',
+        moonpay_transaction_id: undefined,
+        moonpay_currency_code: undefined,
+        on_chain_tx_hash: TX_HASH,
+      })
+      const second = makeRecord({
+        transaction_id: 'intent-2',
+        external_transaction_id: 'intent-2',
+        provider: 'transak',
+        provider_transaction_id: 'provider-2',
+        provider_asset_code: 'usdc',
+        moonpay_transaction_id: undefined,
+        moonpay_currency_code: undefined,
+        on_chain_tx_hash: TX_HASH,
+      })
+
+      expect(getOnRampVerificationKey(first)).toBe('intent-1')
+      expect(getOnRampVerificationKey(second)).toBe('intent-2')
+      expect(rememberCreditedOnRampVerification(scope, getOnRampVerificationKey(first), 100)).toBe(
+        true
+      )
+
+      const reloadedKeys = loadCreditedOnRampVerifications(scope, 101).map(
+        (verification) => verification.verificationKey
+      )
+      expect(filterCreditedOnRampRecords([first, second], reloadedKeys)).toEqual([second])
+    })
+  })
+
+  it('discards version-1 payout-hash markers instead of hiding signed intents', async () => {
+    await withBrowserStorage(async () => {
+      const scope = recoveryScope()
+      expect(rememberCreditedOnRampVerification(scope, 'current-intent', 100)).toBe(true)
+
+      const storage = (globalThis.window as unknown as { localStorage: Storage }).localStorage
+      const key = storage.key(0)
+      expect(key).not.toBeNull()
+      storage.setItem(
+        key!,
+        JSON.stringify({
+          version: 1,
+          verifications: [{ verificationKey: TX_HASH, savedAt: 100 }],
+        })
+      )
+
+      expect(loadCreditedOnRampVerifications(scope, 101)).toEqual([])
+      expect(storage.getItem(key!)).toBeNull()
+    })
+  })
+
+  it('bounds credited recovery and keeps it isolated by authenticated scope', async () => {
+    await withBrowserStorage(async () => {
+      const scope = recoveryScope()
+      const otherScope = { ...scope, userAddress: OTHER }
+      for (let index = 0; index < MAX_CREDITED_ONRAMP_VERIFICATIONS + 1; index++) {
+        rememberCreditedOnRampVerification(scope, `deposit-${index}`, index + 1)
+      }
+
+      const credited = loadCreditedOnRampVerifications(scope, MAX_CREDITED_ONRAMP_VERIFICATIONS + 2)
+      expect(credited).toHaveLength(MAX_CREDITED_ONRAMP_VERIFICATIONS)
+      expect(credited[0]?.verificationKey).toBe('deposit-1')
+      expect(loadCreditedOnRampVerifications(otherScope, 2)).toEqual([])
     })
   })
 
@@ -628,28 +875,47 @@ describe('on-chain credit authority', () => {
     ).toBeUndefined()
   })
 
-  it('sums only matching token transfers to the derived deposit address', () => {
-    const amount = deliveredErc20Amount(
+  it('selects one exact matching transfer and preserves its non-zero log index', () => {
+    const transfer = resolveErc20OnRampTransfer(
       [
-        transferLog({ amount: 4n }),
-        transferLog({ amount: 6n }),
-        transferLog({ amount: 100n, to: OTHER }),
-        transferLog({ amount: 100n, token: OTHER_TOKEN }),
+        transferLog({ amount: 100n, to: OTHER, logIndex: 4 }),
+        transferLog({ amount: 10n, logIndex: 11 }),
+        transferLog({ amount: 100n, token: OTHER_TOKEN, logIndex: 12 }),
       ],
       TOKEN as ViemAddress,
       DEPOSIT as ViemAddress
     )
-    expect(amount).toBe(10n)
+    expect(transfer).toEqual({ amount: 10n, logIndex: 11 })
   })
 
-  it('does not fall back to provider amounts when the receipt has no matching transfer', () => {
-    expect(
-      deliveredErc20Amount(
-        [transferLog({ amount: 100n, to: OTHER })],
+  it('fails closed when the receipt has no matching transfer', () => {
+    expect(() =>
+      resolveErc20OnRampTransfer(
+        [transferLog({ amount: 100n, to: OTHER, logIndex: 4 })],
         TOKEN as ViemAddress,
         DEPOSIT as ViemAddress
       )
-    ).toBe(0n)
+    ).toThrow('does not contain a matching ERC-20 Transfer')
+  })
+
+  it('fails closed when more than one transfer matches the token and deposit address', () => {
+    expect(() =>
+      resolveErc20OnRampTransfer(
+        [transferLog({ amount: 4n, logIndex: 10 }), transferLog({ amount: 6n, logIndex: 11 })],
+        TOKEN as ViemAddress,
+        DEPOSIT as ViemAddress
+      )
+    ).toThrow('multiple matching ERC-20 Transfer logs')
+  })
+
+  it('fails closed when the exact matching transfer has no valid log index', () => {
+    expect(() =>
+      resolveErc20OnRampTransfer(
+        [transferLog({ amount: 10n, logIndex: null })],
+        TOKEN as ViemAddress,
+        DEPOSIT as ViemAddress
+      )
+    ).toThrow('does not have a valid log index')
   })
 
   it('rejects native assets instead of treating a provider amount as authority', () => {
@@ -660,6 +926,34 @@ describe('on-chain credit authority', () => {
 })
 
 describe('on-ramp client wire format', () => {
+  it('preserves the exact receipt log index in the deposit-check request', async () => {
+    const originalFetch = globalThis.fetch
+    let requestBody: Record<string, unknown> | undefined
+    globalThis.fetch = async (_input, init) => {
+      requestBody = JSON.parse(String(init?.body))
+      return Response.json({ status: 'credited', amount: '287010000000000000000' })
+    }
+    try {
+      const client = new PrivanaClient({ baseUrl: BASE_URL })
+      await client.checkDeposit({
+        chain_id: CHAIN_ID,
+        tx_hash: TX_HASH,
+        amount: '287010000000000000000',
+        log_index: 11,
+      })
+      expect(requestBody).toEqual({
+        chain_type: 'evm',
+        chain_id: CHAIN_ID,
+        tx_hash: TX_HASH,
+        amount: '287010000000000000000',
+        log_index: 11,
+        version: 0,
+      })
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   it('sends at most ten repeated externalTransactionId query values', async () => {
     const originalFetch = globalThis.fetch
     let requestUrl = ''

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CircleCheckIcon, Loader2 } from 'lucide-react'
 import { formatUnits, parseUnits } from 'viem'
 import { useAccount } from 'wagmi'
@@ -8,7 +8,10 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useFiatOnRamp, type FiatOnRampDebugEvent } from '@/sdk/hooks/use-fiat-on-ramp'
 import type { OnRampPostDepositLockConfig, PostDepositLockError } from '@/sdk/hooks/pending-lock'
-import type { Bytes32, TransactionSubmissionResponse } from '@/sdk/types'
+import type { Bytes32, OnRampRecord, TransactionSubmissionResponse } from '@/sdk/types'
+import { canRetryOnRampVerification, matchesOnRampTransaction } from '@/sdk/on-ramp/provider'
+import { matchesFrozenOnRampToken } from '@/sdk/on-ramp/product-config'
+import type { TokenConfig } from '@/sdk/types/tokens'
 import { useMoonPayOnRampAdapter } from './use-moonpay-on-ramp-adapter'
 
 export interface FiatOnRampFormProps {
@@ -68,8 +71,20 @@ export interface FiatOnRampFormProps {
   /** Fired when the deposit credited but the pre-signed lock failed — re-prompt. */
   onLockFailed?: (error: PostDepositLockError) => void
   onError?: (error: Error) => void
+  /** Leave product UI while retaining its signed intent for exact recovery. */
+  onLeaveFlow?: () => void
   /** Optional diagnostic event stream for previews/tests. */
   onDebugEvent?: (event: FiatOnRampDebugEvent) => void
+  /** Product modals must not route callbacks from unrelated recovered rows. */
+  onlyRouteActiveIntentCallbacks?: boolean
+  /**
+   * Product flows freeze the launch token when the purchase starts. When set,
+   * a live-config drift away from this snapshot fails closed instead of
+   * launching against a silently different token.
+   */
+  frozenToken?: TokenConfig
+  onUnsafeToCloseChange?: (unsafe: boolean) => void
+  onActiveFlowChange?: (active: boolean) => void
 }
 
 export function FiatOnRampForm({
@@ -91,7 +106,12 @@ export function FiatOnRampForm({
   onLockSubmitted,
   onLockFailed,
   onError,
+  onLeaveFlow,
   onDebugEvent,
+  onlyRouteActiveIntentCallbacks = false,
+  frozenToken,
+  onUnsafeToCloseChange,
+  onActiveFlowChange,
 }: FiatOnRampFormProps) {
   const { address } = useAccount()
   const [visible, setVisible] = useState(false)
@@ -103,6 +123,16 @@ export function FiatOnRampForm({
   // With a lock configured the flow's promise is locked funds, not just a
   // credit — hold the terminal success panel until the lock settles.
   const [lockSettled, setLockSettled] = useState(false)
+  const [ownedTerminal, setOwnedTerminal] = useState(false)
+  const ownedIntentIdRef = useRef<string | null>(null)
+
+  const ownsRecord = useCallback(
+    (record: OnRampRecord) =>
+      Boolean(
+        ownedIntentIdRef.current && matchesOnRampTransaction(record, ownedIntentIdRef.current)
+      ),
+    []
+  )
 
   const {
     status,
@@ -124,18 +154,37 @@ export function FiatOnRampForm({
   } = useFiatOnRamp({
     tokenId,
     postDepositLock,
-    onCredited,
-    // Lock callbacks aren't intent-keyed, so a resumed background row's lock
-    // can settle these flags while a newer purchase is still locking — a
-    // transient overpromise that the newer lock's own outcome then corrects.
-    onLockSubmitted: (response) => {
+    onCredited: (depositTxHash, record) => {
+      if (!onlyRouteActiveIntentCallbacks || ownsRecord(record)) {
+        onCredited?.(depositTxHash)
+      }
+      if (ownsRecord(record) && !postDepositLock) {
+        setOwnedTerminal(true)
+        onActiveFlowChange?.(false)
+      }
+    },
+    // Product modals route only the snapshotted intent. Standalone consumers
+    // retain the legacy behavior of receiving recovered-row callbacks.
+    onLockSubmitted: (response, record) => {
+      const routesToCurrentFlow = !onlyRouteActiveIntentCallbacks || ownsRecord(record)
+      if (!routesToCurrentFlow) return
       setLockError(null)
       setLockSettled(true)
       onLockSubmitted?.(response)
+      if (ownsRecord(record)) {
+        setOwnedTerminal(true)
+        onActiveFlowChange?.(false)
+      }
     },
-    onLockFailed: (err) => {
+    onLockFailed: (err, record) => {
+      const routesToCurrentFlow = !onlyRouteActiveIntentCallbacks || ownsRecord(record)
+      if (!routesToCurrentFlow) return
       setLockError(err.message)
       onLockFailed?.(err)
+      if (ownsRecord(record)) {
+        setOwnedTerminal(true)
+        onActiveFlowChange?.(false)
+      }
     },
     onError,
     onDebugEvent,
@@ -183,6 +232,11 @@ export function FiatOnRampForm({
     quoteBaseUnits !== undefined && minDepositBaseUnits !== undefined
       ? quoteBaseUnits < minDepositBaseUnits
       : minFiatGate !== undefined && Number(defaultBaseCurrencyAmount) < minFiatGate
+  // Fail closed on an unknown minimum: an unverifiable-below-minimum purchase
+  // is only discovered after the user has already paid.
+  const minimumUnknown = minDepositBaseUnits === undefined
+  const tokenMismatch =
+    frozenToken !== undefined && !matchesFrozenOnRampToken(frozenToken, selectedToken)
   const isBusy = isPreparing || status === 'awaiting-purchase'
   // Credited with a lock configured but neither settled nor failed yet: the
   // submission is in flight, so the terminal success panel would overpromise.
@@ -197,10 +251,23 @@ export function FiatOnRampForm({
         !depositAddress ? 'deposit-address-not-loaded' : null,
         isBusy ? `busy:${isPreparing ? 'preparing' : status}` : null,
         visible ? 'widget-open' : null,
+        minimumUnknown ? 'minimum-unknown' : null,
         isBelowMin ? 'below-minimum' : null,
+        tokenMismatch ? 'token-drift' : null,
         quoteParseFailed ? 'invalid-quote-amount' : null,
       ].filter((reason): reason is string => Boolean(reason)),
-    [address, depositAddress, isBelowMin, isBusy, isPreparing, quoteParseFailed, status, visible]
+    [
+      address,
+      depositAddress,
+      isBelowMin,
+      isBusy,
+      isPreparing,
+      minimumUnknown,
+      quoteParseFailed,
+      status,
+      tokenMismatch,
+      visible,
+    ]
   )
   const canBuy = blockReasons.length === 0
 
@@ -221,6 +288,8 @@ export function FiatOnRampForm({
     }
 
     setIsPreparing(true)
+    setOwnedTerminal(false)
+    ownedIntentIdRef.current = null
     // A fresh purchase gets a fresh lock — drop the previous one's outcome.
     setLockError(null)
     setLockSettled(false)
@@ -240,6 +309,8 @@ export function FiatOnRampForm({
         baseCurrencyAmount: defaultBaseCurrencyAmount,
         quoteCurrencyAmount,
       })
+      ownedIntentIdRef.current = intent.transaction_id
+      onActiveFlowChange?.(true)
       emitFormDebug('form:intent-ready', {
         transactionIdPresent: Boolean(intent.transaction_id),
         externalTransactionIdPresent: Boolean(intent.external_transaction_id),
@@ -268,6 +339,7 @@ export function FiatOnRampForm({
     emitFormDebug,
     prepareOnRampIntent,
     status,
+    onActiveFlowChange,
   ])
 
   const handleClose = useCallback(async () => {
@@ -285,6 +357,14 @@ export function FiatOnRampForm({
   const handleReady = useCallback(async () => {
     emitFormDebug('moonpay:onReady')
   }, [emitFormDebug])
+
+  const handleLeaveFlow = useCallback(() => {
+    // Unmounting closes the provider UI. Do not wait for delivery polling here:
+    // the signed intent is already durable and the next mount resumes recovery.
+    setVisible(false)
+    onActiveFlowChange?.(false)
+    onLeaveFlow?.()
+  }, [onActiveFlowChange, onLeaveFlow])
 
   const widgetElement = useMoonPayOnRampAdapter({
     variant,
@@ -314,6 +394,25 @@ export function FiatOnRampForm({
     onTransactionCompleted: handleTransactionCompleted,
   })
 
+  const ownsActiveIntent = Boolean(
+    activeIntentId && ownedIntentIdRef.current && activeIntentId === ownedIntentIdRef.current
+  )
+  const ownsPending = Boolean(
+    ownedIntentIdRef.current &&
+    pending.some((record) => matchesOnRampTransaction(record, ownedIntentIdRef.current!))
+  )
+  const ownedFlowActive = !ownedTerminal && (ownsActiveIntent || ownsPending || lockPending)
+
+  useEffect(() => {
+    onActiveFlowChange?.(ownedFlowActive)
+  }, [onActiveFlowChange, ownedFlowActive])
+
+  const unsafeToClose = isPreparing || lockPending
+  useEffect(() => {
+    onUnsafeToCloseChange?.(unsafeToClose)
+    return () => onUnsafeToCloseChange?.(false)
+  }, [onUnsafeToCloseChange, unsafeToClose])
+
   // A scope switch or definitive intent rejection clears the core's active
   // intent. Close the now-unrenderable widget shell so a fresh purchase is not
   // left blocked by stale local visibility state.
@@ -339,11 +438,8 @@ export function FiatOnRampForm({
           <p className="text-foreground text-sm font-medium">Validating purchases</p>
           {pending.map((record) => {
             const progress = parseFinalityProgress(finalityProgress[record.transaction_id])
-            const hasProgress = !!finalityProgress[record.transaction_id]
-            const isStalled = !hasProgress && Date.now() / 1000 - (record.updated_at ?? 0) > 60
             const isActivelyVerifying = record.transaction_id === activeVerificationId
-            const showRetry =
-              rowError?.id === record.transaction_id || (isStalled && !isActivelyVerifying)
+            const showRetry = canRetryOnRampVerification(record, activeVerificationId)
             return (
               <div
                 key={record.transaction_id}
@@ -352,7 +448,9 @@ export function FiatOnRampForm({
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-muted-foreground flex items-center gap-1 text-xs">
                     <Loader2 className="size-3 animate-spin" aria-hidden />
-                    {progress ?? 'Verifying…'}
+                    {record.on_chain_tx_hash
+                      ? (progress ?? (isActivelyVerifying ? 'Verifying…' : 'Ready to verify'))
+                      : 'Waiting for provider delivery…'}
                   </p>
                   <p className="text-muted-foreground text-xs">
                     {record.quote_currency_amount ?? '?'} {displaySymbol}
@@ -378,7 +476,17 @@ export function FiatOnRampForm({
                       }
                     }}
                   >
-                    Retry
+                    Retry verification
+                  </Button>
+                )}
+                {!record.on_chain_tx_hash && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void refreshPending()}
+                  >
+                    Refresh delivery
                   </Button>
                 )}
               </div>
@@ -417,6 +525,17 @@ export function FiatOnRampForm({
 
       {widgetElement}
 
+      {onLeaveFlow && ownedFlowActive && !unsafeToClose && (
+        <div className="flex flex-col gap-1">
+          <Button type="button" variant="outline" onClick={handleLeaveFlow}>
+            Leave checkout
+          </Button>
+          <p className="text-muted-foreground text-xs">
+            Privana will keep this signed purchase available for exact recovery.
+          </p>
+        </div>
+      )}
+
       {error && (
         <p className="text-destructive text-sm" role="alert">
           {error.message}
@@ -432,6 +551,17 @@ export function FiatOnRampForm({
       {isBelowMin && minFiatGate !== undefined && (
         <p className="text-destructive text-sm" role="alert">
           Minimum purchase is ~${minFiatGate.toFixed(2)}.
+        </p>
+      )}
+
+      {tokenMismatch && (
+        <p className="text-destructive text-sm" role="alert">
+          The token configuration changed. Close this purchase and start again.
+        </p>
+      )}
+      {!tokenMismatch && depositAddress && minimumUnknown && !error && (
+        <p className="text-destructive text-sm" role="alert">
+          The minimum purchase amount is unavailable. Close this purchase and try again.
         </p>
       )}
 

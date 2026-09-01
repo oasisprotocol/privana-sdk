@@ -3,6 +3,7 @@ import type {
   Address,
   Bytes32,
   CreateOnRampIntentRequest,
+  HexString,
   OnRampProvider,
   OnRampRecord,
 } from '../types'
@@ -22,6 +23,12 @@ export interface OnRampProviderTransactionContext {
   chainId: number
 }
 
+export interface OnRampProviderDepositContext {
+  client: PrivanaClient
+  record: OnRampRecord
+  depositTxHash: HexString
+}
+
 /**
  * The deliberately small backend-facing provider seam. Provider launch UI
  * normalizes its callbacks into `OnRampProviderEvent`; the shared hook owns
@@ -32,6 +39,11 @@ export interface OnRampProviderAdapter {
   pollPendingWhileOpen: boolean
   buildIntentRequest(input: OnRampProviderIntentInput): CreateOnRampIntentRequest
   registerTransaction?(context: OnRampProviderTransactionContext): Promise<OnRampRecord | undefined>
+  /**
+   * Optional provider compatibility write after Privana has already credited
+   * the verified on-chain deposit. It never authorizes or gates credit.
+   */
+  recordDeposit?(context: OnRampProviderDepositContext): Promise<OnRampRecord | undefined>
 }
 
 export type OnRampProviderEventKind = 'transaction-created' | 'transaction-completed'
@@ -84,6 +96,42 @@ export function assertOnRampRecordProvider(
   }
 }
 
+/**
+ * A newly created signed intent is launch authority, so every field that can
+ * redirect delivery or credit must echo the exact request. Pending recovery
+ * records remain more permissive because older records can omit these fields.
+ */
+export function assertCreatedOnRampIntent(
+  record: OnRampRecord,
+  configuredProvider: OnRampProvider,
+  expected: OnRampProviderIntentInput
+): void {
+  assertOnRampRecordProvider(record, configuredProvider)
+  if (
+    typeof record.provider_asset_code !== 'string' ||
+    record.provider_asset_code.toLowerCase() !== expected.providerAssetCode.toLowerCase()
+  ) {
+    throw new Error(
+      `On-ramp intent asset ${record.provider_asset_code} does not match requested asset ${expected.providerAssetCode}`
+    )
+  }
+  if (
+    typeof record.token_id !== 'string' ||
+    record.token_id.toLowerCase() !== expected.tokenId.toLowerCase()
+  ) {
+    throw new Error('On-ramp intent token does not match the requested token')
+  }
+  if (record.chain_id !== expected.chainId) {
+    throw new Error('On-ramp intent chain does not match the requested chain')
+  }
+  if (
+    typeof record.wallet_address !== 'string' ||
+    record.wallet_address.toLowerCase() !== expected.walletAddress.toLowerCase()
+  ) {
+    throw new Error('On-ramp intent wallet does not match the Privana deposit address')
+  }
+}
+
 export function matchesOnRampTransaction(record: OnRampRecord, transactionId: string): boolean {
   return (
     record.transaction_id === transactionId ||
@@ -93,12 +141,31 @@ export function matchesOnRampTransaction(record: OnRampRecord, transactionId: st
   )
 }
 
-export function getOnRampVerificationKey(record: OnRampRecord): string {
-  return record.on_chain_tx_hash ?? record.transaction_id
-}
-
 export function getOnRampIntentId(record: OnRampRecord): string {
   return record.external_transaction_id ?? record.transaction_id
+}
+
+/**
+ * Local verification ownership follows the signed Privana intent. A provider
+ * payout transaction can contain transfers for more than one signed order.
+ */
+export function getOnRampVerificationKey(record: OnRampRecord): string {
+  return getOnRampIntentId(record)
+}
+
+export function canRetryOnRampVerification(
+  record: OnRampRecord,
+  activeVerificationId: string | null
+): boolean {
+  return Boolean(record.on_chain_tx_hash) && activeVerificationId === null
+}
+
+export async function recordOnRampProviderDeposit(
+  adapter: OnRampProviderAdapter,
+  context: OnRampProviderDepositContext
+): Promise<OnRampRecord | undefined> {
+  if (context.record.provider !== adapter.provider) return undefined
+  return adapter.recordDeposit?.(context)
 }
 
 export async function verifyPendingOnRampsSequentially({

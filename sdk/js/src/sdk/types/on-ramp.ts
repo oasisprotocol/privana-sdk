@@ -3,6 +3,16 @@ import type { Address, Bytes32, HexString } from './common'
 export type OnRampProvider = 'moonpay' | 'transak'
 export type OnRampStatus = 'pending' | 'completed' | 'failed' | 'cancelled'
 
+/** Product-level card on-ramp selection supplied by the SDK host. */
+export interface OnRampConfig {
+  /** The only provider the product UI may launch. */
+  provider: OnRampProvider
+  /** The only Privana token the configured provider may deposit. */
+  tokenId: Bytes32
+  /** Provider-side asset identifier expected in the signed intent. */
+  providerAssetCode: string
+}
+
 /** Request body / response of POST /api/onramp/sign-url */
 export interface SignOnRampUrlRequest {
   url: string
@@ -22,6 +32,19 @@ export interface CreateOnRampIntentRequest {
 }
 
 export type CreateOnRampIntentResponse = OnRampRecord
+
+/** Request body / response of POST /v1/accounting/onramp/session. */
+export interface CreateOnRampSessionRequest {
+  transaction_id: string
+}
+
+export interface OnRampSessionResponse {
+  provider: 'transak'
+  /** Opaque, single-use URL. Do not persist, log, or modify it. */
+  url: string
+  /** Unix timestamp in seconds by which the URL must be loaded. */
+  expires_at: number
+}
 
 /** Request body / response of POST /api/onramp/{id}. */
 export interface UpdateOnRampRequest {

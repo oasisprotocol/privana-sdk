@@ -225,6 +225,7 @@ Notes:
 | `useDeposit`             | Deposit tokens                                                                                                     |
 | `useDepositVerification` | Run checkDeposit + status polling against an existing on-chain transfer (used by `useDeposit` and `useFiatOnRamp`) |
 | `useFiatOnRamp`          | MoonPay on-ramp with provider-neutral recovery, verification, credit, and locking (from `/on-ramp` sub-export)     |
+| `useTransakOnRamp`       | Explicit Transak session launch and hardened iframe over the same shared recovery and credit core                  |
 | `useWithdraw`            | Withdraw tokens                                                                                                    |
 | `useLockFunds`           | Lock funds for a recipient                                                                                         |
 | `useUnlockFunds`         | Unlock expired locks                                                                                               |
@@ -242,20 +243,47 @@ Notes:
 The fiat on-ramp lets users buy tokens with a card and have them credited to
 their Privana balance in one flow. An internal provider-neutral core owns
 recovery, receipt verification, `/deposits/check`, credit, and optional
-post-credit locking. MoonPay launch and widget behavior live in a thin adapter.
+post-credit locking. MoonPay and Transak launch and widget behavior live in thin
+provider-specific adapters.
+
+The SDK product modals select one provider, token, and provider-side asset at
+the `PrivanaProvider` boundary:
+
+```tsx
+<PrivanaProvider
+  networkConfig={networkConfig}
+  onRamp={{
+    provider: 'transak',
+    tokenId: '0x...',
+    providerAssetCode: 'usdc',
+  }}
+>
+  <App />
+</PrivanaProvider>
+```
+
+An explicit configuration locks card purchases to that token and fails closed
+if the provider, token, or asset is invalid. When `onRamp` is omitted, the
+product modal preserves its existing MoonPay behavior using
+`networkConfig.moonpayApiKey` and the token's MoonPay mapping.
+
+For Transak, the product modal requires a target at least 5% above Privana's
+on-chain minimum. This margin reduces the risk that provider estimate movement
+delivers a paid purchase below the amount that Privana can verify.
 
 **The provider delivers the purchased token directly to the server-derived
 Privana deposit address. Provider orders, amounts, events, and webhooks are
-correlation hints only; the matching on-chain transfer remains authoritative.**
+correlation hints only. One unambiguous matching on-chain transfer, including
+its exact receipt log index, remains authoritative.**
 
 Exported from a separate entry point so consumers who don't use the on-ramp
 don't pay the bundle cost of `@moonpay/moonpay-react`:
 
 ```tsx
-import { FiatOnRampForm, useFiatOnRamp } from '@oasisprotocol/privana-sdk/on-ramp'
+import { FiatOnRampForm, useFiatOnRamp, useTransakOnRamp } from '@oasisprotocol/privana-sdk/on-ramp'
 ```
 
-### Setup
+### MoonPay setup
 
 The SDK ships `@moonpay/moonpay-react` as a regular dependency, so it lands in
 your `node_modules` automatically. If you import `<MoonPayProvider>` directly
@@ -307,8 +335,8 @@ The form:
   reconcile both ids during provider reads,
 - treats MoonPay events as wake-up hints, polls the authenticated pending read
   for the provider transaction and on-chain hash, derives the delivered amount
-  from matching receipt logs, then triggers Privana verification
-  (`checkDeposit` + status polling).
+  and exact log index from one unambiguous matching receipt log, then triggers
+  Privana verification (`checkDeposit` + status polling).
 
 ### `useFiatOnRamp` for custom UI
 
@@ -337,6 +365,53 @@ const {
 } = useFiatOnRamp({ tokenId, onCredited, onError })
 ```
 
+### `useTransakOnRamp` for a Transak checkout
+
+Transak credentials and session creation remain in the backend. Call `launch`
+only from an explicit user action; it creates the signed intent and then requests
+one five-minute, single-use session. The hook keeps the opaque URL in memory and
+returns a hardened iframe as `widget`:
+
+```tsx
+import { useTransakOnRamp } from '@oasisprotocol/privana-sdk/on-ramp'
+
+function TransakCheckout({ tokenId }) {
+  const {
+    widget,
+    isLaunching,
+    isWidgetOpen,
+    launch,
+    recreateSession,
+    closeWidget,
+    pending,
+    finishPendingVerification,
+  } = useTransakOnRamp({ tokenId, onCredited, onError })
+
+  return (
+    <>
+      <button
+        disabled={isLaunching || isWidgetOpen}
+        onClick={() => void launch({ providerAssetCode: 'usdc' }).catch(() => undefined)}
+      >
+        Buy with card
+      </button>
+      {widget}
+    </>
+  )
+}
+```
+
+`recreateSession()` retries the current unresolved intent only when its session
+failed or expired before the provider iframe became interactive. After the
+provider UI activates or order evidence exists, the adapter refuses to create a
+second provider order under that intent. Unmount the direct hook to abandon its
+local checkout UI; durable signed-intent recovery remains available. The
+adapter uses the backend URL byte-for-byte, preserves the browser `Referer`, and
+accepts messages only from the current iframe at the exact documented Transak
+origin. Widget messages are polling hints only. Authenticated
+`/onramp/pending` reads and the matching on-chain ERC-20 transfer remain the
+recovery and credit path.
+
 ### Pending / recovery
 
 If the user closes or reloads between launch and verification, the SDK reloads
@@ -348,9 +423,10 @@ signature is required for deposit verification.
 
 ### Required backend endpoints
 
-The `useFiatOnRamp` hook + form call:
+The provider adapters call:
 
 - `POST /v1/accounting/onramp/sign-url` — HMAC-signs the MoonPay widget URL
+- `POST /v1/accounting/onramp/session` — creates a short-lived opaque Transak widget URL
 - `POST /v1/accounting/onramp/intent` — mints a signed provider/user/wallet/token/chain/asset intent
 - `POST /v1/accounting/onramp/{transaction_id}` — validates and echoes MoonPay compatibility metadata without becoming order state
 - `GET /v1/accounting/onramp/pending` — bounded provider reads for completed, strictly admitted transactions awaiting verification
