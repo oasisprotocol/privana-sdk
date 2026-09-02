@@ -28,7 +28,13 @@ export interface WithdrawParams {
   amount: bigint
 }
 
-export type WithdrawStep = 'idle' | 'switching-chain' | 'signing' | 'submitting' | 'processing'
+export type WithdrawStep =
+  | 'idle'
+  | 'preparing'
+  | 'switching-chain'
+  | 'signing'
+  | 'submitting'
+  | 'processing'
 
 export interface UseWithdrawResult {
   withdraw: (params: WithdrawParams) => Promise<TransactionSubmissionResponse | undefined>
@@ -115,6 +121,8 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
 
       try {
         if (!address || !walletClient) throw new Error('Wallet not connected')
+
+        setCurrentStep('preparing')
 
         // Snapshot pending withdrawal indices so we can detect the new one after submission
         const pendingResponse = await client.getPendingWithdrawals(address)

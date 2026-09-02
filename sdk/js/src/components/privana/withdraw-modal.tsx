@@ -87,6 +87,15 @@ function WithdrawView({
 
   const withdrawSteps: Step[] = [
     {
+      label: 'Preparing withdrawal',
+      status: getStepStatus('preparing', [
+        'switching-chain',
+        'signing',
+        'submitting',
+        'processing',
+      ]),
+    },
+    {
       label: 'Switching to signing chain',
       status: getStepStatus('switching-chain', ['signing', 'submitting', 'processing']),
     },
@@ -177,7 +186,10 @@ function WithdrawView({
 
   if (isPending && !cancelled) {
     const canCancel =
-      currentStep === 'idle' || currentStep === 'switching-chain' || currentStep === 'signing'
+      currentStep === 'idle' ||
+      currentStep === 'preparing' ||
+      currentStep === 'switching-chain' ||
+      currentStep === 'signing'
     return (
       <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
         <TransactionProgressView
