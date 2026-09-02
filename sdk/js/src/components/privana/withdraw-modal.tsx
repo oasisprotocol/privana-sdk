@@ -10,6 +10,7 @@ import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useBalance, useWithdraw } from '@/sdk/hooks'
 import type { WithdrawStep } from '@/sdk/hooks'
 import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
+import { Skeleton } from '@/components/ui/skeleton'
 import { getTokenIcon } from './token-icons'
 import { TokenSelectorView } from './token-selector-view'
 import { CloseIcon, ChevronLeftIcon, ChevronRightIcon } from './icons'
@@ -220,8 +221,13 @@ function WithdrawView({
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <label className="text-muted-foreground text-sm">Amount</label>
-          <span className="text-muted-foreground text-sm">
-            Available {formattedBalance} {selectedToken?.symbol}
+          <span className="text-muted-foreground flex items-center gap-1 text-sm">
+            Available{' '}
+            {isBalanceLoading ? (
+              <Skeleton className="h-4 w-16" />
+            ) : (
+              `${formattedBalance} ${selectedToken?.symbol ?? ''}`
+            )}
           </span>
         </div>
         <div className="border-border bg-input flex items-center gap-2 rounded-[10px] border py-1 pr-1 pl-3">
@@ -239,7 +245,8 @@ function WithdrawView({
           <button
             type="button"
             onClick={handleMax}
-            className="bg-secondary text-foreground hover:bg-secondary/80 cursor-pointer rounded px-3 py-2.5 text-xs font-semibold transition-colors"
+            disabled={isBalanceLoading}
+            className="bg-secondary text-foreground hover:bg-secondary/80 cursor-pointer rounded px-3 py-2.5 text-xs font-semibold transition-colors disabled:cursor-default disabled:opacity-50"
           >
             MAX
           </button>
