@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useAccount } from 'wagmi'
+import { formatUnits } from 'viem'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import { getExplorerAddressUrl, getExplorerLabel } from '@/sdk/types/chains'
@@ -10,6 +11,7 @@ import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useBalance, useWithdraw } from '@/sdk/hooks'
 import type { WithdrawStep } from '@/sdk/hooks'
 import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
+import { Skeleton } from '@/components/ui/skeleton'
 import { getTokenIcon } from './token-icons'
 import { TokenSelectorView } from './token-selector-view'
 import { CloseIcon, ChevronLeftIcon, ChevronRightIcon } from './icons'
@@ -85,6 +87,15 @@ function WithdrawView({
 
   const withdrawSteps: Step[] = [
     {
+      label: 'Preparing withdrawal',
+      status: getStepStatus('preparing', [
+        'switching-chain',
+        'signing',
+        'submitting',
+        'processing',
+      ]),
+    },
+    {
       label: 'Switching to signing chain',
       status: getStepStatus('switching-chain', ['signing', 'submitting', 'processing']),
     },
@@ -122,8 +133,8 @@ function WithdrawView({
 
   const handleMax = () => {
     if (!selectedToken) return
-    const max = formattedBalance.replace(/\s/g, '')
-    if (parseFloat(max) > 0) onAmountChange(max)
+    const wei = BigInt(balanceWei)
+    if (wei > 0n) onAmountChange(formatUnits(wei, selectedToken.decimals))
   }
 
   const handleWithdraw = async () => {
@@ -175,7 +186,10 @@ function WithdrawView({
 
   if (isPending && !cancelled) {
     const canCancel =
-      currentStep === 'idle' || currentStep === 'switching-chain' || currentStep === 'signing'
+      currentStep === 'idle' ||
+      currentStep === 'preparing' ||
+      currentStep === 'switching-chain' ||
+      currentStep === 'signing'
     return (
       <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
         <TransactionProgressView
@@ -220,8 +234,13 @@ function WithdrawView({
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <label className="text-muted-foreground text-sm">Amount</label>
-          <span className="text-muted-foreground text-sm">
-            Available {formattedBalance} {selectedToken?.symbol}
+          <span className="text-muted-foreground flex items-center gap-1 text-sm">
+            Available{' '}
+            {isBalanceLoading ? (
+              <Skeleton className="h-4 w-16" />
+            ) : (
+              `${formattedBalance} ${selectedToken?.symbol ?? ''}`
+            )}
           </span>
         </div>
         <div className="border-border bg-input flex items-center gap-2 rounded-[10px] border py-1 pr-1 pl-3">
@@ -239,7 +258,8 @@ function WithdrawView({
           <button
             type="button"
             onClick={handleMax}
-            className="bg-secondary text-foreground hover:bg-secondary/80 cursor-pointer rounded px-3 py-2.5 text-xs font-semibold transition-colors"
+            disabled={isBalanceLoading}
+            className="bg-secondary text-foreground hover:bg-secondary/80 cursor-pointer rounded px-3 py-2.5 text-xs font-semibold transition-colors disabled:cursor-default disabled:opacity-50"
           >
             MAX
           </button>
@@ -355,6 +375,7 @@ export function WithdrawModalContent({
         <TokenSelectorView
           selectedTokenId={selectedToken?.id}
           onSelect={(id) => {
+            if (id !== selectedTokenId) setAmount('')
             setSelectedTokenId(id)
             setView('form')
           }}

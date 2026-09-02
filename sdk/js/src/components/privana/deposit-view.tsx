@@ -6,6 +6,7 @@ import { isMoonPayProductOnRamp, type ProductOnRampSelection } from '@/sdk/on-ra
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useMoonpayLimits } from '@/sdk/hooks/use-moonpay-limits'
 import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
+import { Skeleton } from '@/components/ui/skeleton'
 import { getTokenIcon } from './token-icons'
 import { ChevronRightIcon } from './icons'
 import { AllowancePolicySection } from './allowance-policy-section'
@@ -50,12 +51,12 @@ export function DepositView({
   const isMoonPayCard = isCreditCard && isMoonPayProductOnRamp(onRamp)
   const isTransakCard = isCreditCard && onRamp.provider === 'transak'
   const isNative = selectedToken?.contract === zeroAddress
-  const { data: nativeBalanceData } = useBalance({
+  const { data: nativeBalanceData, isLoading: isNativeBalanceLoading } = useBalance({
     address,
     chainId: targetChain?.id,
     query: { enabled: isConnectedSource && !!address && !!selectedToken && isNative },
   })
-  const { data: erc20Balance } = useReadContract({
+  const { data: erc20Balance, isLoading: isErc20BalanceLoading } = useReadContract({
     address: selectedToken?.contract as `0x${string}` | undefined,
     abi: erc20Abi,
     functionName: 'balanceOf',
@@ -64,6 +65,7 @@ export function DepositView({
     query: { enabled: isConnectedSource && !!address && !!selectedToken && !isNative },
   })
   const walletBalance = isNative ? nativeBalanceData?.value : erc20Balance
+  const isWalletBalanceLoading = isNative ? isNativeBalanceLoading : isErc20BalanceLoading
   const formattedWalletBalance =
     walletBalance != null && selectedToken
       ? formatTokenAmount(walletBalance.toString(), selectedToken.decimals)
@@ -132,8 +134,8 @@ export function DepositView({
     !needsConnect
 
   const handleMax = () => {
-    const max = formattedWalletBalance.replace(/\s/g, '')
-    if (parseFloat(max) > 0) onAmountChange(max)
+    if (selectedToken && walletBalance != null && walletBalance > 0n)
+      onAmountChange(formatUnits(walletBalance, selectedToken.decimals))
   }
 
   return (
@@ -197,8 +199,13 @@ export function DepositView({
         <div className="flex items-center justify-between">
           <label className="text-muted-foreground text-sm">Amount</label>
           {isConnectedSource && (
-            <span className="text-muted-foreground text-sm">
-              Available {formattedWalletBalance} {selectedToken?.symbol}
+            <span className="text-muted-foreground flex items-center gap-1 text-sm">
+              Available{' '}
+              {isWalletBalanceLoading ? (
+                <Skeleton className="h-4 w-16" />
+              ) : (
+                `${formattedWalletBalance} ${selectedToken?.symbol ?? ''}`
+              )}
             </span>
           )}
         </div>
@@ -224,7 +231,8 @@ export function DepositView({
             <button
               type="button"
               onClick={handleMax}
-              className="bg-secondary text-foreground hover:bg-secondary/80 cursor-pointer rounded px-3 py-2.5 text-xs font-semibold transition-colors"
+              disabled={isWalletBalanceLoading}
+              className="bg-secondary text-foreground hover:bg-secondary/80 cursor-pointer rounded px-3 py-2.5 text-xs font-semibold transition-colors disabled:cursor-default disabled:opacity-50"
             >
               MAX
             </button>
