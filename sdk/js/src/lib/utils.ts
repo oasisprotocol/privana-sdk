@@ -5,17 +5,22 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatTokenAmount(amount: string | bigint, decimals: number = 18): string {
+export function formatTokenAmount(
+  amount: string | bigint,
+  decimals: number = 18,
+  maxDecimals: number = 6
+): string {
   const value = typeof amount === 'string' ? BigInt(amount) : amount
-  const divisor = BigInt(10 ** decimals)
+  const divisor = 10n ** BigInt(decimals)
   const integerPart = value / divisor
   const fractionalPart = value % divisor
 
   const fractionalStr = fractionalPart.toString().padStart(decimals, '0')
-  const twoDecimals = fractionalStr.slice(0, 2).padEnd(2, '0')
+  const shown = fractionalStr.slice(0, Math.max(2, Math.min(maxDecimals, decimals)))
+  const trimmed = shown.replace(/0+$/, '').padEnd(2, '0')
 
   const integerWithSpaces = integerPart.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '\u2009')
-  return `${integerWithSpaces}.${twoDecimals}`
+  return `${integerWithSpaces}.${trimmed}`
 }
 
 export function parseTokenAmount(amount: string, decimals: number = 18): bigint {

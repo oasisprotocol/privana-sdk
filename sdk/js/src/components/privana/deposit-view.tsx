@@ -134,8 +134,8 @@ export function DepositView({
     !needsConnect
 
   const handleMax = () => {
-    const max = formattedWalletBalance.replace(/\s/g, '')
-    if (parseFloat(max) > 0) onAmountChange(max)
+    if (selectedToken && walletBalance != null && walletBalance > 0n)
+      onAmountChange(formatUnits(walletBalance, selectedToken.decimals))
   }
 
   return (

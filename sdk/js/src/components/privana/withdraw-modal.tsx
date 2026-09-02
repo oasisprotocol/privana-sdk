@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useAccount } from 'wagmi'
+import { formatUnits } from 'viem'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import { getExplorerAddressUrl, getExplorerLabel } from '@/sdk/types/chains'
@@ -123,8 +124,8 @@ function WithdrawView({
 
   const handleMax = () => {
     if (!selectedToken) return
-    const max = formattedBalance.replace(/\s/g, '')
-    if (parseFloat(max) > 0) onAmountChange(max)
+    const wei = BigInt(balanceWei)
+    if (wei > 0n) onAmountChange(formatUnits(wei, selectedToken.decimals))
   }
 
   const handleWithdraw = async () => {
