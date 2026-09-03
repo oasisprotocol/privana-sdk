@@ -891,6 +891,7 @@ export function DepositModalContent({
           token={selectedToken}
           amount={amount}
           depositAddressState={depositAddressState}
+          externalMinimum={externalMinimum}
           onCredited={allowance ? undefined : onDepositSuccess}
           onDiscardLock={handleExternalVerificationDiscard}
           // Routed on the signed session, not the allowance prop: once a
