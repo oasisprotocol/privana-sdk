@@ -375,7 +375,7 @@ export function WithdrawModalContent({
         <TokenSelectorView
           selectedTokenId={selectedToken?.id}
           onSelect={(id) => {
-            if (id !== selectedTokenId) setAmount('')
+            if (id !== selectedToken?.id) setAmount('')
             setSelectedTokenId(id)
             setView('form')
           }}
