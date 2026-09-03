@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import { zeroAddress } from 'viem'
+import { formatUnits, zeroAddress } from 'viem'
 import { QRCodeSVG } from 'qrcode.react'
 import { toast } from 'sonner'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useDepositVerification, usePendingDeposits, type VerificationContext } from '@/sdk/hooks'
-import type { UseDepositAddressResult } from '@/sdk/hooks/use-deposit-address'
+import {
+  getMinDepositBaseUnits,
+  type UseDepositAddressResult,
+} from '@/sdk/hooks/use-deposit-address'
 import { isExternalDepositBlockInSession } from '@/sdk/hooks/external-deposit-lock'
 import type { UseExternalDepositLockResult } from '@/sdk/hooks/use-external-deposit-lock'
 import { formatCountdown, shortenAddress } from '@/lib/utils'
@@ -107,6 +110,14 @@ export function ExternalDepositView({
   const { getChainById, getTokenById, serviceName } = usePrivanaContext()
   const appName = serviceName ?? 'Privana'
   const { depositAddress, isReady, isLoading } = depositAddressState
+  // External deposits are ERC-20 only, so the erc20 floor always applies.
+  const externalMinimum = token
+    ? getMinDepositBaseUnits(depositAddressState.response, token.chainId, 'erc20')
+    : undefined
+  const minimumLabel =
+    token && externalMinimum !== undefined
+      ? `${formatUnits(externalMinimum, token.decimals)} ${token.symbol}`
+      : undefined
   const chain = token ? getChainById(token.chainId) : undefined
   const lockSession = lock?.session
   const recordVerification = lock?.recordVerification
@@ -278,8 +289,8 @@ export function ExternalDepositView({
         <>
           {!scanPaused && (
             <p className="text-muted-foreground text-sm">
-              Send the displayed amount in one transfer. Transfers below the minimum are not
-              combined or automatically returned.
+              Send the displayed amount in one transfer. Transfers below the minimum
+              {minimumLabel ? ` (${minimumLabel})` : ''} are not combined or automatically returned.
             </p>
           )}
 

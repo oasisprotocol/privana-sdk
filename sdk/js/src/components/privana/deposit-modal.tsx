@@ -445,10 +445,6 @@ export function DepositModalContent({
         return
       }
       const depositAmount = parseTokenAmount(args.amount, token.decimals)
-      if (!allowance) {
-        setView('external-deposit')
-        return
-      }
       if (typeof externalMinimum !== 'bigint') {
         toast.error('Minimum deposit is unavailable. Please try again.')
         return
@@ -457,6 +453,10 @@ export function DepositModalContent({
         toast.error(
           `Minimum deposit is ${formatUnits(externalMinimum, token.decimals)} ${token.symbol}`
         )
+        return
+      }
+      if (!allowance) {
+        setView('external-deposit')
         return
       }
       externalLock

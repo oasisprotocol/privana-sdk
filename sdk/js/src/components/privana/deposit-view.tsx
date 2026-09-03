@@ -106,7 +106,7 @@ export function DepositView({
   const moonpayLimitsUnready = isMoonPayCard && !!onRamp.providerAssetCode && moonpayMinBuy == null
   const creditCardUnavailable = isCreditCard && !!onRamp.unavailableReason
   const externalTokenUnavailable = isExternal && !!selectedToken && isNative
-  const externalMinimumRequired = isExternal && !!allowance && !!selectedToken
+  const externalMinimumRequired = isExternal && !!selectedToken
   const externalMinimumLoading = externalMinimumRequired && externalMinimum === undefined
   const externalMinimumUnavailable = externalMinimumRequired && externalMinimum === null
   const belowExternalMinimum =
