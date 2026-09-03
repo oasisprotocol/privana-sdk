@@ -19,6 +19,7 @@ export function DepositView({
   amount,
   allowance,
   externalMinimum,
+  walletMinimum,
   onAmountChange,
   onSelectToken,
   onConnectWallet,
@@ -32,6 +33,7 @@ export function DepositView({
   allowance?: Allowance
   /** `undefined` while loading, `null` when unavailable, otherwise base units. */
   externalMinimum?: bigint | null
+  walletMinimum?: bigint
   onAmountChange: (value: string) => void
   onSelectToken: () => void
   onConnectWallet?: () => void
@@ -104,7 +106,7 @@ export function DepositView({
   const moonpayLimitsUnready = isMoonPayCard && !!onRamp.providerAssetCode && moonpayMinBuy == null
   const creditCardUnavailable = isCreditCard && !!onRamp.unavailableReason
   const externalTokenUnavailable = isExternal && !!selectedToken && isNative
-  const externalMinimumRequired = isExternal && !!allowance && !!selectedToken
+  const externalMinimumRequired = isExternal && !!selectedToken
   const externalMinimumLoading = externalMinimumRequired && externalMinimum === undefined
   const externalMinimumUnavailable = externalMinimumRequired && externalMinimum === null
   const belowExternalMinimum =
@@ -114,6 +116,14 @@ export function DepositView({
     !!selectedToken &&
     typeof externalMinimum === 'bigint' &&
     parseTokenAmount(amount, selectedToken.decimals) < externalMinimum
+  const belowWalletMinimum =
+    isConnectedSource &&
+    hasValidAmount &&
+    !tooManyDecimals &&
+    !exceedsBalance &&
+    !!selectedToken &&
+    walletMinimum !== undefined &&
+    parseTokenAmount(amount, selectedToken.decimals) < walletMinimum
   // Signing the external-deposit policy needs a wallet even though the
   // transfer itself comes from elsewhere.
   const externalNeedsWallet = isExternal && (!!allowance || !hostedAuthConfig)
@@ -131,6 +141,7 @@ export function DepositView({
     !externalMinimumLoading &&
     !externalMinimumUnavailable &&
     !belowExternalMinimum &&
+    !belowWalletMinimum &&
     !needsConnect
 
   const handleMax = () => {
@@ -256,6 +267,12 @@ export function DepositView({
         {belowExternalMinimum && selectedToken && typeof externalMinimum === 'bigint' && (
           <p className="text-destructive text-sm">
             Minimum deposit is {formatUnits(externalMinimum, selectedToken.decimals)}{' '}
+            {selectedToken.symbol}.
+          </p>
+        )}
+        {belowWalletMinimum && selectedToken && walletMinimum !== undefined && (
+          <p className="text-destructive text-sm">
+            Minimum deposit is {formatUnits(walletMinimum, selectedToken.decimals)}{' '}
             {selectedToken.symbol}.
           </p>
         )}
