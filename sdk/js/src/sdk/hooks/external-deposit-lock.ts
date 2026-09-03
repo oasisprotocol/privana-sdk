@@ -1,10 +1,5 @@
 import type { PrivanaClient } from '../client'
-import type {
-  Address,
-  Bytes32,
-  LockFundsRequest,
-  TransactionSubmissionResponse,
-} from '../types'
+import type { Address, Bytes32, LockFundsRequest, TransactionSubmissionResponse } from '../types'
 import {
   getSharedBrowserStorageItem,
   removeSharedBrowserStorageItem,

@@ -254,13 +254,17 @@ export function DepositModalContent({
             null)
           : undefined
   const walletMinimum =
-    source === 'connected' && selectedToken
-      ? getMinDepositBaseUnits(
-          depositAddressState.response,
-          selectedToken.chainId,
-          selectedToken.contract === zeroAddress ? 'native' : 'erc20'
-        )
-      : undefined
+    source !== 'connected' || !selectedToken
+      ? undefined
+      : depositAddressState.isError
+        ? null
+        : depositAddressState.response
+          ? (getMinDepositBaseUnits(
+              depositAddressState.response,
+              selectedToken.chainId,
+              selectedToken.contract === zeroAddress ? 'native' : 'erc20'
+            ) ?? null)
+          : undefined
 
   const prevAddressRef = useRef(address)
   useEffect(() => {
