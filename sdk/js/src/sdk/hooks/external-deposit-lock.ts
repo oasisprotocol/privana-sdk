@@ -2,7 +2,6 @@ import type { PrivanaClient } from '../client'
 import type {
   Address,
   Bytes32,
-  DepositAddressResponse,
   LockFundsRequest,
   TransactionSubmissionResponse,
 } from '../types'
@@ -71,20 +70,6 @@ export function isCurrentExternalDepositVerification(
     session.creditedAmount === undefined &&
     session.verification?.hash.toLowerCase() === txHash.toLowerCase()
   )
-}
-
-export function getExternalDepositMinimum(
-  response: DepositAddressResponse | undefined,
-  chainId: number
-): bigint | undefined {
-  const value = response?.min_deposit?.[String(chainId)]?.erc20
-  if (value === undefined) return undefined
-  try {
-    const amount = BigInt(value)
-    return amount >= 0n ? amount : undefined
-  } catch {
-    return undefined
-  }
 }
 
 function activeSessionKey(owner: string): string {

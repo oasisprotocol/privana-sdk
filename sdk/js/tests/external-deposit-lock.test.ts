@@ -5,7 +5,6 @@ import {
   discardExternalDepositLockSession,
   externalDepositRetryAmount,
   externalDepositSessionId,
-  getExternalDepositMinimum,
   isCurrentExternalDepositVerification,
   isExternalDepositBlockInSession,
   loadExternalDepositLockSession,
@@ -14,6 +13,7 @@ import {
   submitExternalDepositLock,
   type ExternalDepositLockSessionRecord,
 } from '../src/sdk/hooks/external-deposit-lock'
+import { getMinDepositBaseUnits } from '../src/sdk/hooks/min-deposit'
 import { PostDepositLockError, requireDepositLockOwner } from '../src/sdk/hooks/pending-lock'
 import {
   canUseSharedBrowserStorage,
@@ -280,19 +280,20 @@ describe('external deposit minimum', () => {
       },
     }
 
-    expect(getExternalDepositMinimum(response, CHAIN_ID)).toBe(1000n)
-    expect(getExternalDepositMinimum(response, 1)).toBeUndefined()
+    expect(getMinDepositBaseUnits(response, CHAIN_ID, 'erc20')).toBe(1000n)
+    expect(getMinDepositBaseUnits(response, 1, 'erc20')).toBeUndefined()
   })
 
   it('treats a legacy response without minimums as unavailable', () => {
     expect(
-      getExternalDepositMinimum(
+      getMinDepositBaseUnits(
         {
           deposit_address: OWNER,
           chain_type: 'evm',
           version: 0,
         } as DepositAddressResponse,
-        CHAIN_ID
+        CHAIN_ID,
+        'erc20'
       )
     ).toBeUndefined()
   })

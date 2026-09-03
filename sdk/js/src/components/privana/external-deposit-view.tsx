@@ -6,10 +6,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useDepositVerification, usePendingDeposits, type VerificationContext } from '@/sdk/hooks'
-import {
-  getMinDepositBaseUnits,
-  type UseDepositAddressResult,
-} from '@/sdk/hooks/use-deposit-address'
+import type { UseDepositAddressResult } from '@/sdk/hooks/use-deposit-address'
+import { getMinDepositBaseUnits } from '@/sdk/hooks/min-deposit'
 import { isExternalDepositBlockInSession } from '@/sdk/hooks/external-deposit-lock'
 import type { UseExternalDepositLockResult } from '@/sdk/hooks/use-external-deposit-lock'
 import { formatCountdown, shortenAddress } from '@/lib/utils'

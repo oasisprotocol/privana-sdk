@@ -10,9 +10,9 @@ import type { Allowance } from '@/sdk/types/allowance'
 import { toast } from 'sonner'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useDeposit, isSignedLockUsable, type PostDepositLockError } from '@/sdk/hooks'
-import { useDepositAddress, getMinDepositBaseUnits } from '@/sdk/hooks/use-deposit-address'
+import { useDepositAddress } from '@/sdk/hooks/use-deposit-address'
+import { getMinDepositBaseUnits } from '@/sdk/hooks/min-deposit'
 import { usePrivateReadRequest } from '@/sdk/hooks/use-private-read-request'
-import { getExternalDepositMinimum } from '@/sdk/hooks/external-deposit-lock'
 import { useExternalDepositLock } from '@/sdk/hooks/use-external-deposit-lock'
 import {
   createProductOnRampFlowSnapshot,
@@ -250,7 +250,8 @@ export function DepositModalContent({
       : depositAddressState.isError
         ? null
         : depositAddressState.response
-          ? (getExternalDepositMinimum(depositAddressState.response, selectedToken.chainId) ?? null)
+          ? (getMinDepositBaseUnits(depositAddressState.response, selectedToken.chainId, 'erc20') ??
+            null)
           : undefined
   const walletMinimum =
     source === 'connected' && selectedToken
