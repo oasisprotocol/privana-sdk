@@ -50,8 +50,8 @@ import {
   savePendingLock,
   PostDepositLockError,
   type OnRampPostDepositLockConfig,
-} from './pending-lock'
-import { canUseBrowserStorage } from './browser-storage'
+} from '../utils/pending-lock'
+import { canUseBrowserStorage } from '../utils/browser-storage'
 import { useDepositVerification } from './use-deposit-verification'
 import { useEnsureCorrectChain } from './use-ensure-correct-chain'
 import { usePrivateReadRequest } from './use-private-read-request'

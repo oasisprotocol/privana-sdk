@@ -19,7 +19,7 @@ import type {
   UseTransakOnRampOptions,
   UseTransakOnRampResult,
 } from '../src/sdk/hooks/use-transak-on-ramp'
-import { PostDepositLockError } from '../src/sdk/hooks/pending-lock'
+import { PostDepositLockError } from '../src/sdk/utils/pending-lock'
 import type { OnRampConfig } from '../src/sdk/types'
 import type { TokenConfig } from '../src/sdk/types/tokens'
 

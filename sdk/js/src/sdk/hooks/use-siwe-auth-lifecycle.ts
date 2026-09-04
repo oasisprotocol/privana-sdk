@@ -29,7 +29,7 @@ import {
   type SiweAuthController,
 } from '../auth/siwe-auth-controller'
 import { AUTH_CLOCK_SKEW_MS } from '../auth/auth-clock-skew'
-import { createScopeKey, setCachedPrivateReadToken } from './private-read-token-store'
+import { createScopeKey, setCachedPrivateReadToken } from '../utils/private-read-token-store'
 import { useSafeAccount } from './use-safe-account'
 import type { SiweLifecyclePorts } from '../auth/auth-lifecycle-effects'
 import type { SiweAuthSession, SiweAuthTokens } from '../auth/auth-lifecycle-effects'

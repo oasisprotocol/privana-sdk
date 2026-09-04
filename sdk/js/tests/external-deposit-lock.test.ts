@@ -12,15 +12,15 @@ import {
   subscribeExternalDepositLockSession,
   submitExternalDepositLock,
   type ExternalDepositLockSessionRecord,
-} from '../src/sdk/hooks/external-deposit-lock'
+} from '../src/sdk/utils/external-deposit-lock'
 import { getMinDepositBaseUnits } from '../src/sdk/utils/min-deposit'
-import { PostDepositLockError, requireDepositLockOwner } from '../src/sdk/hooks/pending-lock'
+import { PostDepositLockError, requireDepositLockOwner } from '../src/sdk/utils/pending-lock'
 import {
   canUseSharedBrowserStorage,
   getSharedBrowserStorageItem,
   removeSharedBrowserStorageItem,
   setSharedBrowserStorageItem,
-} from '../src/sdk/hooks/browser-storage'
+} from '../src/sdk/utils/browser-storage'
 import { AccountingApiError } from '../src/sdk/client/errors'
 import type { Address, DepositAddressResponse, LockFundsRequest } from '../src/sdk/types'
 

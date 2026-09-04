@@ -19,7 +19,7 @@ import {
   getBrowserStorageItem,
   removeBrowserStorageItem,
   setBrowserStorageItem,
-} from './browser-storage'
+} from '../utils/browser-storage'
 import {
   clampLockAmount,
   createSignedLockRequest,
@@ -29,7 +29,7 @@ import {
   submitPendingLock,
   PostDepositLockError,
   type PostDepositLockConfig,
-} from './pending-lock'
+} from '../utils/pending-lock'
 import { getMinDepositBaseUnits } from '../utils/min-deposit'
 import type {
   Bytes32,

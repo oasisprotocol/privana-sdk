@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import type { Allowance } from '@/sdk/types/allowance'
-import type { PostDepositLockError } from '@/sdk/hooks/pending-lock'
+import type { PostDepositLockError } from '@/sdk/utils/pending-lock'
 import type { ProductOnRampSelection } from '@/sdk/on-ramp/product-config'
 import type { Address } from '@/sdk/types'
 import { FiatOnRampForm } from './fiat-on-ramp-form'

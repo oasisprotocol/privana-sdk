@@ -6,9 +6,9 @@ import {
   type Address as ViemAddress,
 } from 'viem'
 import { AccountingApiError, PrivanaClient } from '../src/sdk/client'
-import { checkDepositWithFinalityRetry } from '../src/sdk/hooks/deposit-finality'
+import { checkDepositWithFinalityRetry } from '../src/sdk/utils/deposit-finality'
 import { bindOnRampFlowSession } from '../src/sdk/hooks/use-on-ramp'
-import { clearPendingLock, loadPendingLock, savePendingLock } from '../src/sdk/hooks/pending-lock'
+import { clearPendingLock, loadPendingLock, savePendingLock } from '../src/sdk/utils/pending-lock'
 import {
   moonPayOnRampAdapter,
   normalizeMoonPayProviderEvent,

@@ -5,7 +5,7 @@ import {
   getBrowserStorageItem,
   removeBrowserStorageItem,
   setBrowserStorageItem,
-} from '../hooks/browser-storage'
+} from '../utils/browser-storage'
 import { getOnRampIntentId, getOnRampVerificationKey } from './provider'
 
 export const MAX_UNRESOLVED_ONRAMP_INTENTS = 10

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AccountingApiError } from '../client/errors'
-import { checkDepositWithFinalityRetry } from './deposit-finality'
+import { checkDepositWithFinalityRetry } from '../utils/deposit-finality'
 import { usePrivateReadRequest } from './use-private-read-request'
 import type { DepositCheckResponse } from '../types'
 

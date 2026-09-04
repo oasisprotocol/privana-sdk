@@ -11,7 +11,7 @@ import type { Allowance } from '../types/allowance'
 import { useEnsureCorrectChain } from './use-ensure-correct-chain'
 import { usePrivateReadRequest } from './use-private-read-request'
 import type { VerificationContext } from './use-deposit-verification'
-import { canUseSharedBrowserStorage } from './browser-storage'
+import { canUseSharedBrowserStorage } from '../utils/browser-storage'
 import {
   clampLockAmount,
   createSignedLockRequest,
@@ -19,7 +19,7 @@ import {
   requireDepositLockOwner,
   requireServiceAddress,
   PostDepositLockError,
-} from './pending-lock'
+} from '../utils/pending-lock'
 import {
   clearExternalDepositVerification,
   clearExternalDepositLockSession,
@@ -34,7 +34,7 @@ import {
   subscribeExternalDepositLockSession,
   submitExternalDepositLock,
   type ExternalDepositLockSessionRecord,
-} from './external-deposit-lock'
+} from '../utils/external-deposit-lock'
 
 export interface UseExternalDepositLockOptions {
   allowance?: Allowance

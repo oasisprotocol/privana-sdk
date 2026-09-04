@@ -1,7 +1,7 @@
 import { parseUnits, zeroAddress } from 'viem'
 import type { Allowance } from '../types/allowance'
 import type { Address, OnRampConfig, OnRampProvider } from '../types'
-import type { PostDepositLockError } from '../hooks/pending-lock'
+import type { PostDepositLockError } from '../utils/pending-lock'
 import type { TokenConfig } from '../types/tokens'
 
 const BYTES32_PATTERN = /^0x[0-9a-fA-F]{64}$/

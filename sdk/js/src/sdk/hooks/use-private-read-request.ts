@@ -15,7 +15,7 @@ import {
   deleteCachedPrivateReadToken,
   getCachedPrivateReadToken,
   setCachedPrivateReadToken,
-} from './private-read-token-store'
+} from '../utils/private-read-token-store'
 
 const INITIAL_AUTH_BACKOFF_MS = 5_000
 const MAX_AUTH_BACKOFF_MS = 60_000
