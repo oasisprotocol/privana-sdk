@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { getMinDepositBaseUnits } from '../src/sdk/hooks/min-deposit'
+import { getMinDepositBaseUnits } from '../src/sdk/utils/min-deposit'
 import type { DepositAddressResponse } from '../src/sdk/types'
 
 const response: DepositAddressResponse = {

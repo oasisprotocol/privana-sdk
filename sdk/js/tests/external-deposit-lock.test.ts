@@ -13,7 +13,7 @@ import {
   submitExternalDepositLock,
   type ExternalDepositLockSessionRecord,
 } from '../src/sdk/hooks/external-deposit-lock'
-import { getMinDepositBaseUnits } from '../src/sdk/hooks/min-deposit'
+import { getMinDepositBaseUnits } from '../src/sdk/utils/min-deposit'
 import { PostDepositLockError, requireDepositLockOwner } from '../src/sdk/hooks/pending-lock'
 import {
   canUseSharedBrowserStorage,
