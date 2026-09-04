@@ -85,6 +85,25 @@ export function EthereumIcon({ className, size = 24 }: IconProps) {
   )
 }
 
+export function HyperliquidIcon({ className, size = 24 }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      <rect width="24" height="24" rx="12" fill="#0F3933" />
+      <path
+        d="M21.0141 11.9135C21.0141 17.8492 17.3699 19.7541 15.4374 18.07C13.8638 16.6896 13.3944 13.7632 11.0202 13.4596C8.01092 13.1007 7.73484 17.1038 5.7471 17.1038C3.42805 17.1038 2.98633 13.7632 2.98633 12.0239C2.98633 10.2571 3.48327 7.85519 5.44341 7.85519C7.73484 7.85519 7.87289 11.3062 10.7441 11.1129C13.5877 10.9196 13.6429 7.33064 15.5202 5.81223C17.149 4.45945 21.0141 5.89505 21.0141 11.9135Z"
+        fill="#97FCE4"
+      />
+    </svg>
+  )
+}
+
 export function getTokenIcon(symbol: string | null | undefined, size?: number) {
   const iconSize = size ?? 24
   switch ((symbol ?? '').toUpperCase()) {
@@ -93,6 +112,9 @@ export function getTokenIcon(symbol: string | null | undefined, size?: number) {
     case 'ETH':
     case 'WETH':
       return <EthereumIcon size={iconSize} />
+    case 'HYPE':
+    case 'WHYPE':
+      return <HyperliquidIcon size={iconSize} />
     default:
       return (
         <div
