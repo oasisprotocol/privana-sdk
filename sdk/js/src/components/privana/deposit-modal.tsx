@@ -9,10 +9,11 @@ import type { TokenConfig } from '@/sdk/types/tokens'
 import type { Allowance } from '@/sdk/types/allowance'
 import { toast } from 'sonner'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
-import { useDeposit, isSignedLockUsable, type PostDepositLockError } from '@/sdk/hooks'
-import { useDepositAddress, getMinDepositBaseUnits } from '@/sdk/hooks/use-deposit-address'
+import { useDeposit } from '@/sdk/hooks'
+import { isSignedLockUsable, type PostDepositLockError } from '@/sdk/utils/pending-lock'
+import { useDepositAddress } from '@/sdk/hooks/use-deposit-address'
+import { getMinDepositBaseUnits } from '@/sdk/utils/min-deposit'
 import { usePrivateReadRequest } from '@/sdk/hooks/use-private-read-request'
-import { getExternalDepositMinimum } from '@/sdk/hooks/external-deposit-lock'
 import { useExternalDepositLock } from '@/sdk/hooks/use-external-deposit-lock'
 import {
   createProductOnRampFlowSnapshot,
@@ -250,16 +251,21 @@ export function DepositModalContent({
       : depositAddressState.isError
         ? null
         : depositAddressState.response
-          ? (getExternalDepositMinimum(depositAddressState.response, selectedToken.chainId) ?? null)
+          ? (getMinDepositBaseUnits(depositAddressState.response, selectedToken.chainId, 'erc20') ??
+            null)
           : undefined
   const walletMinimum =
-    source === 'connected' && selectedToken
-      ? getMinDepositBaseUnits(
-          depositAddressState.response,
-          selectedToken.chainId,
-          selectedToken.contract === zeroAddress ? 'native' : 'erc20'
-        )
-      : undefined
+    source !== 'connected' || !selectedToken
+      ? undefined
+      : depositAddressState.isError
+        ? null
+        : depositAddressState.response
+          ? (getMinDepositBaseUnits(
+              depositAddressState.response,
+              selectedToken.chainId,
+              selectedToken.contract === zeroAddress ? 'native' : 'erc20'
+            ) ?? null)
+          : undefined
 
   const prevAddressRef = useRef(address)
   useEffect(() => {
@@ -890,6 +896,7 @@ export function DepositModalContent({
           token={selectedToken}
           amount={amount}
           depositAddressState={depositAddressState}
+          externalMinimum={externalMinimum}
           onCredited={allowance ? undefined : onDepositSuccess}
           onDiscardLock={handleExternalVerificationDiscard}
           // Routed on the signed session, not the allowance prop: once a

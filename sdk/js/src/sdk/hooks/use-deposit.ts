@@ -19,7 +19,7 @@ import {
   getBrowserStorageItem,
   removeBrowserStorageItem,
   setBrowserStorageItem,
-} from './browser-storage'
+} from '../utils/browser-storage'
 import {
   clampLockAmount,
   createSignedLockRequest,
@@ -29,7 +29,8 @@ import {
   submitPendingLock,
   PostDepositLockError,
   type PostDepositLockConfig,
-} from './pending-lock'
+} from '../utils/pending-lock'
+import { getMinDepositBaseUnits } from '../utils/min-deposit'
 import type {
   Bytes32,
   DepositAddressResponse,
@@ -463,11 +464,14 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
         // deposit processor refuses to credit and funds would be stranded
         // at the per-user deposit address.
         const isNative = token.contract === zeroAddress
-        const minsForChain = addrResponse.min_deposit?.[String(sourceChain.id)]
-        const minAmountStr = isNative ? minsForChain?.native : minsForChain?.erc20
-        if (minAmountStr && params.amount < BigInt(minAmountStr)) {
+        const minimum = getMinDepositBaseUnits(
+          addrResponse,
+          sourceChain.id,
+          isNative ? 'native' : 'erc20'
+        )
+        if (minimum !== undefined && params.amount < minimum) {
           throw new Error(
-            `Amount is below the minimum deposit (${minAmountStr}) for ${isNative ? 'native' : 'ERC-20'} on chain ${sourceChain.id}`
+            `Amount is below the minimum deposit (${minimum}) for ${isNative ? 'native' : 'ERC-20'} on chain ${sourceChain.id}`
           )
         }
 

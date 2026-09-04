@@ -1,6 +1,6 @@
 import type { PrivanaClient } from '../client'
 import type { LockFundsRequest, TransactionSubmissionResponse } from '../types'
-import { clearPendingLock, loadPendingLock, submitPendingLock } from '../hooks/pending-lock'
+import { clearPendingLock, loadPendingLock, submitPendingLock } from '../utils/pending-lock'
 
 export type OnRampLockSettlement =
   | { kind: 'not-found' }

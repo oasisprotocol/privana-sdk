@@ -13,7 +13,7 @@ import {
 import type { Allowance } from '@/sdk/types/allowance'
 import type { Address, OnRampRecord } from '@/sdk/types'
 import type { TokenConfig } from '@/sdk/types/tokens'
-import type { PostDepositLockError } from '@/sdk/hooks/pending-lock'
+import type { PostDepositLockError } from '@/sdk/utils/pending-lock'
 
 type UseTransakOnRampHook = typeof useTransakOnRamp
 

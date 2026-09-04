@@ -33,7 +33,8 @@ export function DepositView({
   allowance?: Allowance
   /** `undefined` while loading, `null` when unavailable, otherwise base units. */
   externalMinimum?: bigint | null
-  walletMinimum?: bigint
+  /** `undefined` while loading, `null` when unavailable, otherwise base units. */
+  walletMinimum?: bigint | null
   onAmountChange: (value: string) => void
   onSelectToken: () => void
   onConnectWallet?: () => void
@@ -122,7 +123,7 @@ export function DepositView({
     !tooManyDecimals &&
     !exceedsBalance &&
     !!selectedToken &&
-    walletMinimum !== undefined &&
+    typeof walletMinimum === 'bigint' &&
     parseTokenAmount(amount, selectedToken.decimals) < walletMinimum
   // Signing the external-deposit policy needs a wallet even though the
   // transfer itself comes from elsewhere.
@@ -270,7 +271,7 @@ export function DepositView({
             {selectedToken.symbol}.
           </p>
         )}
-        {belowWalletMinimum && selectedToken && walletMinimum !== undefined && (
+        {belowWalletMinimum && selectedToken && typeof walletMinimum === 'bigint' && (
           <p className="text-destructive text-sm">
             Minimum deposit is {formatUnits(walletMinimum, selectedToken.decimals)}{' '}
             {selectedToken.symbol}.

@@ -10,7 +10,7 @@ import {
   savePendingLock,
   submitPendingLock,
   PostDepositLockError,
-} from '../src/sdk/hooks/pending-lock'
+} from '../src/sdk/utils/pending-lock'
 import type { LockFundsRequest } from '../src/sdk/types'
 
 const BASE_URL = 'https://privana.example.com'

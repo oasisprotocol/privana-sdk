@@ -6,11 +6,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useDepositVerification, usePendingDeposits, type VerificationContext } from '@/sdk/hooks'
-import {
-  getMinDepositBaseUnits,
-  type UseDepositAddressResult,
-} from '@/sdk/hooks/use-deposit-address'
-import { isExternalDepositBlockInSession } from '@/sdk/hooks/external-deposit-lock'
+import type { UseDepositAddressResult } from '@/sdk/hooks/use-deposit-address'
+import { isExternalDepositBlockInSession } from '@/sdk/utils/external-deposit-lock'
 import type { UseExternalDepositLockResult } from '@/sdk/hooks/use-external-deposit-lock'
 import { formatCountdown, shortenAddress } from '@/lib/utils'
 import { CopyIcon } from './icons'
@@ -84,6 +81,7 @@ export function ExternalDepositView({
   token,
   amount,
   depositAddressState,
+  externalMinimum,
   onCredited,
   onDiscardLock,
   lock,
@@ -91,6 +89,8 @@ export function ExternalDepositView({
   token: TokenConfig | undefined
   amount: string
   depositAddressState: UseDepositAddressResult
+  /** `undefined` while loading, `null` when unavailable, otherwise base units. */
+  externalMinimum?: bigint | null
   /** When set, the host owns the success UX — the inline success view is skipped. */
   onCredited?: () => void
   /** Explicitly abandons a signed session before any transfer is discovered. */
@@ -110,12 +110,8 @@ export function ExternalDepositView({
   const { getChainById, getTokenById, serviceName } = usePrivanaContext()
   const appName = serviceName ?? 'Privana'
   const { depositAddress, isReady, isLoading } = depositAddressState
-  // External deposits are ERC-20 only, so the erc20 floor always applies.
-  const externalMinimum = token
-    ? getMinDepositBaseUnits(depositAddressState.response, token.chainId, 'erc20')
-    : undefined
   const minimumLabel =
-    token && externalMinimum !== undefined
+    token && typeof externalMinimum === 'bigint'
       ? `${formatUnits(externalMinimum, token.decimals)} ${token.symbol}`
       : undefined
   const chain = token ? getChainById(token.chainId) : undefined
