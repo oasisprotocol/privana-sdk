@@ -12,6 +12,12 @@ class AccountingApiError(Exception):
         self.status_code = status_code
         self.detail = detail
 
+    def __str__(self) -> str:
+        base = super().__str__()
+        if self.detail and self.detail not in base:
+            return f"{base}: {self.detail}"
+        return base
+
 
 class NetworkError(Exception):
     def __init__(
