@@ -51,7 +51,7 @@ from oasis_privana import PrivanaClient
 
 async def main():
     async with PrivanaClient(base_url="https://api.example.com") as client:
-        domain = await client.get_siwe_domain()
+        domains = await client.get_siwe_domain()
         nonce = await client.get_siwe_nonce("0xYourAddress")
 
         # Build and sign the SIWE message in your app, then submit it here.
@@ -62,7 +62,7 @@ async def main():
 
         balance = await client.get_balance("0xTokenId")
         history = await client.get_history()
-        print(domain.domain, nonce.nonce, login.address, balance.balance, history.total)
+        print(domains.domains, nonce.nonce, login.address, balance.balance, history.total)
 
 asyncio.run(main())
 ```
@@ -126,7 +126,7 @@ signature = sign_lock_message(
   - `get_withdrawal_nonce(user_address)` - Get next withdrawal nonce
   - `get_pending_withdrawals(user_address)` - Get pending withdrawals
   - `get_withdrawal_info(index)` - Get withdrawal info
-  - `get_siwe_domain()` - Get the direct SIWE auth domain
+  - `get_siwe_domain()` - Get the SIWE auth domain allow-list
   - `get_siwe_nonce(user_address)` - Get a SIWE login nonce
   - `login_with_siwe(siwe_message, signature)` - Exchange a signed SIWE message for tokens
   - `authenticate_private_reads(siwe_message, signature)` - Login and store `X-SIWE-Token`

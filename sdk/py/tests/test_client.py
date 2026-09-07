@@ -715,12 +715,14 @@ class TestErrorHandling:
 class TestAuthHelpers:
     @respx.mock
     async def test_get_siwe_domain(self, client):
-        respx.get(f"{BASE_URL}/v1/accounting/auth/domain").mock(
-            return_value=httpx.Response(200, json={"domain": "privana.example.com"}),
+        respx.get(f"{BASE_URL}/v1/accounting/auth/domains").mock(
+            return_value=httpx.Response(
+                200, json={"domains": ["privana.example.com", "app.example.com"]}
+            ),
         )
 
         result = await client.get_siwe_domain()
-        assert result.domain == "privana.example.com"
+        assert result.domains == ["privana.example.com", "app.example.com"]
 
     @respx.mock
     async def test_get_siwe_nonce(self, client):

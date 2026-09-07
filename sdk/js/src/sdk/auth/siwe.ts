@@ -8,12 +8,21 @@ export const SIWE_MESSAGE_VALIDITY_MS = 24 * 60 * 60 * 1000
 export type SiweMessageValue = ReturnType<typeof createSiweMessage>
 
 export interface SiweMessageApi {
-  getSiweDomain(): Promise<{ domain: string }>
+  getSiweDomain(): Promise<{ domains: string[] }>
   getSiweNonce(address: Address): Promise<{ nonce: string }>
 }
 
 export function buildSiweStatement(chainId: number): string {
   return `Sign in to Privana on chain ${chainId}`
+}
+
+export function pickSiweDomain(response: { domains: string[] }): string {
+  const allowed = response.domains
+  if (!allowed?.length) throw new Error('SIWE domain response contains no domains')
+  const primary = allowed[0]
+  if (typeof window === 'undefined' || !window.location?.host) return primary
+  const host = window.location.host.toLowerCase()
+  return allowed.some((domain) => domain.toLowerCase() === host) ? host : primary
 }
 
 /** Fetches the domain + nonce and assembles the message both SIWE login paths sign. */
@@ -22,10 +31,11 @@ export async function buildSiweLoginMessage(
   params: { address: Address; chainId: number; apiUrl: string }
 ): Promise<{ message: SiweMessageValue; expirationTime: Date }> {
   const { address, chainId, apiUrl } = params
-  const [{ domain }, { nonce }] = await Promise.all([
+  const [domainResponse, { nonce }] = await Promise.all([
     api.getSiweDomain(),
     api.getSiweNonce(address),
   ])
+  const domain = pickSiweDomain(domainResponse)
   const issuedAt = new Date()
   const expirationTime = new Date(issuedAt.getTime() + SIWE_MESSAGE_VALIDITY_MS)
   const uri =
