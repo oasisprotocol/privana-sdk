@@ -137,13 +137,6 @@ class PrivanaClient:
         tokens: Sequence[str] | None = None,
         token_provider: TokenProvider | None = None,
     ) -> None:
-        """``token_provider`` is an async callable returning
-        ``(access_token, expires_in_seconds)``. Supply it and the client keeps
-        itself authenticated: it authenticates on first use, re-authenticates
-        before the token expires, and retries once if the server rejects a
-        token early. Callers never handle a 401 themselves. Each client holds
-        its own token, so separate instances can act as separate identities.
-        """
         self._http = HttpClient(
             base_url=base_url,
             timeout=timeout,

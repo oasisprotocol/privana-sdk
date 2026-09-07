@@ -11,9 +11,7 @@ from .errors import AccountingApiError, NetworkError
 
 # Re-authenticate this long before the token's stated lifetime runs out. The
 # server's clock decides when it really dies, so the margin absorbs skew.
-# Capped to a fifth of the lifetime so a short-lived token does not turn into
-# one login per request.
-REFRESH_MARGIN_SEC = 300
+TOKEN_REFRESH_MARGIN_SEC = 300
 
 TokenProvider = Callable[[], Awaitable[tuple[str, int]]]
 
@@ -47,8 +45,7 @@ class HttpClient:
         # monotonic, not wall clock: a backwards clock step must never stretch
         # a token's perceived lifetime past what the server granted.
         return (
-            self.get_header("Authorization") is not None
-            and time.monotonic() < self._token_deadline
+            self.get_header("Authorization") is not None and time.monotonic() < self._token_deadline
         )
 
     def invalidate_token(self) -> None:
@@ -68,7 +65,9 @@ class HttpClient:
                 return
             token, expires_in = await self._token_provider()
             lifetime = max(expires_in, 1)
-            margin = min(REFRESH_MARGIN_SEC, lifetime // 5)
+            # Refresh at 80% of lifetime, or TOKEN_REFRESH_MARGIN_SEC before
+            # expiry, whichever comes first.
+            margin = min(TOKEN_REFRESH_MARGIN_SEC, lifetime // 5)
             self.set_header("Authorization", f"Bearer {token}")
             self._token_deadline = time.monotonic() + max(lifetime - margin, 1)
 

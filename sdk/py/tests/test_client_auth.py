@@ -38,9 +38,7 @@ class TestClientManagedAuth:
         client = PrivanaClient(
             base_url=BASE_URL, token_provider=_provider(["jwt-one"], calls=calls)
         )
-        route = respx.get(BALANCE_URL).mock(
-            return_value=httpx.Response(200, json=BALANCE_BODY)
-        )
+        route = respx.get(BALANCE_URL).mock(return_value=httpx.Response(200, json=BALANCE_BODY))
 
         await client.get_balance(TOKEN_ID)
 
@@ -69,9 +67,7 @@ class TestClientManagedAuth:
             # second call has to authenticate again.
             token_provider=_provider(["jwt-one", "jwt-two"], expires_in=1, calls=calls),
         )
-        route = respx.get(BALANCE_URL).mock(
-            return_value=httpx.Response(200, json=BALANCE_BODY)
-        )
+        route = respx.get(BALANCE_URL).mock(return_value=httpx.Response(200, json=BALANCE_BODY))
 
         await client.get_balance(TOKEN_ID)
         await asyncio.sleep(1.1)
@@ -102,9 +98,7 @@ class TestClientManagedAuth:
 
     @respx.mock
     async def test_gives_up_after_one_retry(self):
-        client = PrivanaClient(
-            base_url=BASE_URL, token_provider=_provider(["one", "two"])
-        )
+        client = PrivanaClient(base_url=BASE_URL, token_provider=_provider(["one", "two"]))
         route = respx.get(BALANCE_URL).mock(
             return_value=httpx.Response(401, json={"detail": "nope"})
         )
@@ -117,9 +111,7 @@ class TestClientManagedAuth:
     @respx.mock
     async def test_does_not_retry_a_non_auth_error(self):
         calls = []
-        client = PrivanaClient(
-            base_url=BASE_URL, token_provider=_provider(["one"], calls=calls)
-        )
+        client = PrivanaClient(base_url=BASE_URL, token_provider=_provider(["one"], calls=calls))
         route = respx.get(BALANCE_URL).mock(
             return_value=httpx.Response(400, json={"detail": "pool paused"})
         )
@@ -150,9 +142,7 @@ class TestClientManagedAuth:
     async def test_instances_hold_separate_tokens(self):
         admin = PrivanaClient(base_url=BASE_URL, token_provider=_provider(["admin"]))
         lp = PrivanaClient(base_url=BASE_URL, token_provider=_provider(["lp"]))
-        route = respx.get(BALANCE_URL).mock(
-            return_value=httpx.Response(200, json=BALANCE_BODY)
-        )
+        route = respx.get(BALANCE_URL).mock(return_value=httpx.Response(200, json=BALANCE_BODY))
 
         await admin.get_balance(TOKEN_ID)
         await lp.get_balance(TOKEN_ID)
@@ -163,9 +153,7 @@ class TestClientManagedAuth:
     @respx.mock
     async def test_without_a_provider_nothing_changes(self):
         client = PrivanaClient(base_url=BASE_URL)
-        route = respx.get(BALANCE_URL).mock(
-            return_value=httpx.Response(200, json=BALANCE_BODY)
-        )
+        route = respx.get(BALANCE_URL).mock(return_value=httpx.Response(200, json=BALANCE_BODY))
 
         await client.get_balance(TOKEN_ID)
 
