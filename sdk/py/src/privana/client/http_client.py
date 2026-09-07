@@ -60,7 +60,7 @@ class HttpClient:
             )
 
             if not response.is_success:
-                detail: str | None = None
+                detail: Any = None
                 try:
                     error_body = response.json()
                     detail = error_body.get("detail") or error_body.get("message")
