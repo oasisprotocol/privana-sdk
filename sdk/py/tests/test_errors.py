@@ -25,6 +25,28 @@ class TestAccountingApiError:
         err = AccountingApiError("test error", 400)
         assert str(err) == "test error"
 
+    def test_str_with_list_detail(self):
+        """FastAPI's own 422 sends detail as a list of validation objects."""
+        err = AccountingApiError(
+            "API request failed: 422 Unprocessable Entity",
+            422,
+            [{"loc": ["body", "amount"], "msg": "field required"}],
+        )
+
+        rendered = str(err)
+
+        assert rendered.startswith("API request failed: 422 Unprocessable Entity: ")
+        assert "field required" in rendered
+
+    def test_str_with_dict_detail(self):
+        err = AccountingApiError("failed", 400, {"reason": "pool paused"})
+
+        assert "pool paused" in str(err)
+
+    def test_str_with_falsy_detail(self):
+        assert str(AccountingApiError("failed", 400, [])) == "failed"
+        assert str(AccountingApiError("failed", 400, "")) == "failed"
+
     def test_is_exception(self):
         err = AccountingApiError("test", 500)
         assert isinstance(err, Exception)
