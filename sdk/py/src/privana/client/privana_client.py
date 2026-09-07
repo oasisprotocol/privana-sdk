@@ -503,8 +503,8 @@ class PrivanaClient:
         )
 
     async def get_siwe_domain(self) -> SiweDomainResponse:
-        data = await self._http.get("/v1/accounting/auth/domain")
-        return SiweDomainResponse(domain=data["domain"])
+        data = await self._http.get("/v1/accounting/auth/domains")
+        return SiweDomainResponse(domains=data["domains"])
 
     async def get_siwe_nonce(self, user_address: str) -> SiweNonceResponse:
         user = normalize_address(user_address)

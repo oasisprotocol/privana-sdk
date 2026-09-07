@@ -183,7 +183,7 @@ class TransferLockedNonceResponse:
 
 @dataclass
 class SiweDomainResponse:
-    domain: str
+    domains: list[str]
 
 
 @dataclass
