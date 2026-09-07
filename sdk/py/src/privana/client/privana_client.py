@@ -60,7 +60,7 @@ from ..types.tokens import (
     TokenConfig,
     get_token_by_id,
 )
-from .http_client import HttpClient
+from .http_client import HttpClient, TokenProvider
 
 PRIVATE_READ_TOKEN_HEADER = "X-SIWE-Token"
 MAX_BATCH_BALANCE_TOKEN_IDS = 100
@@ -135,11 +135,13 @@ class PrivanaClient:
         timeout: float = 30.0,
         headers: dict[str, str] | None = None,
         tokens: Sequence[str] | None = None,
+        token_provider: TokenProvider | None = None,
     ) -> None:
         self._http = HttpClient(
             base_url=base_url,
             timeout=timeout,
             headers=headers,
+            token_provider=token_provider,
         )
         if tokens:
             self._enabled_tokens = [
