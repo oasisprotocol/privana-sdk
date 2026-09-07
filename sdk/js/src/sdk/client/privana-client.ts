@@ -294,7 +294,7 @@ export class PrivanaClient {
   }
 
   async getSiweDomain(): Promise<SiweDomainResponse> {
-    return this.http.get<SiweDomainResponse>('/v1/accounting/auth/domain')
+    return this.http.get<SiweDomainResponse>('/v1/accounting/auth/domains')
   }
 
   async getSiweNonce(userAddress: Address | string): Promise<SiweNonceResponse> {

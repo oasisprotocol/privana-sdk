@@ -715,7 +715,7 @@ class TestErrorHandling:
 class TestAuthHelpers:
     @respx.mock
     async def test_get_siwe_domain(self, client):
-        respx.get(f"{BASE_URL}/v1/accounting/auth/domain").mock(
+        respx.get(f"{BASE_URL}/v1/accounting/auth/domains").mock(
             return_value=httpx.Response(
                 200, json={"domains": ["privana.example.com", "app.example.com"]}
             ),
