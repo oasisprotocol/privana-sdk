@@ -186,7 +186,7 @@ export interface TransferLockedNonceResponse {
 }
 
 export interface SiweDomainResponse {
-  domain: string
+  domains: string[]
 }
 
 export interface SiweNonceResponse {
