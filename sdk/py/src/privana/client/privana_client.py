@@ -60,7 +60,7 @@ from ..types.tokens import (
     TokenConfig,
     get_token_by_id,
 )
-from .http_client import HttpClient
+from .http_client import HttpClient, TokenProvider
 
 PRIVATE_READ_TOKEN_HEADER = "X-SIWE-Token"
 MAX_BATCH_BALANCE_TOKEN_IDS = 100
@@ -135,11 +135,20 @@ class PrivanaClient:
         timeout: float = 30.0,
         headers: dict[str, str] | None = None,
         tokens: Sequence[str] | None = None,
+        token_provider: TokenProvider | None = None,
     ) -> None:
+        """``token_provider`` is an async callable returning
+        ``(access_token, expires_in_seconds)``. Supply it and the client keeps
+        itself authenticated: it authenticates on first use, re-authenticates
+        before the token expires, and retries once if the server rejects a
+        token early. Callers never handle a 401 themselves. Each client holds
+        its own token, so separate instances can act as separate identities.
+        """
         self._http = HttpClient(
             base_url=base_url,
             timeout=timeout,
             headers=headers,
+            token_provider=token_provider,
         )
         if tokens:
             self._enabled_tokens = [
