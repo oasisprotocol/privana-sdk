@@ -374,6 +374,7 @@ export function WithdrawModalContent({
       {view === 'select-token' && (
         <TokenSelectorView
           selectedTokenId={selectedToken?.id}
+          balanceSource="accounting"
           onSelect={(id) => {
             if (id !== selectedToken?.id) setAmount('')
             setSelectedTokenId(id)

@@ -883,6 +883,7 @@ export function DepositModalContent({
       {activeView === 'select-token' && (
         <TokenSelectorView
           selectedTokenId={selectedToken?.id}
+          balanceSource="wallet"
           onSelect={(id) => {
             if (id !== selectedToken?.id) setAmount('')
             setSelectedTokenId(id)
