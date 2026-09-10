@@ -124,11 +124,6 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
 
         setCurrentStep('preparing')
 
-        // Snapshot pending withdrawal indices so we can detect the new one after submission
-        const pendingResponse = await client.getPendingWithdrawals(address)
-        if (isStale()) return undefined
-        const knownIndices = new Set(pendingResponse.pending_withdrawals.map((w) => w.index))
-
         // 1. Switch to signing chain
         if (chainId !== signingChainId) {
           setCurrentStep('switching-chain')
@@ -172,7 +167,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
         // 5. Poll for withdrawal completion
         setCurrentStep('processing')
         const pollStartTime = Date.now()
-        let withdrawalIndex: number | null = null
+        const withdrawalIndex = submissionResponse.index
         let consecutiveFailures = 0
 
         const handleSuccess = () => {
@@ -193,6 +188,11 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
           queryClient.refetchQueries({ queryKey: ['accounting-pending-withdrawals'] })
         }
 
+        if (withdrawalIndex == null) {
+          handleTimeout()
+          return submissionResponse
+        }
+
         const checkWithdrawalStatus = async (): Promise<boolean> => {
           if (isStale()) return true
 
@@ -202,36 +202,12 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
           }
 
           try {
-            if (withdrawalIndex !== null) {
-              const info = await client.getWithdrawalInfo(withdrawalIndex)
-              if (isStale()) return true
-              consecutiveFailures = 0
-              if (info.resolved) {
-                handleSuccess()
-                return true
-              }
-              return false
-            }
-
-            // Find our new withdrawal in the pending list by matching against the
-            // pre-submission snapshot. This avoids sequential index scanning.
-            const pending = await client.getPendingWithdrawals(address)
+            const info = await client.getWithdrawalInfo(withdrawalIndex)
             if (isStale()) return true
             consecutiveFailures = 0
-            const match = pending.pending_withdrawals.find(
-              (w) =>
-                !knownIndices.has(w.index) &&
-                w.user_address.toLowerCase() === address.toLowerCase() &&
-                w.token_id.toLowerCase() === params.tokenId.toLowerCase() &&
-                w.amount === String(params.amount)
-            )
-
-            if (match) {
-              withdrawalIndex = match.index
-              if (match.resolved) {
-                handleSuccess()
-                return true
-              }
+            if (info.resolved) {
+              handleSuccess()
+              return true
             }
           } catch (err) {
             if (isStale()) return true

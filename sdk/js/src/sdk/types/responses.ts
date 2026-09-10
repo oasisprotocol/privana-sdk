@@ -50,6 +50,10 @@ export interface TransactionSubmissionResponse {
   detail?: string
 }
 
+export interface WithdrawalSubmissionResponse extends TransactionSubmissionResponse {
+  index: number | null
+}
+
 export interface BalanceResponse {
   user_address: Address
   token_id: Bytes32
