@@ -1,7 +1,7 @@
-import { useQueries } from '@tanstack/react-query'
-import { useAccount, useConfig, type Config } from 'wagmi'
-import { getBalance, readContract } from '@wagmi/core'
-import { erc20Abi, zeroAddress, type Address } from 'viem'
+import { useQueries, type UseQueryOptions } from '@tanstack/react-query'
+import { useAccount, useConfig } from 'wagmi'
+import { getBalanceQueryOptions, readContractQueryOptions } from '@wagmi/core/query'
+import { erc20Abi, zeroAddress } from 'viem'
 import type { TokenConfig } from '@/sdk/types/tokens'
 
 interface UseWalletTokenBalancesOptions {
@@ -13,48 +13,48 @@ export interface UseWalletTokenBalancesResult {
   isLoading: boolean
 }
 
-async function fetchWalletBalance(
-  config: Config,
-  address: Address,
-  token: TokenConfig
-): Promise<bigint> {
-  if (token.contract === zeroAddress) {
-    return (await getBalance(config, { address, chainId: token.chainId })).value
-  }
-  return readContract(config, {
-    address: token.contract,
-    abi: erc20Abi,
-    functionName: 'balanceOf',
-    args: [address],
-    chainId: token.chainId,
-  })
-}
-
+/**
+ * Queries are built from wagmi's own query-options factories, so they live
+ * under wagmi's standard keys (['readContract', ...] / ['balance', ...]):
+ * the deposit flow's post-deposit invalidations refresh these rows, the token
+ * picker and the single-token amount view (useWalletTokenBalance) share cache
+ * entries, and one unreachable chain RPC fails only its own rows.
+ */
 export function useWalletTokenBalances(
   tokens: TokenConfig[],
   options: UseWalletTokenBalancesOptions = {}
 ): UseWalletTokenBalancesResult {
   const config = useConfig()
   const { address } = useAccount()
-  const enabled = options.enabled ?? true
-
-  const results = useQueries({
-    queries: tokens.map((token) => ({
-      queryKey: [
-        'wallet-token-balance',
-        address ?? null,
-        token.chainId,
-        token.id.toLowerCase(),
-      ] as const,
-      queryFn: () => fetchWalletBalance(config, address!, token),
-      enabled: enabled && !!address,
-    })),
-  })
+  const enabled = (options.enabled ?? true) && !!address
+  const queries = tokens.map((token) =>
+    token.contract === zeroAddress
+      ? {
+          ...getBalanceQueryOptions(config, {
+            address: address ?? zeroAddress,
+            chainId: token.chainId,
+          }),
+          enabled,
+        }
+      : {
+          ...readContractQueryOptions(config, {
+            address: token.contract,
+            abi: erc20Abi,
+            functionName: 'balanceOf',
+            args: [address ?? zeroAddress],
+            chainId: token.chainId,
+          }),
+          enabled,
+        }
+  ) as unknown as UseQueryOptions<unknown>[]
+  const results = useQueries({ queries })
 
   const balances: Record<string, string> = {}
   let isLoading = false
   results.forEach((result, i) => {
-    if (result.data !== undefined) balances[tokens[i].id.toLowerCase()] = result.data.toString()
+    const data = result.data as bigint | { value: bigint } | undefined
+    const value = typeof data === 'bigint' ? data : data?.value
+    if (value !== undefined) balances[tokens[i].id.toLowerCase()] = value.toString()
     if (result.isLoading) isLoading = true
   })
   return { balances, isLoading }
