@@ -65,7 +65,12 @@ export function resolveProductOnRamp({
 }: ResolveProductOnRampOptions): ProductOnRampSelection {
   if (config === undefined) {
     if (!moonpayApiKey) {
-      return unavailable('moonpay', legacyToken, false, 'MoonPay is not configured.')
+      return unavailable(
+        null,
+        legacyToken,
+        false,
+        'Card purchases are temporarily disabled. Please check back later.'
+      )
     }
     if (!legacyToken) {
       return available('moonpay', undefined, undefined, false)

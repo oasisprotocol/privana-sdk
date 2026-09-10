@@ -131,16 +131,19 @@ function MethodOption({
   title,
   description,
   onClick,
+  disabled,
 }: {
   title: string
   description: string
   onClick?: () => void
+  disabled?: boolean
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="bg-input hover:bg-input/70 border-border flex w-full cursor-pointer items-center gap-3 rounded-lg border p-3 text-left transition-colors"
+      disabled={disabled}
+      className="bg-input hover:bg-input/70 border-border disabled:hover:bg-input flex w-full cursor-pointer items-center gap-3 rounded-lg border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="text-foreground text-sm leading-[14px] font-medium">{title}</span>
@@ -224,6 +227,12 @@ export function DepositModalContent({
       }),
     [enabledTokens, networkConfig.moonpayApiKey, onRamp, stateSelectedToken]
   )
+
+  const cardPurchaseDisabled =
+    (cardOnRamp.unavailableReason != null &&
+      (cardOnRamp.tokenSelectionLocked || !networkConfig.moonpayApiKey)) ||
+    (onRamp === undefined && !enabledTokens.some((t) => t.moonpayCurrencyCode))
+
   const cardOnRampScope = useMemo(
     () => ({
       apiUrl: privateReadApiUrl,
@@ -843,7 +852,12 @@ export function DepositModalContent({
             <div className="flex flex-col gap-3">
               <MethodOption
                 title="Buy with card"
-                description="Purchase and deposit directly into your account."
+                description={
+                  cardPurchaseDisabled
+                    ? 'Purchases are temporarily disabled. Please check back later.'
+                    : 'Purchase and deposit directly into your account.'
+                }
+                disabled={cardPurchaseDisabled}
                 onClick={() => {
                   onSelectCreditCard?.()
                   openDeposit('credit-card')
