@@ -72,7 +72,7 @@ describe('product card on-ramp configuration', () => {
         legacyToken: token,
         moonpayApiKey: undefined,
       }).unavailableReason
-    ).toBe('MoonPay is not configured.')
+    ).toBe('Card purchases are temporarily disabled. Please check back later.')
 
     expect(
       resolveProductOnRamp({
