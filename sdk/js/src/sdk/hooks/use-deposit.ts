@@ -414,6 +414,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
         setIsWaitingForConfirmation(false)
         onDepositSuccessRef.current?.(hash)
         queryClient.invalidateQueries({ queryKey: ['readContract'] })
+        queryClient.invalidateQueries({ queryKey: ['balance'] })
         await verify(ctx)
       } catch (err) {
         if (isStale()) return
@@ -587,8 +588,10 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
 
           onDepositSuccessRef.current?.(hash)
 
-          // Invalidate wagmi wallet balance queries since tokens have left the wallet
+          // Invalidate wagmi wallet balance queries since tokens have left the
+          // wallet. ERC-20 reads live under 'readContract', native under 'balance'.
           queryClient.invalidateQueries({ queryKey: ['readContract'] })
+          queryClient.invalidateQueries({ queryKey: ['balance'] })
 
           // 6-7. Verification (phase 1 + phase 2) delegated to useDepositVerification
           await verify(ctx)

@@ -1,5 +1,6 @@
-import { useAccount, useBalance, useReadContract } from 'wagmi'
-import { erc20Abi, formatUnits, zeroAddress } from 'viem'
+import { useAccount } from 'wagmi'
+import { useWalletTokenBalance } from '@/sdk/hooks/use-wallet-token-balances'
+import { formatUnits, zeroAddress } from 'viem'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import type { Allowance } from '@/sdk/types/allowance'
 import { isMoonPayProductOnRamp, type ProductOnRampSelection } from '@/sdk/on-ramp/product-config'
@@ -41,12 +42,11 @@ export function DepositView({
   onSubmit: (args: { source: DepositSource; tokenId: string; amount: string }) => void
   isSubmitting?: boolean
 }) {
-  const { getChainById, chains, serviceName, serviceIcon, networkConfig, hostedAuthConfig } =
+  const { getChainById, serviceName, serviceIcon, networkConfig, hostedAuthConfig } =
     usePrivanaContext()
-  const { address, isConnected } = useAccount()
+  const { isConnected } = useAccount()
   const appName = serviceName ?? 'Privana'
   const chain = selectedToken ? getChainById(selectedToken.chainId) : undefined
-  const targetChain = chain ?? chains[0]
   const sourceLabel = source === 'connected' ? 'Connected Wallet' : 'External Wallet'
   const isConnectedSource = source === 'connected'
   const isExternal = source === 'external'
@@ -54,21 +54,10 @@ export function DepositView({
   const isMoonPayCard = isCreditCard && isMoonPayProductOnRamp(onRamp)
   const isTransakCard = isCreditCard && onRamp.provider === 'transak'
   const isNative = selectedToken?.contract === zeroAddress
-  const { data: nativeBalanceData, isLoading: isNativeBalanceLoading } = useBalance({
-    address,
-    chainId: targetChain?.id,
-    query: { enabled: isConnectedSource && !!address && !!selectedToken && isNative },
-  })
-  const { data: erc20Balance, isLoading: isErc20BalanceLoading } = useReadContract({
-    address: selectedToken?.contract as `0x${string}` | undefined,
-    abi: erc20Abi,
-    functionName: 'balanceOf',
-    args: address ? [address] : undefined,
-    chainId: targetChain?.id,
-    query: { enabled: isConnectedSource && !!address && !!selectedToken && !isNative },
-  })
-  const walletBalance = isNative ? nativeBalanceData?.value : erc20Balance
-  const isWalletBalanceLoading = isNative ? isNativeBalanceLoading : isErc20BalanceLoading
+  const { balanceWei: walletBalance, isLoading: isWalletBalanceLoading } = useWalletTokenBalance(
+    selectedToken,
+    { enabled: isConnectedSource }
+  )
   const formattedWalletBalance =
     walletBalance != null && selectedToken
       ? formatTokenAmount(walletBalance.toString(), selectedToken.decimals)
