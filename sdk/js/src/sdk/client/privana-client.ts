@@ -26,6 +26,7 @@ import type {
   WithdrawFromLockRequest,
   BatchBalancesRequest,
   TransactionSubmissionResponse,
+  WithdrawalSubmissionResponse,
   BalanceResponse,
   BatchBalancesResponse,
   HistoryResponse,
@@ -261,8 +262,8 @@ export class PrivanaClient {
     )
   }
 
-  async requestWithdrawal(request: WithdrawalRequest): Promise<TransactionSubmissionResponse> {
-    return this.http.post<TransactionSubmissionResponse>('/v1/accounting/withdraw', {
+  async requestWithdrawal(request: WithdrawalRequest): Promise<WithdrawalSubmissionResponse> {
+    return this.http.post<WithdrawalSubmissionResponse>('/v1/accounting/withdraw', {
       token_id: normalizeHex(request.token_id),
       amount: String(request.amount),
       nonce: String(request.nonce),
