@@ -1,4 +1,5 @@
-import { useAccount } from 'wagmi'
+import { useState } from 'react'
+import { useAccount, useEstimateFeesPerGas } from 'wagmi'
 import { useWalletTokenBalance } from '@/sdk/hooks/use-wallet-token-balances'
 import { formatUnits, zeroAddress } from 'viem'
 import type { TokenConfig } from '@/sdk/types/tokens'
@@ -10,6 +11,7 @@ import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getTokenIcon } from './token-icons'
 import { ChevronRightIcon } from './icons'
+import { maxNativeDeposit } from '@/sdk/utils/native-gas-reserve'
 import { AllowancePolicySection } from './allowance-policy-section'
 import type { DepositSource } from './deposit-modal'
 
@@ -58,6 +60,13 @@ export function DepositView({
     selectedToken,
     { enabled: isConnectedSource }
   )
+
+  const { data: feeEstimate } = useEstimateFeesPerGas({
+    chainId: selectedToken?.chainId,
+    query: { enabled: isConnectedSource && isNative && !!selectedToken },
+  })
+  const [gasReserveApplied, setGasReserveApplied] = useState(false)
+  const [feeExceedsBalance, setFeeExceedsBalance] = useState(false)
   const formattedWalletBalance =
     walletBalance != null && selectedToken
       ? formatTokenAmount(walletBalance.toString(), selectedToken.decimals)
@@ -135,8 +144,13 @@ export function DepositView({
     !needsConnect
 
   const handleMax = () => {
-    if (selectedToken && walletBalance != null && walletBalance > 0n)
-      onAmountChange(formatUnits(walletBalance, selectedToken.decimals))
+    if (!selectedToken || walletBalance == null || walletBalance <= 0n) return
+    const wei = isNative
+      ? maxNativeDeposit(walletBalance, feeEstimate?.maxFeePerGas)
+      : walletBalance
+    setGasReserveApplied(isNative && wei > 0n && wei < walletBalance)
+    setFeeExceedsBalance(isNative && wei === 0n)
+    if (wei > 0n) onAmountChange(formatUnits(wei, selectedToken.decimals))
   }
 
   return (
@@ -224,7 +238,11 @@ export function DepositView({
             value={amount}
             onChange={(e) => {
               const value = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.')
-              if (value.split('.').length <= 2) onAmountChange(value)
+              if (value.split('.').length <= 2) {
+                setGasReserveApplied(false)
+                setFeeExceedsBalance(false)
+                onAmountChange(value)
+              }
             }}
             className="text-foreground placeholder:text-muted-foreground/50 flex-1 bg-transparent text-sm outline-none"
           />
@@ -251,6 +269,16 @@ export function DepositView({
           </p>
         )}
         {exceedsBalance && <p className="text-destructive text-sm">Insufficient balance</p>}
+        {gasReserveApplied && hasValidAmount && !exceedsBalance && (
+          <p className="text-muted-foreground text-sm">
+            A small amount is reserved to pay this transaction&apos;s network fee.
+          </p>
+        )}
+        {feeExceedsBalance && (
+          <p className="text-destructive text-sm">
+            Balance is too low to cover the transaction fee.
+          </p>
+        )}
         {belowMoonpayMin && moonpayMinBuy != null && (
           <p className="text-destructive text-sm">Minimum purchase is ${moonpayMinBuy} USD.</p>
         )}
