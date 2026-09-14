@@ -50,17 +50,25 @@ export async function requestTransakWidgetSession({
   client,
   intentId,
   generation,
+  defaultCryptoAmount,
   now = Date.now,
   fetcher = globalThis.fetch,
 }: {
   client: Pick<PrivanaClient, 'createOnRampSession'>
   intentId: string
   generation: number
+  defaultCryptoAmount?: number
   now?: () => number
   fetcher?: TransakAttestationFetcher
 }): Promise<TransakWidgetSession> {
   if (!intentId || intentId.length > MAX_INTENT_ID_LENGTH) {
     throw new Error('Transak session requires a valid on-ramp intent')
+  }
+  if (
+    defaultCryptoAmount !== undefined &&
+    (!Number.isFinite(defaultCryptoAmount) || defaultCryptoAmount <= 0)
+  ) {
+    throw new Error('Transak purchase default must be a positive finite amount')
   }
   const ipAttestation = await fetchTransakIpAttestation({
     intentId,
@@ -69,6 +77,7 @@ export async function requestTransakWidgetSession({
   const response = await client.createOnRampSession({
     transaction_id: intentId,
     ip_attestation: ipAttestation,
+    ...(defaultCryptoAmount === undefined ? {} : { default_crypto_amount: defaultCryptoAmount }),
   })
   return validateTransakWidgetSession(response, intentId, generation, now())
 }
