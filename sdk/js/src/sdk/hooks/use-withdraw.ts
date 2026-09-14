@@ -47,6 +47,51 @@ export interface UseWithdrawResult {
   reset: () => void
 }
 
+interface WithdrawalReader {
+  getWithdrawalNonce(userAddress: string): Promise<{ nonce: string }>
+  getPendingWithdrawals(
+    userAddress: string
+  ): Promise<{ pending_withdrawals: { token_id: string; amount: string }[] }>
+}
+
+/**
+ * What actually happened to a submitted withdrawal whose request errored:
+ * - 'landed': this withdrawal was accepted (its nonce is spent and a pending
+ *   withdrawal matches its token and amount) — show it as processing.
+ * - 'lost-nonce-race': a DIFFERENT withdrawal of the user's spent the nonce
+ *   (e.g. a second quick withdrawal on another chain); this one was never
+ *   submitted and can simply be retried.
+ * - 'failed': the nonce is unspent, or the check itself is unavailable —
+ *   surface the original error.
+ * The withdrawal nonce is single-use, which is what makes the first two
+ * distinguishable from a plain failure at all.
+ */
+export async function classifyFailedSubmit(
+  client: WithdrawalReader,
+  userAddress: string,
+  submittedNonce: bigint,
+  tokenId: string,
+  amount: bigint
+): Promise<'landed' | 'lost-nonce-race' | 'failed'> {
+  try {
+    const { nonce } = await client.getWithdrawalNonce(userAddress)
+    if (BigInt(nonce) <= submittedNonce) return 'failed'
+  } catch {
+    return 'failed'
+  }
+  try {
+    const { pending_withdrawals } = await client.getPendingWithdrawals(userAddress)
+    const mine = pending_withdrawals.some(
+      (w) => w.token_id.toLowerCase() === tokenId.toLowerCase() && BigInt(w.amount) === amount
+    )
+    return mine ? 'landed' : 'lost-nonce-race'
+  } catch {
+    // Nonce advancement is already proven; without the pending list the
+    // coarse verdict is the safe one.
+    return 'landed'
+  }
+}
+
 export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult {
   const { address } = useAccount()
   const { data: walletClient } = useWalletClient()
@@ -118,6 +163,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
       reset()
       const generation = generationRef.current
       const isStale = () => generation !== generationRef.current
+      let submittedNonce: bigint | null = null
 
       try {
         if (!address || !walletClient) throw new Error('Wallet not connected')
@@ -152,6 +198,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
 
         // 4. Submit to API
         setCurrentStep('submitting')
+        submittedNonce = nonce
         const submissionResponse = await client.requestWithdrawal({
           token_id: params.tokenId,
           amount: params.amount.toString(),
@@ -232,7 +279,35 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
         return submissionResponse
       } catch (err) {
         if (isStale()) return undefined
-        const error = err instanceof Error ? err : new Error('Withdrawal failed')
+
+        const verdict =
+          submittedNonce != null && address != null
+            ? await classifyFailedSubmit(
+                client,
+                address,
+                submittedNonce,
+                params.tokenId,
+                params.amount
+              )
+            : 'failed'
+        if (isStale()) return undefined
+        if (verdict === 'landed') {
+          setCurrentStep('idle')
+          setDidTimeout(true)
+          onProcessingTimeoutRef.current?.()
+          queryClient.refetchQueries({ queryKey: ['accounting-balance'] })
+          queryClient.refetchQueries({ queryKey: ['accounting-pending-withdrawals'] })
+          return undefined
+        }
+
+        const error =
+          verdict === 'lost-nonce-race'
+            ? new Error(
+                'A previous withdrawal was just accepted; this one was not submitted. Please try again.'
+              )
+            : err instanceof Error
+              ? err
+              : new Error('Withdrawal failed')
         setCurrentStep('idle')
         setWithdrawError(error)
         onErrorRef.current?.(error)
