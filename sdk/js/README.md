@@ -271,6 +271,9 @@ For Transak, the product modal requires a target at least 5% above Privana's
 on-chain minimum. This margin reduces the risk that provider estimate movement
 delivers a paid purchase below the amount that Privana can verify.
 
+The entered crypto amount prefills Transak's editable quote. The final received
+amount may differ.
+
 **The provider delivers the purchased token directly to the server-derived
 Privana deposit address. Provider orders, amounts, events, and webhooks are
 correlation hints only. One unambiguous matching on-chain transfer, including

@@ -45,6 +45,8 @@ export interface OnRampIpAttestation {
 
 /** Request body / response of POST /v1/accounting/onramp/session. */
 export interface CreateOnRampSessionRequest {
+  /** Editable Transak quote amount in token units. */
+  default_crypto_amount?: number
   transaction_id: string
   /** Required by attested mode; omitted only by legacy header-mode callers. */
   ip_attestation?: OnRampIpAttestation

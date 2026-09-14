@@ -31,7 +31,7 @@ export interface UseTransakOnRampOptions extends Omit<UseOnRampOptions, 'adapter
 export interface TransakOnRampLaunchRequest {
   /** Canonical configured Transak asset code, currently `usdc`. */
   providerAssetCode: string
-  /** Required only when `postDepositLock` needs an amount to pre-sign. */
+  /** Editable crypto quote amount; required for a post-deposit lock. */
   quoteCurrencyAmount?: string
 }
 
@@ -223,6 +223,7 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
   const mountedSessionScopeRef = useRef<symbol | null>(null)
   const generationRef = useRef(0)
   const sessionRequestRef = useRef<TransakSessionRequest | null>(null)
+  const purchaseDefaultRef = useRef<{ intentId: string; amount: number | undefined } | null>(null)
   const activeIntentIdRef = useRef(core.activeIntentId)
   activeIntentIdRef.current = core.activeIntentId
   const activeVerificationIdRef = useRef(core.activeVerificationId)
@@ -276,12 +277,13 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
   const canRecreateSession = sessionRecreationState === 'preload-only' && !hasProviderEvidence
 
   const requestSession = useCallback(
-    (intentId: string, generation: number) =>
+    (intentId: string, generation: number, defaultCryptoAmount?: number) =>
       executePrivateRead((readClient) =>
         requestTransakWidgetSession({
           client: readClient,
           intentId,
           generation,
+          defaultCryptoAmount,
         })
       ),
     [executePrivateRead]
@@ -296,6 +298,18 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
         sessionRef.current !== null
       )
       if (mountedSessionError) return Promise.reject(mountedSessionError)
+
+      // Only the quote uses Number; lock amounts retain exact decimal precision.
+      const defaultCryptoAmount =
+        request.quoteCurrencyAmount === undefined ? undefined : Number(request.quoteCurrencyAmount)
+      if (
+        defaultCryptoAmount !== undefined &&
+        (!Number.isFinite(defaultCryptoAmount) || defaultCryptoAmount <= 0)
+      ) {
+        return Promise.reject(
+          new Error('Transak purchase default must be a positive finite amount')
+        )
+      }
 
       const generation = ++generationRef.current
       setIsLaunching(true)
@@ -322,7 +336,11 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
           })
           if (beforeSessionError) throw beforeSessionError
 
-          const next = await requestSession(intent.transaction_id, generation)
+          purchaseDefaultRef.current = {
+            intentId: intent.transaction_id,
+            amount: defaultCryptoAmount,
+          }
+          const next = await requestSession(intent.transaction_id, generation, defaultCryptoAmount)
           const afterSessionError = getTransakSessionRequestError({
             currentGeneration: generationRef.current,
             expectedGeneration: generation,
@@ -391,7 +409,11 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
     setIsLaunching(true)
     const pendingRequest = (async () => {
       try {
-        const next = await requestSession(intentId, generation)
+        const defaultCryptoAmount =
+          purchaseDefaultRef.current?.intentId === intentId
+            ? purchaseDefaultRef.current.amount
+            : undefined
+        const next = await requestSession(intentId, generation, defaultCryptoAmount)
         const requestError = getTransakSessionRequestError({
           currentGeneration: generationRef.current,
           expectedGeneration: generation,
@@ -526,6 +548,7 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
 
   useEffect(() => {
     generationRef.current++
+    purchaseDefaultRef.current = null
     setSession(null, null)
     setIsLaunching(false)
     updateSessionRecreation('reset')
