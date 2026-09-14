@@ -51,6 +51,7 @@ function WithdrawView({
     balanceWei,
     isLoading: isBalanceLoading,
     isError: isBalanceError,
+    refetch: refetchBalance,
   } = useBalance({
     tokenId: selectedToken?.id,
     enabled: !!selectedToken,
@@ -104,11 +105,28 @@ function WithdrawView({
     { label: 'Processing — may take a minute or two', status: getStepStatus('processing', []) },
   ]
 
+  // Whether attempt reached the API. Past that point withdrawal may
+  // have landed even when request errors (ROFL appd retries, or a 400
+  // after an attempt that actually executed), so the entered amount is
+  // stale and would end as a red "Insufficient balance" once the payout
+  // drops the polled balance.
+  const reachedSubmitRef = useRef(false)
+  useEffect(() => {
+    // 'submitting' always gets its own commit (it sits between two awaited
+    // network calls); the ref is reset per attempt in handleWithdraw, since
+    // earlier steps can be batched away.
+    if (currentStep === 'submitting') reachedSubmitRef.current = true
+  }, [currentStep])
+
   useEffect(() => {
     if (error) {
       toast.error(error.message.length > 100 ? `${error.message.slice(0, 100)}...` : error.message)
+      if (reachedSubmitRef.current) {
+        onAmountChange('')
+        refetchBalance()
+      }
     }
-  }, [error])
+  }, [error, onAmountChange, refetchBalance])
 
   useEffect(() => {
     onPendingChange?.(isPending && !cancelled)
@@ -140,6 +158,7 @@ function WithdrawView({
   const handleWithdraw = async () => {
     if (!selectedToken || !canWithdraw) return
     setCancelled(false)
+    reachedSubmitRef.current = false
     await withdraw({
       tokenId: selectedToken.id,
       amount: parseTokenAmount(amount, selectedToken.decimals),
