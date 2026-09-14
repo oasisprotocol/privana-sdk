@@ -47,6 +47,28 @@ export interface UseWithdrawResult {
   reset: () => void
 }
 
+interface WithdrawalNonceReader {
+  getWithdrawalNonce(userAddress: string): Promise<{ nonce: string }>
+}
+
+/**
+ * The withdrawal nonce is single-use, so it advancing past the one this
+ * attempt signed proves a withdrawal landed despite the failed response.
+ * A failed check reports false so the original error surfaces.
+ */
+export async function didWithdrawalLand(
+  client: WithdrawalNonceReader,
+  userAddress: string,
+  submittedNonce: bigint
+): Promise<boolean> {
+  try {
+    const { nonce } = await client.getWithdrawalNonce(userAddress)
+    return BigInt(nonce) > submittedNonce
+  } catch {
+    return false
+  }
+}
+
 export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult {
   const { address } = useAccount()
   const { data: walletClient } = useWalletClient()
@@ -235,22 +257,18 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
       } catch (err) {
         if (isStale()) return undefined
 
-        if (submittedNonce != null && address) {
-          try {
-            const current = await client.getWithdrawalNonce(address)
-            if (isStale()) return undefined
-            if (BigInt(current.nonce) > submittedNonce) {
-              setCurrentStep('idle')
-              setDidTimeout(true)
-              onProcessingTimeoutRef.current?.()
-              queryClient.refetchQueries({ queryKey: ['accounting-balance'] })
-              queryClient.refetchQueries({ queryKey: ['accounting-pending-withdrawals'] })
-              return undefined
-            }
-          } catch {
-            // Nonce check unavailable — fall through to the plain error.
-          }
-          if (isStale()) return undefined
+        const landed =
+          submittedNonce != null && address != null
+            ? await didWithdrawalLand(client, address, submittedNonce)
+            : false
+        if (isStale()) return undefined
+        if (landed) {
+          setCurrentStep('idle')
+          setDidTimeout(true)
+          onProcessingTimeoutRef.current?.()
+          queryClient.refetchQueries({ queryKey: ['accounting-balance'] })
+          queryClient.refetchQueries({ queryKey: ['accounting-pending-withdrawals'] })
+          return undefined
         }
 
         const error = err instanceof Error ? err : new Error('Withdrawal failed')
