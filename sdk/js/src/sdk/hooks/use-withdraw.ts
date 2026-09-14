@@ -118,6 +118,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
       reset()
       const generation = generationRef.current
       const isStale = () => generation !== generationRef.current
+      let submittedNonce: bigint | null = null
 
       try {
         if (!address || !walletClient) throw new Error('Wallet not connected')
@@ -152,6 +153,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
 
         // 4. Submit to API
         setCurrentStep('submitting')
+        submittedNonce = nonce
         const submissionResponse = await client.requestWithdrawal({
           token_id: params.tokenId,
           amount: params.amount.toString(),
@@ -232,6 +234,25 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
         return submissionResponse
       } catch (err) {
         if (isStale()) return undefined
+
+        if (submittedNonce != null && address) {
+          try {
+            const current = await client.getWithdrawalNonce(address)
+            if (isStale()) return undefined
+            if (BigInt(current.nonce) > submittedNonce) {
+              setCurrentStep('idle')
+              setDidTimeout(true)
+              onProcessingTimeoutRef.current?.()
+              queryClient.refetchQueries({ queryKey: ['accounting-balance'] })
+              queryClient.refetchQueries({ queryKey: ['accounting-pending-withdrawals'] })
+              return undefined
+            }
+          } catch {
+            // Nonce check unavailable — fall through to the plain error.
+          }
+          if (isStale()) return undefined
+        }
+
         const error = err instanceof Error ? err : new Error('Withdrawal failed')
         setCurrentStep('idle')
         setWithdrawError(error)
