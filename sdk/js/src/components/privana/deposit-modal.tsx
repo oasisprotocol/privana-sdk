@@ -22,7 +22,7 @@ import {
   resolveProductOnRamp,
   type ProductOnRampFlowSnapshot,
 } from '@/sdk/on-ramp/product-config'
-import { cn, parseTokenAmount } from '@/lib/utils'
+import { cn, parseTokenAmount, shortenAddress } from '@/lib/utils'
 import { TokenSelectorView } from './token-selector-view'
 import { CreditCardWidgetView } from './credit-card-widget-view'
 import {
@@ -833,7 +833,11 @@ export function DepositModalContent({
             <div className="flex flex-col gap-3">
               <MethodOption
                 title="Connected wallet"
-                description="Deposit from your connected wallet."
+                description={
+                  address
+                    ? `Deposit from your connected wallet: ${shortenAddress(address)}`
+                    : 'Deposit from your connected wallet.'
+                }
                 onClick={() => {
                   onSelectConnectedWallet?.()
                   openDeposit('connected')

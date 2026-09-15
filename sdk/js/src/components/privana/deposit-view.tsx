@@ -7,7 +7,7 @@ import type { Allowance } from '@/sdk/types/allowance'
 import { isMoonPayProductOnRamp, type ProductOnRampSelection } from '@/sdk/on-ramp/product-config'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useMoonpayLimits } from '@/sdk/hooks/use-moonpay-limits'
-import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
+import { cn, formatTokenAmount, parseTokenAmount, shortenAddress } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getTokenIcon } from './token-icons'
 import { ChevronRightIcon } from './icons'
@@ -46,7 +46,7 @@ export function DepositView({
 }) {
   const { getChainById, serviceName, serviceIcon, networkConfig, hostedAuthConfig } =
     usePrivanaContext()
-  const { isConnected } = useAccount()
+  const { isConnected, address } = useAccount()
   const appName = serviceName ?? 'Privana'
   const chain = selectedToken ? getChainById(selectedToken.chainId) : undefined
   const sourceLabel = source === 'connected' ? 'Connected Wallet' : 'External Wallet'
@@ -320,6 +320,15 @@ export function DepositView({
           </p>
         )}
       </div>
+
+      {isConnectedSource && address && (
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground text-sm">From</span>
+          <span className="text-foreground text-sm font-medium">
+            Connected wallet · {shortenAddress(address)}
+          </span>
+        </div>
+      )}
 
       {allowance && (
         <AllowancePolicySection
