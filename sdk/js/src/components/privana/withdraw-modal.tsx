@@ -10,10 +10,11 @@ import { getExplorerAddressUrl, getExplorerLabel } from '@/sdk/types/chains'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useBalance, useWithdraw } from '@/sdk/hooks'
 import type { WithdrawStep } from '@/sdk/hooks'
-import { cn, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
+import { cn, formatTokenAmount, parseTokenAmount, shortenAddress } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getTokenIcon } from './token-icons'
 import { TokenSelectorView } from './token-selector-view'
+import { MethodOption } from './deposit-modal'
 import { CloseIcon, ChevronLeftIcon, ChevronRightIcon } from './icons'
 import {
   TransactionProgressView,
@@ -22,7 +23,7 @@ import {
   type Step,
 } from './transaction-steps'
 
-type WithdrawModalView = 'form' | 'select-token'
+type WithdrawModalView = 'select-destination' | 'form' | 'select-token'
 
 function WithdrawView({
   selectedToken,
@@ -291,6 +292,15 @@ function WithdrawView({
         {exceedsBalance && <p className="text-destructive text-sm">Insufficient balance</p>}
       </div>
 
+      {address && (
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground text-sm">To</span>
+          <span className="text-foreground text-sm font-medium">
+            Connected wallet · {shortenAddress(address)}
+          </span>
+        </div>
+      )}
+
       <button
         type="button"
         disabled={!canWithdraw}
@@ -318,7 +328,7 @@ export function WithdrawModalContent({
   const { serviceName, enabledTokens, defaultToken, hostedAuthConfig } = usePrivanaContext()
   const { address } = useAccount()
   const appName = serviceName ?? 'Privana'
-  const [view, setView] = useState<WithdrawModalView>('form')
+  const [view, setView] = useState<WithdrawModalView>('select-destination')
   const [selectedTokenId, setSelectedTokenId] = useState(defaultToken?.id ?? '')
   const [amount, setAmount] = useState('')
   const [isPending, setIsPending] = useState(false)
@@ -336,7 +346,7 @@ export function WithdrawModalContent({
     prevAddressRef.current = address
     if (hostedAuthConfig) return
     if (prev && address && prev !== address) {
-      setView('form')
+      setView('select-destination')
       setAmount('')
       setSelectedTokenId('')
     }
@@ -364,6 +374,15 @@ export function WithdrawModalContent({
           <ChevronLeftIcon />
           Withdraw
         </button>
+      ) : view === 'form' && !isPending ? (
+        <button
+          type="button"
+          onClick={() => setView('select-destination')}
+          className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
+        >
+          <ChevronLeftIcon />
+          Withdraw
+        </button>
       ) : onBack && !isPending ? (
         <button
           type="button"
@@ -376,6 +395,27 @@ export function WithdrawModalContent({
       ) : (
         <div className="flex items-center px-5 py-4">
           <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
+        </div>
+      )}
+
+      {view === 'select-destination' && (
+        <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
+          <div className="flex flex-col gap-2">
+            <h2 className="text-foreground text-[28px] leading-8 font-medium">Withdraw</h2>
+            <p className="text-muted-foreground text-sm">Choose where to receive your funds.</p>
+          </div>
+          <div className="flex flex-col gap-3">
+            <MethodOption
+              title="Connected wallet"
+              description={
+                address
+                  ? `Withdraw to your connected wallet: ${shortenAddress(address)}`
+                  : 'Withdraw to your connected wallet.'
+              }
+              onClick={() => setView('form')}
+            />
+            <MethodOption title="External wallet" description="Coming soon." disabled />
+          </div>
         </div>
       )}
 

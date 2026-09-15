@@ -127,7 +127,7 @@ function MethodTabs({
   )
 }
 
-function MethodOption({
+export function MethodOption({
   title,
   description,
   onClick,
