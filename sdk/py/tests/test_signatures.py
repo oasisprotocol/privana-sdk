@@ -38,12 +38,12 @@ class TestCreateDomain:
         domain = create_domain("testnet", CONTRACT_ADDRESS)
         assert domain.name == "AccountingModule"
         assert domain.version == "1"
-        assert domain.chain_id == 23295
+        assert domain.salt == (23295).to_bytes(32, "big")
         assert domain.verifying_contract == CONTRACT_ADDRESS
 
     def test_mainnet(self):
         domain = create_domain("mainnet", CONTRACT_ADDRESS)
-        assert domain.chain_id == 23294
+        assert domain.salt == (23294).to_bytes(32, "big")
 
 
 class TestCreateLockExpiry:
