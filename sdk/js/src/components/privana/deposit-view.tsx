@@ -12,13 +12,14 @@ import type { Allowance } from '@/sdk/types/allowance'
 import { isMoonPayProductOnRamp, type ProductOnRampSelection } from '@/sdk/on-ramp/product-config'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useMoonpayLimits } from '@/sdk/hooks/use-moonpay-limits'
-import { cn, formatTokenAmount, parseTokenAmount, shortenAddress } from '@/lib/utils'
+import { cn, shortenAddress } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getTokenIcon } from './token-icons'
 import { ChevronRightIcon } from './icons'
 import { lacksGasForErc20Deposit, maxNativeDeposit } from '@/sdk/utils/native-gas-reserve'
 import { AllowancePolicySection } from './allowance-policy-section'
 import type { DepositSource } from './deposit-modal'
+import { formatTokenAmount, maxAmount, parseAmountInput } from '@/sdk/utils/amount-format'
 
 export function DepositView({
   source,
@@ -92,7 +93,7 @@ export function DepositView({
   const [feeExceedsBalance, setFeeExceedsBalance] = useState(false)
   const formattedWalletBalance =
     walletBalance != null && selectedToken
-      ? formatTokenAmount(walletBalance.toString(), selectedToken.decimals)
+      ? formatTokenAmount(walletBalance, selectedToken).display
       : '0.00'
 
   // MoonPay alone exposes this fiat-limit endpoint. Transak uses the
@@ -116,13 +117,16 @@ export function DepositView({
     maxAmountDecimals != null &&
     amount.includes('.') &&
     amount.split('.')[1].length > maxAmountDecimals
+  const parsedAmount = selectedToken ? parseAmountInput(amount, selectedToken) : null
+  const amountRaw = parsedAmount?.ok ? parsedAmount.raw : null
   const exceedsBalance =
     isConnectedSource &&
     hasValidAmount &&
     !tooManyDecimals &&
     !!selectedToken &&
     walletBalance != null &&
-    parseTokenAmount(amount, selectedToken.decimals) > walletBalance
+    amountRaw != null &&
+    amountRaw > walletBalance
   const belowMoonpayMin =
     isMoonPayCard && hasValidAmount && moonpayMinBuy != null && parseFloat(amount) < moonpayMinBuy
   const moonpayLimitsUnready = isMoonPayCard && !!onRamp.providerAssetCode && moonpayMinBuy == null
@@ -137,7 +141,8 @@ export function DepositView({
     !tooManyDecimals &&
     !!selectedToken &&
     typeof externalMinimum === 'bigint' &&
-    parseTokenAmount(amount, selectedToken.decimals) < externalMinimum
+    amountRaw != null &&
+    amountRaw < externalMinimum
   const belowWalletMinimum =
     isConnectedSource &&
     hasValidAmount &&
@@ -145,7 +150,8 @@ export function DepositView({
     !exceedsBalance &&
     !!selectedToken &&
     typeof walletMinimum === 'bigint' &&
-    parseTokenAmount(amount, selectedToken.decimals) < walletMinimum
+    amountRaw != null &&
+    amountRaw < walletMinimum
   // Signing the external-deposit policy needs a wallet even though the
   // transfer itself comes from elsewhere.
   const externalNeedsWallet = isExternal && (!!allowance || !hostedAuthConfig)
@@ -173,7 +179,7 @@ export function DepositView({
       : walletBalance
     setGasReserveApplied(isNative && wei > 0n && wei < walletBalance)
     setFeeExceedsBalance(isNative && wei === 0n)
-    if (wei > 0n) onAmountChange(formatUnits(wei, selectedToken.decimals))
+    if (wei > 0n) onAmountChange(maxAmount(wei, selectedToken).input)
   }
 
   return (

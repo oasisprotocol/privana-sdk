@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
-import { cn, formatTokenAmount } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { formatTokenAmount } from '@/sdk/utils/amount-format'
 import { sortTokensByBalance } from '@/sdk/utils/token-sort'
 import { getTokenIcon } from './token-icons'
 
@@ -81,7 +82,7 @@ function TokenRow({
   isDisabled: boolean
   onSelect: () => void
 }) {
-  const formatted = balance !== undefined ? formatTokenAmount(balance, item.decimals) : undefined
+  const formatted = balance !== undefined ? formatTokenAmount(balance, item) : undefined
   return (
     <button
       type="button"
@@ -108,12 +109,14 @@ function TokenRow({
         <Skeleton className="h-4 w-14 shrink-0" />
       ) : formatted !== undefined ? (
         <div
+          title={formatted.exact}
+          aria-label={formatted.aria}
           className={cn(
             'shrink-0 text-sm tabular-nums',
             BigInt(balance!) === 0n ? 'text-muted-foreground/70' : 'text-foreground font-medium'
           )}
         >
-          {formatted}
+          {formatted.display}
         </div>
       ) : null}
       {isSelected && (

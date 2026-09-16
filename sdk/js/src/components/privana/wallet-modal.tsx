@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import { Skeleton } from '@/components/ui/skeleton'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useBalance } from '@/sdk/hooks'
-import { cn, formatTimeRemaining, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
+import { cn, formatTimeRemaining } from '@/lib/utils'
 import { CloseIcon } from './icons'
 import { AllowancePolicySection } from './allowance-policy-section'
 import {
@@ -16,6 +16,7 @@ import {
 } from './deposit-modal'
 import { WithdrawModalContent } from './withdraw-modal'
 import { TransactionProgressView, TransactionErrorView } from './transaction-steps'
+import { formatTokenAmount, maxAmount, parseAmountInput } from '@/sdk/utils/amount-format'
 
 const AVAILABLE_COLOR = 'bg-[#007bff]'
 const IN_USE_COLOR = 'bg-[#4fc77f]'
@@ -144,10 +145,10 @@ function WalletBalanceView({
   useNow(30_000, expiry != null)
   const countdown = expiry != null ? formatTimeRemaining(expiry) : null
 
-  const decimals = token?.decimals ?? 18
-  const totalFormatted = formatTokenAmount((availableWei + inUseWei).toString(), decimals)
-  const availableFormatted = formatTokenAmount(availableWei.toString(), decimals)
-  const inUseFormatted = formatTokenAmount(inUseWei.toString(), decimals)
+  const meta = { symbol: token?.symbol ?? '', decimals: token?.decimals ?? 18 }
+  const totalFormatted = formatTokenAmount(availableWei + inUseWei, meta).display
+  const availableFormatted = formatTokenAmount(availableWei, meta).display
+  const inUseFormatted = formatTokenAmount(inUseWei, meta).display
 
   const hasValidAmount = !!amount && parseFloat(amount) > 0
   const tooManyDecimals =
@@ -155,6 +156,8 @@ function WalletBalanceView({
     !!token &&
     amount.includes('.') &&
     amount.split('.')[1].length > token.decimals
+  const parsedAmount = token ? parseAmountInput(amount, token) : null
+  const amountRaw = parsedAmount?.ok ? parsedAmount.raw : null
   // Only available funds can be committed to a session — in-use funds are
   // already locked.
   const exceedsBalance =
@@ -163,7 +166,8 @@ function WalletBalanceView({
     !!token &&
     !isBalanceLoading &&
     !isBalanceError &&
-    parseTokenAmount(amount, token.decimals) > availableWei
+    amountRaw != null &&
+    amountRaw > availableWei
 
   const canFundSession =
     hasValidAmount &&
@@ -174,8 +178,8 @@ function WalletBalanceView({
     !isBalanceError
 
   const handleMax = () => {
-    const max = availableFormatted.replace(/\s/g, '')
-    if (parseFloat(max) > 0) onAmountChange(max)
+    if (!token || availableWei <= 0n) return
+    onAmountChange(maxAmount(availableWei, token).input)
   }
 
   const handleFundSession = () => {
