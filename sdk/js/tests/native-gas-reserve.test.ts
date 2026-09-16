@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   FALLBACK_GAS_RESERVE_WEI,
+  lacksGasForErc20Deposit,
   NATIVE_TRANSFER_GAS,
   gasReserveWei,
   maxNativeDeposit,
@@ -35,5 +36,26 @@ describe('maxNativeDeposit', () => {
   test('uses the fixed fallback reserve when estimation failed', () => {
     const balance = 10n ** 18n
     expect(maxNativeDeposit(balance, undefined)).toBe(balance - FALLBACK_GAS_RESERVE_WEI)
+  })
+})
+
+describe('lacksGasForErc20Deposit', () => {
+  const fee = 2_000_000_000n // 2 gwei -> 65k * 2gwei * 1.5 = 195_000 gwei
+  const needed = (65_000n * fee * 3n) / 2n
+
+  test('flags a native balance below the buffered fee', () => {
+    expect(lacksGasForErc20Deposit(needed - 1n, fee)).toBe(true)
+    expect(lacksGasForErc20Deposit(0n, fee)).toBe(true)
+  })
+
+  test('a sufficient balance passes', () => {
+    expect(lacksGasForErc20Deposit(needed, fee)).toBe(false)
+  })
+
+  test('fails open without an estimate or balance', () => {
+    expect(lacksGasForErc20Deposit(undefined, fee)).toBe(false)
+    expect(lacksGasForErc20Deposit(0n, undefined)).toBe(false)
+    expect(lacksGasForErc20Deposit(0n, null)).toBe(false)
+    expect(lacksGasForErc20Deposit(0n, 0n)).toBe(false)
   })
 })

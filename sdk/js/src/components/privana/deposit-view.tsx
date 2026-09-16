@@ -1,5 +1,10 @@
 import { useState } from 'react'
-import { useAccount, useEstimateFeesPerGas } from 'wagmi'
+import {
+  useAccount,
+  useBalance as useNativeBalance,
+  useBytecode,
+  useEstimateFeesPerGas,
+} from 'wagmi'
 import { useWalletTokenBalance } from '@/sdk/hooks/use-wallet-token-balances'
 import { formatUnits, zeroAddress } from 'viem'
 import type { TokenConfig } from '@/sdk/types/tokens'
@@ -11,7 +16,7 @@ import { cn, formatTokenAmount, parseTokenAmount, shortenAddress } from '@/lib/u
 import { Skeleton } from '@/components/ui/skeleton'
 import { getTokenIcon } from './token-icons'
 import { ChevronRightIcon } from './icons'
-import { maxNativeDeposit } from '@/sdk/utils/native-gas-reserve'
+import { lacksGasForErc20Deposit, maxNativeDeposit } from '@/sdk/utils/native-gas-reserve'
 import { AllowancePolicySection } from './allowance-policy-section'
 import type { DepositSource } from './deposit-modal'
 
@@ -44,7 +49,7 @@ export function DepositView({
   onSubmit: (args: { source: DepositSource; tokenId: string; amount: string }) => void
   isSubmitting?: boolean
 }) {
-  const { getChainById, serviceName, serviceIcon, networkConfig, hostedAuthConfig } =
+  const { getChainById, serviceName, serviceIcon, networkConfig, hostedAuthConfig, enabledTokens } =
     usePrivanaContext()
   const { isConnected, address } = useAccount()
   const appName = serviceName ?? 'Privana'
@@ -63,8 +68,28 @@ export function DepositView({
 
   const { data: feeEstimate } = useEstimateFeesPerGas({
     chainId: selectedToken?.chainId,
-    query: { enabled: isConnectedSource && isNative && !!selectedToken },
+    query: { enabled: isConnectedSource && !!selectedToken },
   })
+
+  const wantsErc20GasCheck = isConnectedSource && !!selectedToken && !isNative && !!address
+  const nativeBalance = useNativeBalance({
+    address,
+    chainId: selectedToken?.chainId,
+    query: { enabled: wantsErc20GasCheck },
+  })
+  const bytecode = useBytecode({
+    address,
+    chainId: selectedToken?.chainId,
+    query: { enabled: wantsErc20GasCheck },
+  })
+  const erc20GasHint =
+    wantsErc20GasCheck &&
+    bytecode.isFetched &&
+    !bytecode.data &&
+    lacksGasForErc20Deposit(nativeBalance.data?.value, feeEstimate?.maxFeePerGas)
+  const nativeSymbol =
+    enabledTokens.find((t) => t.chainId === selectedToken?.chainId && t.contract === zeroAddress)
+      ?.symbol ?? 'ETH'
   const [gasReserveApplied, setGasReserveApplied] = useState(false)
   const [feeExceedsBalance, setFeeExceedsBalance] = useState(false)
   const formattedWalletBalance =
@@ -277,6 +302,12 @@ export function DepositView({
         {feeExceedsBalance && (
           <p className="text-destructive text-sm">
             Balance is too low to cover the transaction fee.
+          </p>
+        )}
+        {erc20GasHint && (
+          <p className="text-muted-foreground text-sm">
+            You&apos;ll need a small amount of {nativeSymbol} on {chain?.name ?? 'this network'} to
+            pay the transaction fee.
           </p>
         )}
         {belowMoonpayMin && moonpayMinBuy != null && (

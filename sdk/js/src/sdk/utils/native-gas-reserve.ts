@@ -17,3 +17,13 @@ export function maxNativeDeposit(
   const reserve = gasReserveWei(maxFeePerGas)
   return balanceWei > reserve ? balanceWei - reserve : 0n
 }
+
+export const ERC20_TRANSFER_GAS = 65_000n
+
+export function lacksGasForErc20Deposit(
+  nativeBalanceWei: bigint | undefined,
+  maxFeePerGas: bigint | null | undefined
+): boolean {
+  if (nativeBalanceWei == null || maxFeePerGas == null || maxFeePerGas <= 0n) return false
+  return nativeBalanceWei < (ERC20_TRANSFER_GAS * maxFeePerGas * FEE_BUFFER_NUM) / FEE_BUFFER_DEN
+}
