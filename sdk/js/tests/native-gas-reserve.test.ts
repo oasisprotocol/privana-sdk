@@ -5,6 +5,7 @@ import {
   NATIVE_TRANSFER_GAS,
   gasReserveWei,
   maxNativeDeposit,
+  MIN_GAS_RESERVE_WEI,
 } from '../src/sdk/utils/native-gas-reserve'
 
 describe('gasReserveWei', () => {
@@ -57,5 +58,24 @@ describe('lacksGasForErc20Deposit', () => {
     expect(lacksGasForErc20Deposit(0n, undefined)).toBe(false)
     expect(lacksGasForErc20Deposit(0n, null)).toBe(false)
     expect(lacksGasForErc20Deposit(0n, 0n)).toBe(false)
+  })
+})
+
+describe('MIN_GAS_RESERVE_WEI floor', () => {
+  test('near-free L2 gas still reserves the flat floor (covers the L1 data fee)', () => {
+    const tinyFee = 1_000_000n // 0.001 gwei, typical Base
+    expect(gasReserveWei(tinyFee)).toBe(MIN_GAS_RESERVE_WEI)
+    expect(maxNativeDeposit(10n ** 18n, tinyFee)).toBe(10n ** 18n - MIN_GAS_RESERVE_WEI)
+  })
+
+  test('the ERC-20 warning threshold is floored the same way', () => {
+    const tinyFee = 1_000_000n
+    expect(lacksGasForErc20Deposit(MIN_GAS_RESERVE_WEI - 1n, tinyFee)).toBe(true)
+    expect(lacksGasForErc20Deposit(MIN_GAS_RESERVE_WEI, tinyFee)).toBe(false)
+  })
+
+  test('a large computed reserve is not clamped down', () => {
+    const bigFee = 50_000_000_000n // 50 gwei, Ethereum-ish
+    expect(gasReserveWei(bigFee)).toBe((21_000n * bigFee * 3n) / 2n)
   })
 })
