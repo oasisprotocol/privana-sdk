@@ -322,8 +322,8 @@ describe('createSignedLockRequest', () => {
       domain: {
         name: 'AccountingModule',
         version: '1',
-        chainId: 23295,
         verifyingContract: '0x0000000000000000000000000000000000000001',
+        salt: '0x0000000000000000000000000000000000000000000000000000000000005aff',
       },
       types: {
         Lock: [

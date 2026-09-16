@@ -8,7 +8,6 @@ import { zeroAddress } from 'viem'
 import { usePrivanaContext } from '../context/privana-provider'
 import type { Bytes32, TransactionSubmissionResponse } from '../types'
 import type { Allowance } from '../types/allowance'
-import { useEnsureCorrectChain } from './use-ensure-correct-chain'
 import { usePrivateReadRequest } from './use-private-read-request'
 import type { VerificationContext } from './use-deposit-verification'
 import { canUseSharedBrowserStorage } from '../utils/browser-storage'
@@ -69,7 +68,6 @@ export function useExternalDepositLock({
   const queryClient = useQueryClient()
   const { address } = useAccount()
   const { privateReadAddress } = usePrivateReadRequest()
-  const { ensureCorrectChain } = useEnsureCorrectChain()
 
   const [isSigning, setIsSigning] = useState(false)
   const [isSubmittingLock, setIsSubmittingLock] = useState(false)
@@ -308,10 +306,9 @@ export function useExternalDepositLock({
       signingRef.current = true
       setIsSigning(true)
       try {
-        await ensureCorrectChain(networkConfig.chainId)
-        const signingWalletClient = await getWalletClient(config, {
-          chainId: networkConfig.chainId,
-        })
+        // The salted Lock domain carries no chainId, so the wallet signs from
+        // whatever network it is on — no switch, no chain-pinned client.
+        const signingWalletClient = await getWalletClient(config)
         const payload = await createSignedLockRequest({
           client,
           walletClient: signingWalletClient,
@@ -354,7 +351,6 @@ export function useExternalDepositLock({
       allowance,
       client,
       config,
-      ensureCorrectChain,
       getTokenById,
       installSession,
       networkConfig,
@@ -481,10 +477,7 @@ export function useExternalDepositLock({
     signingRef.current = true
     setIsSigning(true)
     try {
-      await ensureCorrectChain(networkConfig.chainId)
-      const signingWalletClient = await getWalletClient(config, {
-        chainId: networkConfig.chainId,
-      })
+      const signingWalletClient = await getWalletClient(config)
       const payload = await createSignedLockRequest({
         client,
         walletClient: signingWalletClient,
@@ -517,7 +510,6 @@ export function useExternalDepositLock({
     address,
     client,
     config,
-    ensureCorrectChain,
     getTokenById,
     installSession,
     networkConfig,

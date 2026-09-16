@@ -53,7 +53,6 @@ import {
 } from '../utils/pending-lock'
 import { canUseBrowserStorage } from '../utils/browser-storage'
 import { useDepositVerification } from './use-deposit-verification'
-import { useEnsureCorrectChain } from './use-ensure-correct-chain'
 import { usePrivateReadRequest } from './use-private-read-request'
 import type {
   Address,
@@ -239,7 +238,6 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
   const executeOnRampPrivateRead = executePrivateRead
   const privateReadAddressRef = useRef(privateReadAddress)
   privateReadAddressRef.current = privateReadAddress
-  const { ensureCorrectChain } = useEnsureCorrectChain()
   const wagmiConfig = useConfig()
   const queryClient = useQueryClient()
 
@@ -758,10 +756,6 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
           if (lockAmount <= 0n) {
             throw new Error(`Post-deposit lock amount must be positive, got ${lockAmount}`)
           }
-          // The Lock domain lives on the Accounting chain and wallets reject
-          // typed data whose domain chainId differs from the active chain, so
-          // switch there while a failure still precedes the intent.
-          await ensureCorrectChain(networkConfig.chainId)
         }
 
         emitDebug('intent:create-request', {
@@ -788,12 +782,9 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
         }
         assertCreatedOnRampIntent(record, adapter.provider, intentInput)
         if (postDepositLock && lockOwner && lockAmount !== undefined) {
-          // Re-fetch the wallet client bound to the signing chain: the
-          // render-time client can go stale across the chain switch above and
-          // wagmi then rejects the signature with a chain mismatch.
-          const signingWalletClient = await getWalletClient(wagmiConfig, {
-            chainId: networkConfig.chainId,
-          })
+          // The salted Lock domain carries no chainId, so the wallet signs
+          // from whatever network it is on — no switch, no pinned client.
+          const signingWalletClient = await getWalletClient(wagmiConfig)
           const signedLock = await createSignedLockRequest({
             client,
             walletClient: signingWalletClient,
@@ -849,7 +840,6 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
       client,
       emitDebug,
       enabledTokens,
-      ensureCorrectChain,
       executeOnRampPrivateRead,
       flowSession,
       networkConfig,
