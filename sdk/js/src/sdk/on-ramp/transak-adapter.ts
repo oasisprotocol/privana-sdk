@@ -101,7 +101,7 @@ async function fetchTransakIpAttestation({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ intentHash }),
         cache: 'no-store',
-        credentials: 'omit',
+        credentials: 'same-origin',
         redirect: 'error',
         signal: controller.signal,
       })
