@@ -2,10 +2,11 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useAccount, useWalletClient } from 'wagmi'
+import { useAccount } from 'wagmi'
 import { usePrivanaContext } from '../context/privana-provider'
 import { signWithdrawMessage } from '../signatures'
 import type { Bytes32, TransactionSubmissionResponse } from '../types'
+import { useSigningClient } from './use-signing-client'
 
 export interface UseWithdrawOptions {
   onSuccess?: (response: TransactionSubmissionResponse) => void
@@ -87,7 +88,7 @@ export async function classifyFailedSubmit(
 
 export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult {
   const { address } = useAccount()
-  const { data: walletClient } = useWalletClient()
+  const walletClient = useSigningClient()
   const { client, networkConfig } = usePrivanaContext()
   const queryClient = useQueryClient()
 

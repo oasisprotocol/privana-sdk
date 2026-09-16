@@ -2,10 +2,11 @@
 
 import { useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useAccount, useWalletClient } from 'wagmi'
+import { useAccount } from 'wagmi'
 import { usePrivanaContext } from '../context/privana-provider'
 import { signTransferMessage, signTransferLockedMessage } from '../signatures'
 import type { Bytes32, Address, TransactionSubmissionResponse } from '../types'
+import { useSigningClient } from './use-signing-client'
 
 export interface UseTransferOptions {
   onSuccess?: (response: TransactionSubmissionResponse) => void
@@ -37,7 +38,7 @@ export interface UseTransferResult {
 
 export function useTransfer(options: UseTransferOptions = {}): UseTransferResult {
   const { address } = useAccount()
-  const { data: walletClient } = useWalletClient()
+  const walletClient = useSigningClient()
   const { client, networkConfig, serviceAddress } = usePrivanaContext()
   const queryClient = useQueryClient()
 

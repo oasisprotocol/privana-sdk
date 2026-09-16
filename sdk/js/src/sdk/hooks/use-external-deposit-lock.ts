@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAccount, useConfig } from 'wagmi'
-import { getBlockNumber, getWalletClient } from '@wagmi/core'
+import { getBlockNumber } from '@wagmi/core'
 import { zeroAddress } from 'viem'
 import { usePrivanaContext } from '../context/privana-provider'
 import type { Bytes32, TransactionSubmissionResponse } from '../types'
@@ -34,6 +34,7 @@ import {
   submitExternalDepositLock,
   type ExternalDepositLockSessionRecord,
 } from '../utils/external-deposit-lock'
+import { getSigningClient } from '../utils/signing-client'
 
 export interface UseExternalDepositLockOptions {
   allowance?: Allowance
@@ -308,7 +309,7 @@ export function useExternalDepositLock({
       try {
         // The salted Lock domain carries no chainId, so the wallet signs from
         // whatever network it is on — no switch, no chain-pinned client.
-        const signingWalletClient = await getWalletClient(config)
+        const signingWalletClient = await getSigningClient(config)
         const payload = await createSignedLockRequest({
           client,
           walletClient: signingWalletClient,
@@ -477,7 +478,7 @@ export function useExternalDepositLock({
     signingRef.current = true
     setIsSigning(true)
     try {
-      const signingWalletClient = await getWalletClient(config)
+      const signingWalletClient = await getSigningClient(config)
       const payload = await createSignedLockRequest({
         client,
         walletClient: signingWalletClient,

@@ -5,8 +5,8 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { parseUnits } from 'viem'
-import { getWalletClient, waitForTransactionReceipt } from '@wagmi/core'
-import { useAccount, useConfig, useWalletClient } from 'wagmi'
+import { waitForTransactionReceipt } from '@wagmi/core'
+import { useAccount, useConfig } from 'wagmi'
 
 import { usePrivanaContext } from '../context/privana-provider'
 import {
@@ -63,6 +63,8 @@ import type {
   TokenConfig,
   TransactionSubmissionResponse,
 } from '../types'
+import { useSigningClient } from './use-signing-client'
+import { getSigningClient } from '../utils/signing-client'
 
 const DEFAULT_DELIVERY_TIMEOUT_MS = 120_000
 const DEFAULT_VERIFICATION_TIMEOUT_MS = 10 * 60_000
@@ -232,7 +234,7 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
   const finalityRetryInterval = options.finalityRetryInterval ?? DEFAULT_FINALITY_RETRY_INTERVAL_MS
 
   const { address } = useAccount()
-  const { data: walletClient } = useWalletClient()
+  const walletClient = useSigningClient()
   const { client, enabledTokens, networkConfig, serviceAddress } = usePrivanaContext()
   const { executePrivateRead, privateReadAddress, privateReadReady } = usePrivateReadRequest()
   const executeOnRampPrivateRead = executePrivateRead
@@ -784,7 +786,7 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
         if (postDepositLock && lockOwner && lockAmount !== undefined) {
           // The salted Lock domain carries no chainId, so the wallet signs
           // from whatever network it is on — no switch, no pinned client.
-          const signingWalletClient = await getWalletClient(wagmiConfig)
+          const signingWalletClient = await getSigningClient(wagmiConfig)
           const signedLock = await createSignedLockRequest({
             client,
             walletClient: signingWalletClient,
