@@ -24,6 +24,7 @@ export interface TokenSelectListProps {
   disabledId?: string
   onSelect: (id: string) => void
   searchable?: boolean
+  listClassName?: string
 }
 
 export function filterTokenItems(
@@ -144,6 +145,7 @@ export function TokenSelectList({
   disabledId,
   onSelect,
   searchable = true,
+  listClassName,
 }: TokenSelectListProps) {
   const [query, setQuery] = useState('')
   const [chainFilter, setChainFilter] = useState('All')
@@ -208,7 +210,7 @@ export function TokenSelectList({
         </div>
       )}
 
-      <div className="flex max-h-72 flex-col gap-1 overflow-y-auto">
+      <div className={cn('flex max-h-[332px] flex-col gap-1 overflow-y-auto', listClassName)}>
         {frozen.order === null &&
           (items.length > 0 ? items.map((item) => item.id) : SKELETON_ROW_KEYS).map((key) => (
             <TokenRowSkeleton key={key} />
