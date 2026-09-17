@@ -9,16 +9,20 @@ from ..types import NETWORK_CONFIG, Address, Bytes32, Network
 class EIP712Domain:
     name: str
     version: str
-    chain_id: int
     verifying_contract: Address
+    # bytes32 of the chain id: the chain binding rides in the standard `salt`
+    # field, which wallets do not validate against the connected network —
+    # unlike `chainId`, which they refuse to sign on a mismatch. Must match
+    # the Accounting contract's salted domain (fields bitmap 0x1b).
+    salt: bytes
 
 
 def create_domain(network: Network, verifying_contract: Address) -> EIP712Domain:
     return EIP712Domain(
         name="AccountingModule",
         version="1",
-        chain_id=NETWORK_CONFIG[network].chain_id,
         verifying_contract=verifying_contract,
+        salt=NETWORK_CONFIG[network].chain_id.to_bytes(32, "big"),
     )
 
 

@@ -2,13 +2,8 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useAccount, useWalletClient, useWriteContract, useSendTransaction, useConfig } from 'wagmi'
-import {
-  getBlockNumber,
-  getTransactionReceipt,
-  getWalletClient,
-  waitForTransactionReceipt,
-} from '@wagmi/core'
+import { useAccount, useWriteContract, useSendTransaction, useConfig } from 'wagmi'
+import { getBlockNumber, getTransactionReceipt, waitForTransactionReceipt } from '@wagmi/core'
 import { erc20Abi, zeroAddress } from 'viem'
 import { usePrivanaContext } from '../context/privana-provider'
 import { useEnsureCorrectChain } from './use-ensure-correct-chain'
@@ -38,6 +33,8 @@ import type {
   LockFundsRequest,
   TransactionSubmissionResponse,
 } from '../types'
+import { useSigningClient } from './use-signing-client'
+import { getSigningClient } from '../utils/signing-client'
 
 export interface UseDepositOptions {
   onDepositAddressReceived?: (response: DepositAddressResponse) => void
@@ -171,7 +168,7 @@ function clearPendingDeposit(address: string, onlyForTxHash?: string): void {
 export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   const { address } = useAccount()
   const { client, enabledTokens, getChainById, networkConfig, serviceAddress } = usePrivanaContext()
-  const { data: walletClient } = useWalletClient()
+  const walletClient = useSigningClient()
   const queryClient = useQueryClient()
   const config = useConfig()
   const { executePrivateRead, privateReadAddress } = usePrivateReadRequest()
@@ -484,27 +481,15 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
           throw new Error('Browser storage is required for locked deposit recovery')
         }
         // 4. Sign the exact-amount Lock before any funds move, so the transfer
-        // never proceeds without a submittable lock payload in hand. The Lock
-        // domain lives on the Accounting chain and wallets reject typed data
-        // whose domain chainId differs from the active chain, so switch there
-        // before signing.
+        // never proceeds without a submittable lock payload in hand. The
+        // salted Lock domain carries no chainId, so the wallet signs it from
+        // whatever network it is on — only the transfer itself (step 5)
+        // needs the source chain.
         const lockAmount = clampLockAmount(params.amount, params.postDepositLock?.maxAmount)
         let signedLock: LockFundsRequest | undefined
         if (params.postDepositLock) {
           const lockOwner = requireDepositLockOwner(address, privateReadAddress)
-          setIsSwitchingChain(true)
-          try {
-            await ensureCorrectChain(networkConfig.chainId)
-          } finally {
-            if (!isStale()) setIsSwitchingChain(false)
-          }
-          if (isStale()) return
-          // Re-fetch the wallet client bound to the signing chain: the
-          // render-time client can go stale across the chain switch above and
-          // wagmi then rejects the signature with a chain mismatch.
-          const signingWalletClient = await getWalletClient(config, {
-            chainId: networkConfig.chainId,
-          })
+          const signingWalletClient = await getSigningClient(config)
           signedLock = await createSignedLockRequest({
             client,
             walletClient: signingWalletClient,

@@ -2,10 +2,11 @@
 
 import { useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useAccount, useWalletClient } from 'wagmi'
+import { useAccount } from 'wagmi'
 import { usePrivanaContext } from '../context/privana-provider'
 import { signModifyLockMessage } from '../signatures'
 import type { TransactionSubmissionResponse } from '../types'
+import { useSigningClient } from './use-signing-client'
 
 export interface UseModifyLockOptions {
   onSuccess?: (response: TransactionSubmissionResponse) => void
@@ -28,7 +29,7 @@ export interface UseModifyLockResult {
 
 export function useModifyLock(options: UseModifyLockOptions = {}): UseModifyLockResult {
   const { address } = useAccount()
-  const { data: walletClient } = useWalletClient()
+  const walletClient = useSigningClient()
   const { client, networkConfig } = usePrivanaContext()
   const queryClient = useQueryClient()
 

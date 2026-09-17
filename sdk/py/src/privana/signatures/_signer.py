@@ -25,8 +25,8 @@ def sign_typed_data(
     domain_data = {
         "name": domain.name,
         "version": domain.version,
-        "chainId": domain.chain_id,
         "verifyingContract": domain.verifying_contract,
+        "salt": "0x" + domain.salt.hex(),
     }
 
     full_message = {
@@ -34,8 +34,8 @@ def sign_typed_data(
             "EIP712Domain": [
                 {"name": "name", "type": "string"},
                 {"name": "version", "type": "string"},
-                {"name": "chainId", "type": "uint256"},
                 {"name": "verifyingContract", "type": "address"},
+                {"name": "salt", "type": "bytes32"},
             ],
             **types,
         },

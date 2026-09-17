@@ -1,18 +1,28 @@
+import { pad, toHex } from 'viem'
 import type { Address, Bytes32 } from '../types'
 
 export interface EIP712Domain {
   name: string
   version: string
-  chainId: number
   verifyingContract: Address
+  salt: `0x${string}`
 }
 
+/**
+ * The domain deliberately omits `chainId`: wallets refuse
+ * eth_signTypedData_v4 when domain.chainId differs from their connected
+ * network, which forced users to add and switch to Sapphire before every
+ * signature. The chain binding lives in the standard `salt` field instead —
+ * bytes32 of the Sapphire chain id, which wallets do not validate but which
+ * still makes signatures unreplayable across deployments. Must match the
+ * Accounting contract's salted domain (fields bitmap 0x1b).
+ */
 export function createDomain(chainId: number, verifyingContract: Address): EIP712Domain {
   return {
     name: 'AccountingModule',
     version: '1',
-    chainId,
     verifyingContract,
+    salt: pad(toHex(chainId), { size: 32 }),
   }
 }
 

@@ -2,11 +2,11 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useAccount, useWalletClient } from 'wagmi'
+import { useAccount } from 'wagmi'
 import { usePrivanaContext } from '../context/privana-provider'
-import { useEnsureCorrectChain } from './use-ensure-correct-chain'
 import { signWithdrawMessage } from '../signatures'
 import type { Bytes32, TransactionSubmissionResponse } from '../types'
+import { useSigningClient } from './use-signing-client'
 
 export interface UseWithdrawOptions {
   onSuccess?: (response: TransactionSubmissionResponse) => void
@@ -28,13 +28,7 @@ export interface WithdrawParams {
   amount: bigint
 }
 
-export type WithdrawStep =
-  | 'idle'
-  | 'preparing'
-  | 'switching-chain'
-  | 'signing'
-  | 'submitting'
-  | 'processing'
+export type WithdrawStep = 'idle' | 'preparing' | 'signing' | 'submitting' | 'processing'
 
 export interface UseWithdrawResult {
   withdraw: (params: WithdrawParams) => Promise<TransactionSubmissionResponse | undefined>
@@ -94,10 +88,9 @@ export async function classifyFailedSubmit(
 
 export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult {
   const { address } = useAccount()
-  const { data: walletClient } = useWalletClient()
+  const walletClient = useSigningClient()
   const { client, networkConfig } = usePrivanaContext()
   const queryClient = useQueryClient()
-  const { chainId, ensureCorrectChain } = useEnsureCorrectChain()
 
   const pollInterval = options.pollInterval ?? 3000
   const pollTimeout = options.pollTimeout ?? 180000
@@ -170,19 +163,12 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
 
         setCurrentStep('preparing')
 
-        // 1. Switch to signing chain
-        if (chainId !== signingChainId) {
-          setCurrentStep('switching-chain')
-        }
-        await ensureCorrectChain(signingChainId)
-        if (isStale()) return undefined
-
-        // 2. Fetch nonce from API (direct Sapphire contract reads revert without encrypted calldata)
+        // 1. Fetch nonce from API (direct Sapphire contract reads revert without encrypted calldata)
         const nonceResponse = await client.getWithdrawalNonce(address)
         if (isStale()) return undefined
         const nonce = BigInt(nonceResponse.nonce)
 
-        // 3. Sign EIP-712 message
+        // 2. Sign EIP-712 message
         setCurrentStep('signing')
         const signature = await signWithdrawMessage({
           walletClient,
@@ -196,7 +182,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
         })
         if (isStale()) return undefined
 
-        // 4. Submit to API
+        // 3. Submit to API
         setCurrentStep('submitting')
         submittedNonce = nonce
         const submissionResponse = await client.requestWithdrawal({
@@ -211,7 +197,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
         onSuccessRef.current?.(submissionResponse)
         queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
 
-        // 5. Poll for withdrawal completion
+        // 4. Poll for withdrawal completion
         setCurrentStep('processing')
         const pollStartTime = Date.now()
         const withdrawalIndex = submissionResponse.index
@@ -318,10 +304,8 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
       address,
       walletClient,
       client,
-      chainId,
       signingChainId,
       networkConfig.accountingContract,
-      ensureCorrectChain,
       pollInterval,
       pollTimeout,
       queryClient,

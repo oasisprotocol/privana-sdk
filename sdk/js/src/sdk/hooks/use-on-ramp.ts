@@ -5,8 +5,8 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { parseUnits } from 'viem'
-import { getWalletClient, waitForTransactionReceipt } from '@wagmi/core'
-import { useAccount, useConfig, useWalletClient } from 'wagmi'
+import { waitForTransactionReceipt } from '@wagmi/core'
+import { useAccount, useConfig } from 'wagmi'
 
 import { usePrivanaContext } from '../context/privana-provider'
 import {
@@ -53,7 +53,6 @@ import {
 } from '../utils/pending-lock'
 import { canUseBrowserStorage } from '../utils/browser-storage'
 import { useDepositVerification } from './use-deposit-verification'
-import { useEnsureCorrectChain } from './use-ensure-correct-chain'
 import { usePrivateReadRequest } from './use-private-read-request'
 import type {
   Address,
@@ -64,6 +63,8 @@ import type {
   TokenConfig,
   TransactionSubmissionResponse,
 } from '../types'
+import { useSigningClient } from './use-signing-client'
+import { getSigningClient } from '../utils/signing-client'
 
 const DEFAULT_DELIVERY_TIMEOUT_MS = 120_000
 const DEFAULT_VERIFICATION_TIMEOUT_MS = 10 * 60_000
@@ -233,13 +234,12 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
   const finalityRetryInterval = options.finalityRetryInterval ?? DEFAULT_FINALITY_RETRY_INTERVAL_MS
 
   const { address } = useAccount()
-  const { data: walletClient } = useWalletClient()
+  const walletClient = useSigningClient()
   const { client, enabledTokens, networkConfig, serviceAddress } = usePrivanaContext()
   const { executePrivateRead, privateReadAddress, privateReadReady } = usePrivateReadRequest()
   const executeOnRampPrivateRead = executePrivateRead
   const privateReadAddressRef = useRef(privateReadAddress)
   privateReadAddressRef.current = privateReadAddress
-  const { ensureCorrectChain } = useEnsureCorrectChain()
   const wagmiConfig = useConfig()
   const queryClient = useQueryClient()
 
@@ -758,10 +758,6 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
           if (lockAmount <= 0n) {
             throw new Error(`Post-deposit lock amount must be positive, got ${lockAmount}`)
           }
-          // The Lock domain lives on the Accounting chain and wallets reject
-          // typed data whose domain chainId differs from the active chain, so
-          // switch there while a failure still precedes the intent.
-          await ensureCorrectChain(networkConfig.chainId)
         }
 
         emitDebug('intent:create-request', {
@@ -788,12 +784,9 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
         }
         assertCreatedOnRampIntent(record, adapter.provider, intentInput)
         if (postDepositLock && lockOwner && lockAmount !== undefined) {
-          // Re-fetch the wallet client bound to the signing chain: the
-          // render-time client can go stale across the chain switch above and
-          // wagmi then rejects the signature with a chain mismatch.
-          const signingWalletClient = await getWalletClient(wagmiConfig, {
-            chainId: networkConfig.chainId,
-          })
+          // The salted Lock domain carries no chainId, so the wallet signs
+          // from whatever network it is on — no switch, no pinned client.
+          const signingWalletClient = await getSigningClient(wagmiConfig)
           const signedLock = await createSignedLockRequest({
             client,
             walletClient: signingWalletClient,
@@ -849,7 +842,6 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
       client,
       emitDebug,
       enabledTokens,
-      ensureCorrectChain,
       executeOnRampPrivateRead,
       flowSession,
       networkConfig,
