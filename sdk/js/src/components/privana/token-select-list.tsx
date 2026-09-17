@@ -48,6 +48,94 @@ export function chainFiltersFor(items: readonly TokenSelectListItem[]): string[]
 
 const SKELETON_ROW_KEYS = Array.from({ length: 6 }, (_, i) => `skeleton-${i}`)
 
+function TokenRowSkeleton() {
+  return (
+    <div className="flex w-full items-center gap-3 rounded-lg px-3 py-2">
+      <Skeleton className="h-6 w-6 shrink-0 rounded-full" />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex h-5 items-center">
+          <Skeleton className="h-3.5 w-16" />
+        </div>
+        <div className="flex h-4 items-center">
+          <Skeleton className="h-2.5 w-20" />
+        </div>
+      </div>
+      <Skeleton className="h-4 w-14 shrink-0" />
+    </div>
+  )
+}
+
+function TokenRow({
+  item,
+  balance,
+  balanceLoading,
+  isSelected,
+  isDisabled,
+  onSelect,
+}: {
+  item: TokenSelectListItem
+  balance?: string
+  balanceLoading: boolean
+  isSelected: boolean
+  isDisabled: boolean
+  onSelect: () => void
+}) {
+  const formatted = balance !== undefined ? formatTokenAmount(balance, item.decimals) : undefined
+  return (
+    <button
+      type="button"
+      disabled={isDisabled}
+      onClick={onSelect}
+      className={cn(
+        'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors',
+        isDisabled ? 'cursor-not-allowed opacity-50' : 'hover:bg-secondary cursor-pointer',
+        isSelected && 'bg-secondary'
+      )}
+    >
+      <div className="h-6 w-6 shrink-0 overflow-hidden rounded-full">
+        {getTokenIcon(item.symbol, 24)}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="text-foreground text-sm font-medium">{item.symbol}</div>
+        {item.chainName && (
+          <div className="text-muted-foreground text-[11px] leading-4">on {item.chainName}</div>
+        )}
+      </div>
+      {balanceLoading && formatted === undefined ? (
+        <Skeleton className="h-4 w-14 shrink-0" />
+      ) : formatted !== undefined ? (
+        <div
+          className={cn(
+            'shrink-0 text-sm tabular-nums',
+            BigInt(balance!) === 0n ? 'text-muted-foreground/70' : 'text-foreground font-medium'
+          )}
+        >
+          {formatted}
+        </div>
+      ) : null}
+      {isSelected && (
+        <div className="bg-primary flex h-4 w-4 shrink-0 items-center justify-center rounded-full">
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            className="text-primary-foreground"
+          >
+            <path
+              d="M2 5L4 7L8 3"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
+      )}
+    </button>
+  )
+}
+
 export function TokenSelectList({
   items,
   balances,
@@ -123,87 +211,20 @@ export function TokenSelectList({
       <div className="flex max-h-72 flex-col gap-1 overflow-y-auto">
         {frozen.order === null &&
           (items.length > 0 ? items.map((item) => item.id) : SKELETON_ROW_KEYS).map((key) => (
-            <div key={key} className="flex w-full items-center gap-3 rounded-lg px-3 py-2">
-              <Skeleton className="h-6 w-6 shrink-0 rounded-full" />
-              <div className="flex min-w-0 flex-1 flex-col">
-                <div className="flex h-5 items-center">
-                  <Skeleton className="h-3.5 w-16" />
-                </div>
-                <div className="flex h-4 items-center">
-                  <Skeleton className="h-2.5 w-20" />
-                </div>
-              </div>
-              <Skeleton className="h-4 w-14 shrink-0" />
-            </div>
+            <TokenRowSkeleton key={key} />
           ))}
         {frozen.order !== null &&
-          filtered.map((item) => {
-            const isSelected = selectedId === item.id
-            const isDisabled = disabledId === item.id
-            const balance = balances[item.id]
-            const formatted =
-              balance !== undefined ? formatTokenAmount(balance, item.decimals) : undefined
-            return (
-              <button
-                key={item.id}
-                type="button"
-                disabled={isDisabled}
-                onClick={() => onSelect(item.id)}
-                className={cn(
-                  'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors',
-                  isDisabled
-                    ? 'cursor-not-allowed opacity-50'
-                    : 'hover:bg-secondary cursor-pointer',
-                  isSelected && 'bg-secondary'
-                )}
-              >
-                <div className="h-6 w-6 shrink-0 overflow-hidden rounded-full">
-                  {getTokenIcon(item.symbol, 24)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-foreground text-sm font-medium">{item.symbol}</div>
-                  {item.chainName && (
-                    <div className="text-muted-foreground text-[11px] leading-4">
-                      on {item.chainName}
-                    </div>
-                  )}
-                </div>
-                {balancesLoading && formatted === undefined ? (
-                  <Skeleton className="h-4 w-14 shrink-0" />
-                ) : formatted !== undefined ? (
-                  <div
-                    className={cn(
-                      'shrink-0 text-sm tabular-nums',
-                      BigInt(balance!) === 0n
-                        ? 'text-muted-foreground/70'
-                        : 'text-foreground font-medium'
-                    )}
-                  >
-                    {formatted}
-                  </div>
-                ) : null}
-                {isSelected && (
-                  <div className="bg-primary flex h-4 w-4 shrink-0 items-center justify-center rounded-full">
-                    <svg
-                      width="10"
-                      height="10"
-                      viewBox="0 0 10 10"
-                      fill="none"
-                      className="text-primary-foreground"
-                    >
-                      <path
-                        d="M2 5L4 7L8 3"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                )}
-              </button>
-            )
-          })}
+          filtered.map((item) => (
+            <TokenRow
+              key={item.id}
+              item={item}
+              balance={balances[item.id]}
+              balanceLoading={balancesLoading}
+              isSelected={selectedId === item.id}
+              isDisabled={disabledId === item.id}
+              onSelect={() => onSelect(item.id)}
+            />
+          ))}
         {frozen.order !== null && filtered.length === 0 && (
           <p className="text-muted-foreground px-3 py-6 text-center text-sm">No tokens found</p>
         )}
