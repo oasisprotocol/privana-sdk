@@ -13,10 +13,14 @@ export const FALLBACK_GAS_RESERVE_WEI = NATIVE_TRANSFER_GAS * 60_000_000_000n
 // Ethereum the computed reserve is larger anyway.
 export const MIN_GAS_RESERVE_WEI = 50_000_000_000_000n
 
+function flooredReserveWei(gasUnits: bigint, maxFeePerGas: bigint): bigint {
+  const computed = (gasUnits * maxFeePerGas * FEE_BUFFER_NUM) / FEE_BUFFER_DEN
+  return computed > MIN_GAS_RESERVE_WEI ? computed : MIN_GAS_RESERVE_WEI
+}
+
 export function gasReserveWei(maxFeePerGas: bigint | null | undefined): bigint {
   if (maxFeePerGas == null || maxFeePerGas <= 0n) return FALLBACK_GAS_RESERVE_WEI
-  const computed = (NATIVE_TRANSFER_GAS * maxFeePerGas * FEE_BUFFER_NUM) / FEE_BUFFER_DEN
-  return computed > MIN_GAS_RESERVE_WEI ? computed : MIN_GAS_RESERVE_WEI
+  return flooredReserveWei(NATIVE_TRANSFER_GAS, maxFeePerGas)
 }
 
 export function maxNativeDeposit(
@@ -34,6 +38,5 @@ export function lacksGasForErc20Deposit(
   maxFeePerGas: bigint | null | undefined
 ): boolean {
   if (nativeBalanceWei == null || maxFeePerGas == null || maxFeePerGas <= 0n) return false
-  const needed = (ERC20_TRANSFER_GAS * maxFeePerGas * FEE_BUFFER_NUM) / FEE_BUFFER_DEN
-  return nativeBalanceWei < (needed > MIN_GAS_RESERVE_WEI ? needed : MIN_GAS_RESERVE_WEI)
+  return nativeBalanceWei < flooredReserveWei(ERC20_TRANSFER_GAS, maxFeePerGas)
 }

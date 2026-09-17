@@ -49,7 +49,7 @@ export function DepositView({
   onSubmit: (args: { source: DepositSource; tokenId: string; amount: string }) => void
   isSubmitting?: boolean
 }) {
-  const { getChainById, serviceName, serviceIcon, networkConfig, hostedAuthConfig, enabledTokens } =
+  const { getChainById, serviceName, serviceIcon, networkConfig, hostedAuthConfig } =
     usePrivanaContext()
   const { isConnected, address } = useAccount()
   const appName = serviceName ?? 'Privana'
@@ -87,9 +87,7 @@ export function DepositView({
     bytecode.isFetched &&
     !bytecode.data &&
     lacksGasForErc20Deposit(nativeBalance.data?.value, feeEstimate?.maxFeePerGas)
-  const nativeSymbol =
-    enabledTokens.find((t) => t.chainId === selectedToken?.chainId && t.contract === zeroAddress)
-      ?.symbol ?? 'ETH'
+  const nativeSymbol = nativeBalance.data?.symbol ?? 'ETH'
   const [gasReserveApplied, setGasReserveApplied] = useState(false)
   const [feeExceedsBalance, setFeeExceedsBalance] = useState(false)
   const formattedWalletBalance =
