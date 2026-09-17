@@ -371,6 +371,7 @@ export class PrivanaClient {
     return this.http.post<OnRampSessionResponse>('/v1/accounting/onramp/session', {
       transaction_id: request.transaction_id,
       ip_attestation: request.ip_attestation,
+      default_crypto_amount: request.default_crypto_amount,
     })
   }
 

@@ -246,6 +246,30 @@ describe('Transak provider adapter', () => {
     expect(sessionCalls).toBe(0)
   })
 
+  it('rejects invalid purchase defaults before attestation or session HTTP requests', async () => {
+    let httpCalls = 0
+    for (const defaultCryptoAmount of [0, -1, Number.NaN, Infinity, -Infinity]) {
+      await expect(
+        requestTransakWidgetSession({
+          client: {
+            createOnRampSession: async () => {
+              httpCalls++
+              return sessionResponse()
+            },
+          },
+          intentId: INTENT_ID,
+          generation: 1,
+          defaultCryptoAmount,
+          fetcher: async () => {
+            httpCalls++
+            return Response.json(ipAttestation(1))
+          },
+        })
+      ).rejects.toThrow('positive finite amount')
+    }
+    expect(httpCalls).toBe(0)
+  })
+
   it('fetches a new attestation inside an authenticated private-read retry', async () => {
     const requests: CreateOnRampSessionRequest[] = []
     let attestationCount = 0
@@ -275,6 +299,7 @@ describe('Transak provider adapter', () => {
             client,
             intentId: INTENT_ID,
             generation: 1,
+            defaultCryptoAmount: 12.5,
             now: () => NOW,
             fetcher: async () => {
               attestationCount++
@@ -286,8 +311,8 @@ describe('Transak provider adapter', () => {
 
     expect(tokenRefreshes).toEqual([false, true])
     expect(requests).toEqual([
-      { transaction_id: INTENT_ID, ip_attestation: ipAttestation(1) },
-      { transaction_id: INTENT_ID, ip_attestation: ipAttestation(2) },
+      { transaction_id: INTENT_ID, ip_attestation: ipAttestation(1), default_crypto_amount: 12.5 },
+      { transaction_id: INTENT_ID, ip_attestation: ipAttestation(2), default_crypto_amount: 12.5 },
     ])
     expect(session.url).toBe(WIDGET_URL)
   })
@@ -504,7 +529,7 @@ describe('Transak session failure ownership', () => {
 })
 
 describe('Transak session wire and validation', () => {
-  it('keeps attestation optional in the low-level client and passes it through unchanged', async () => {
+  it('serializes optional attestation and quote default only when supplied', async () => {
     const originalFetch = globalThis.fetch
     const requests: Array<{ url: string; init?: RequestInit }> = []
     globalThis.fetch = async (input, init) => {
@@ -517,6 +542,7 @@ describe('Transak session wire and validation', () => {
       const attestedModeResponse = await client.createOnRampSession({
         transaction_id: INTENT_ID,
         ip_attestation: ipAttestation(1),
+        default_crypto_amount: 100.08,
       })
 
       expect(requests.map(({ url }) => url)).toEqual([
@@ -526,7 +552,11 @@ describe('Transak session wire and validation', () => {
       expect(requests.map(({ init }) => init?.method)).toEqual(['POST', 'POST'])
       expect(requests.map(({ init }) => JSON.parse(String(init?.body)))).toEqual([
         { transaction_id: INTENT_ID },
-        { transaction_id: INTENT_ID, ip_attestation: ipAttestation(1) },
+        {
+          transaction_id: INTENT_ID,
+          ip_attestation: ipAttestation(1),
+          default_crypto_amount: 100.08,
+        },
       ])
       expect(requests.map(({ init }) => new Headers(init?.headers).get('X-SIWE-Token'))).toEqual([
         'siwe-token',
