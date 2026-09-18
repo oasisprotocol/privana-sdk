@@ -14,7 +14,7 @@ import { cn, formatTokenAmount, parseTokenAmount, shortenAddress } from '@/lib/u
 import { Skeleton } from '@/components/ui/skeleton'
 import { getTokenIcon } from './token-icons'
 import { TokenSelectorView } from './token-selector-view'
-import { MethodOption } from './deposit-modal'
+import { MethodOption, MODAL_CONTENT_CLASS } from './deposit-modal'
 import { CloseIcon, ChevronLeftIcon, ChevronRightIcon } from './icons'
 import {
   TransactionProgressView,
@@ -460,7 +460,7 @@ export function WithdrawModal({ open, onClose, onWithdrawSuccess }: WithdrawModa
         showCloseButton={false}
         onInteractOutside={isCloseBlocked ? (e) => e.preventDefault() : undefined}
         onEscapeKeyDown={isCloseBlocked ? (e) => e.preventDefault() : undefined}
-        className="bg-card flex w-[560px] max-w-[95vw] flex-col gap-2 rounded-2xl border-0 p-2"
+        className={MODAL_CONTENT_CLASS}
         aria-labelledby={titleId}
         aria-describedby={descId}
       >
