@@ -156,6 +156,9 @@ export function MethodOption({
   )
 }
 
+export const MODAL_CONTENT_CLASS =
+  'bg-card flex max-h-[calc(100dvh-2rem)] w-[560px] max-w-[95vw] flex-col gap-2 rounded-2xl border-0 p-2'
+
 export interface DepositMethodHandlers {
   defaultTab?: DepositMethodTab
   /** Allowance (shown as a "policy") the host service requests. */
@@ -978,7 +981,7 @@ export function DepositModal({ open, onClose, ...handlers }: DepositModalProps) 
         showCloseButton={false}
         onInteractOutside={isCloseBlocked ? (e) => e.preventDefault() : undefined}
         onEscapeKeyDown={isCloseBlocked ? (e) => e.preventDefault() : undefined}
-        className="bg-card flex w-[560px] max-w-[95vw] flex-col gap-2 rounded-2xl border-0 p-2"
+        className={MODAL_CONTENT_CLASS}
         aria-labelledby={titleId}
         aria-describedby={descId}
       >
