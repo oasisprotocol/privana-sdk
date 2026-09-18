@@ -4,8 +4,8 @@ import { useContext } from 'react'
 import { useQuery, QueryClientContext } from '@tanstack/react-query'
 import { useSafePrivanaContext } from '../context/privana-provider'
 import type { Bytes32, BalanceResponse } from '../types'
-import { formatTokenAmount } from '@/lib/utils'
 import { usePrivateReadRequest } from './use-private-read-request'
+import { formatTokenAmount } from '@/sdk/utils/amount-format'
 
 export interface UseBalanceOptions {
   tokenId?: Bytes32
@@ -56,11 +56,17 @@ export function useBalance(options: UseBalanceOptions = {}): UseBalanceResult {
   })
 
   const balanceWei = query.data?.balance ?? '0'
+  const tokenMeta = options.tokenId ? accountingContext?.getTokenById(options.tokenId) : undefined
 
   return {
     balance: balanceWei,
     balanceWei,
-    balanceFormatted: formatTokenAmount(balanceWei),
+    // The balance response carries no decimals; resolve them from the
+    // configured token and fall back to the historical 18.
+    balanceFormatted: formatTokenAmount(balanceWei, {
+      symbol: query.data?.token_symbol ?? '',
+      decimals: tokenMeta?.decimals ?? 18,
+    }).display,
     tokenSymbol: query.data?.token_symbol ?? '',
     chainId: query.data?.chain_id ?? '',
     isLoading: query.isPending || query.isLoading,

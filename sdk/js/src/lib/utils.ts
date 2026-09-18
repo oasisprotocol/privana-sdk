@@ -5,33 +5,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatTokenAmount(
-  amount: string | bigint,
-  decimals: number = 18,
-  maxDecimals: number = 6
-): string {
-  const value = typeof amount === 'string' ? BigInt(amount) : amount
-  const divisor = 10n ** BigInt(decimals)
-  const integerPart = value / divisor
-  const fractionalPart = value % divisor
-
-  const fractionalStr = fractionalPart.toString().padStart(decimals, '0')
-  const shown = fractionalStr.slice(0, Math.max(2, Math.min(maxDecimals, decimals)))
-  const trimmed = shown.replace(/0+$/, '').padEnd(2, '0')
-
-  const integerWithSpaces = integerPart.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '\u2009')
-  return `${integerWithSpaces}.${trimmed}`
-}
-
-export function parseTokenAmount(amount: string, decimals: number = 18): bigint {
-  const sanitized = amount.replace(/[\s\u2009]/g, '').replace(/,/g, '.')
-  const lastDot = sanitized.lastIndexOf('.')
-  const integerPart = lastDot === -1 ? sanitized : sanitized.slice(0, lastDot).replace(/\./g, '')
-  const fractionalPart = lastDot === -1 ? '' : sanitized.slice(lastDot + 1)
-  const paddedFractional = fractionalPart.padEnd(decimals, '0').slice(0, decimals)
-  return BigInt(integerPart + paddedFractional)
-}
-
 export function shortenAddress(address: string, chars: number = 4): string {
   if (!address || address.length < chars * 2 + 2) return address
   return `${address.slice(0, chars + 2)}...${address.slice(-chars)}`
