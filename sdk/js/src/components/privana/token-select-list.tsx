@@ -99,7 +99,9 @@ function TokenRow({
       <div className="min-w-0 flex-1">
         <div className="text-foreground text-sm font-medium">{item.symbol}</div>
         {item.chainName && (
-          <div className="text-muted-foreground text-[11px] leading-4">on {item.chainName}</div>
+          <div className="text-muted-foreground truncate text-[11px] leading-4">
+            on {item.chainName}
+          </div>
         )}
       </div>
       {balanceLoading && formatted === undefined ? (
@@ -174,9 +176,10 @@ export function TokenSelectList({
 
   const chainFilters = useMemo(() => chainFiltersFor(items), [items])
   const filtered = filterTokenItems(orderedItems, query, chainFilter)
+  const hasBalances = Object.keys(balances).length > 0
 
   return (
-    <div className="flex flex-col gap-3">
+    <div data-privana className="flex min-h-0 flex-col gap-3">
       {searchable && (
         <div className="border-input bg-input focus-within:ring-ring/50 flex items-center gap-2 rounded-lg border px-3 focus-within:ring-2">
           <Search className="text-muted-foreground size-4 shrink-0" />
@@ -220,7 +223,7 @@ export function TokenSelectList({
             <TokenRow
               key={item.id}
               item={item}
-              balance={balances[item.id]}
+              balance={balances[item.id] ?? (hasBalances ? '0' : undefined)}
               balanceLoading={balancesLoading}
               isSelected={selectedId === item.id}
               isDisabled={disabledId === item.id}

@@ -9,7 +9,11 @@ import { useBalance } from '@/sdk/hooks'
 import { cn, formatTimeRemaining, formatTokenAmount, parseTokenAmount } from '@/lib/utils'
 import { CloseIcon } from './icons'
 import { AllowancePolicySection } from './allowance-policy-section'
-import { DepositModalContent, type DepositMethodHandlers } from './deposit-modal'
+import {
+  DepositModalContent,
+  MODAL_CONTENT_CLASS,
+  type DepositMethodHandlers,
+} from './deposit-modal'
 import { WithdrawModalContent } from './withdraw-modal'
 import { TransactionProgressView, TransactionErrorView } from './transaction-steps'
 
@@ -654,7 +658,7 @@ export function WalletModal({ open, onClose, ...handlers }: WalletModalProps) {
         showCloseButton={false}
         onInteractOutside={isCloseBlocked ? (e) => e.preventDefault() : undefined}
         onEscapeKeyDown={isCloseBlocked ? (e) => e.preventDefault() : undefined}
-        className="bg-card flex w-[560px] max-w-[95vw] flex-col gap-2 rounded-2xl border-0 p-2"
+        className={MODAL_CONTENT_CLASS}
         aria-labelledby={titleId}
         aria-describedby={descId}
       >
