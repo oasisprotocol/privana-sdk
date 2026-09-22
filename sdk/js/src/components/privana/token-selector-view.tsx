@@ -61,7 +61,7 @@ export function TokenSelectorView({
     (balanceSource === 'wallet' ? wallet.isLoading : accounting.isLoading)
 
   return (
-    <div className="bg-muted flex flex-col rounded-[10px] p-3">
+    <div className="bg-muted flex min-h-0 flex-col rounded-[10px] p-3">
       <TokenSelectList
         items={items}
         balances={balances}
