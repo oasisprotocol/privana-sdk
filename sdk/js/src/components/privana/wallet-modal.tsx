@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAccount } from 'wagmi'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -638,8 +638,6 @@ export interface WalletModalProps extends WalletModalHandlers {
 }
 
 export function WalletModal({ open, onClose, ...handlers }: WalletModalProps) {
-  const titleId = useId()
-  const descId = useId()
   const [isCloseBlocked, setIsCloseBlocked] = useState(false)
 
   const handleClose = () => {
@@ -659,15 +657,9 @@ export function WalletModal({ open, onClose, ...handlers }: WalletModalProps) {
         onInteractOutside={isCloseBlocked ? (e) => e.preventDefault() : undefined}
         onEscapeKeyDown={isCloseBlocked ? (e) => e.preventDefault() : undefined}
         className={MODAL_CONTENT_CLASS}
-        aria-labelledby={titleId}
-        aria-describedby={descId}
       >
-        <DialogTitle id={titleId} className="sr-only">
-          Wallet
-        </DialogTitle>
-        <DialogDescription id={descId} className="sr-only">
-          Manage your account balance.
-        </DialogDescription>
+        <DialogTitle className="sr-only">Wallet</DialogTitle>
+        <DialogDescription className="sr-only">Manage your account balance.</DialogDescription>
         <WalletModalContent
           onClose={handleClose}
           onCloseBlockedChange={setIsCloseBlocked}

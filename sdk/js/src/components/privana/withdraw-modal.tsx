@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useAccount } from 'wagmi'
 import { formatUnits } from 'viem'
@@ -440,8 +440,6 @@ export interface WithdrawModalProps {
 }
 
 export function WithdrawModal({ open, onClose, onWithdrawSuccess }: WithdrawModalProps) {
-  const titleId = useId()
-  const descId = useId()
   const [isCloseBlocked, setIsCloseBlocked] = useState(false)
 
   const handleClose = () => {
@@ -461,15 +459,9 @@ export function WithdrawModal({ open, onClose, onWithdrawSuccess }: WithdrawModa
         onInteractOutside={isCloseBlocked ? (e) => e.preventDefault() : undefined}
         onEscapeKeyDown={isCloseBlocked ? (e) => e.preventDefault() : undefined}
         className={MODAL_CONTENT_CLASS}
-        aria-labelledby={titleId}
-        aria-describedby={descId}
       >
-        <DialogTitle id={titleId} className="sr-only">
-          Withdraw
-        </DialogTitle>
-        <DialogDescription id={descId} className="sr-only">
-          Withdraw funds from your account.
-        </DialogDescription>
+        <DialogTitle className="sr-only">Withdraw</DialogTitle>
+        <DialogDescription className="sr-only">Withdraw funds from your account.</DialogDescription>
         <WithdrawModalContent
           onClose={handleClose}
           onPendingChange={setIsCloseBlocked}
