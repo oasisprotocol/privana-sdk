@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useAccount } from 'wagmi'
 import { formatUnits, zeroAddress } from 'viem'
 import { MoonPayProvider } from '@moonpay/moonpay-react'
@@ -961,8 +961,6 @@ export interface DepositModalProps extends DepositMethodHandlers {
 }
 
 export function DepositModal({ open, onClose, ...handlers }: DepositModalProps) {
-  const titleId = useId()
-  const descId = useId()
   const [isCloseBlocked, setIsCloseBlocked] = useState(false)
 
   const handleClose = () => {
@@ -982,15 +980,9 @@ export function DepositModal({ open, onClose, ...handlers }: DepositModalProps) 
         onInteractOutside={isCloseBlocked ? (e) => e.preventDefault() : undefined}
         onEscapeKeyDown={isCloseBlocked ? (e) => e.preventDefault() : undefined}
         className={MODAL_CONTENT_CLASS}
-        aria-labelledby={titleId}
-        aria-describedby={descId}
       >
-        <DialogTitle id={titleId} className="sr-only">
-          Deposit
-        </DialogTitle>
-        <DialogDescription id={descId} className="sr-only">
-          Deposit funds into your account.
-        </DialogDescription>
+        <DialogTitle className="sr-only">Deposit</DialogTitle>
+        <DialogDescription className="sr-only">Deposit funds into your account.</DialogDescription>
         <DepositModalContent
           onClose={handleClose}
           onCloseBlockedChange={setIsCloseBlocked}
