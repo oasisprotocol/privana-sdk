@@ -77,6 +77,10 @@ function activeAddress(ctrl: SiweAuthController): string | null {
  *  or clobber the new scope's error/loading state from a late catch/finally — and a scope change
  *  during refresh cannot leave the new scope's hydration waiting on the previous backend's promise. */
 export function ctrlReset(ctrl: SiweAuthController, removeStorage: boolean): void {
+  // The private-read token is cached outside the client; drop it too, or a signed-out tab
+  // keeps reading with it (and skips the next sign-in's private-read login).
+  const address = activeAddress(ctrl) ?? ctrl.config.address
+  if (address) ctrl.ports.cache.delete(ctrl.ports.makeScopeKey(address))
   ctrl.loginInFlight = false
   ctrl.loginOwnerGeneration = -1
   ctrl.hydrateOwnerGeneration = -1

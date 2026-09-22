@@ -26,6 +26,7 @@ export interface SiweLifecycleClient {
 /** Shared private-read token cache surface. */
 export interface SiweLifecycleCache {
   set(scopeKey: string, token: string, expiresAt: number): void
+  delete(scopeKey: string): void
 }
 
 /** localStorage-ish surface for persisted SIWE auth. */

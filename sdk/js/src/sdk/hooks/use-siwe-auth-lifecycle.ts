@@ -29,7 +29,11 @@ import {
   type SiweAuthController,
 } from '../auth/siwe-auth-controller'
 import { AUTH_CLOCK_SKEW_MS } from '../auth/auth-clock-skew'
-import { createScopeKey, setCachedPrivateReadToken } from '../utils/private-read-token-store'
+import {
+  createScopeKey,
+  deleteCachedPrivateReadToken,
+  setCachedPrivateReadToken,
+} from '../utils/private-read-token-store'
 import { useSafeAccount } from './use-safe-account'
 import type { SiweLifecyclePorts } from '../auth/auth-lifecycle-effects'
 import type { SiweAuthSession, SiweAuthTokens } from '../auth/auth-lifecycle-effects'
@@ -104,7 +108,7 @@ export function useSiweAuthLifecycle(deps: SiweAuthRuntimeDeps): SiweAuthLifecyc
       persistJwt,
       client,
       storage: storageAdapter,
-      cache: { set: setCachedPrivateReadToken },
+      cache: { set: setCachedPrivateReadToken, delete: deleteCachedPrivateReadToken },
       react: {
         setSession,
         setTokens,
