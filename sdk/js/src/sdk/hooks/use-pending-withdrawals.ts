@@ -43,7 +43,11 @@ export function usePendingWithdrawals(
       }
     },
     enabled: (options.enabled ?? true) && isConnected && !!address,
-    refetchInterval: pollingInterval,
+    // Poll only while withdrawals are pending or the last fetch failed.
+    refetchInterval: (query) =>
+      query.state.status === 'error' || query.state.data?.pending_withdrawals.length
+        ? pollingInterval
+        : false,
     placeholderData: keepPreviousData,
     staleTime: 5000,
     retry: (failureCount, error) => {
