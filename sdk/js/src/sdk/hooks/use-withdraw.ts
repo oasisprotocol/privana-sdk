@@ -191,11 +191,12 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
           nonce: String(nonce),
           signature,
         })
+        queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
+        queryClient.invalidateQueries({ queryKey: ['accounting-pending-withdrawals'] })
         if (isStale()) return submissionResponse
 
         onSubmitSuccessRef.current?.(submissionResponse)
         onSuccessRef.current?.(submissionResponse)
-        queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
 
         // 4. Poll for withdrawal completion
         setCurrentStep('processing')
