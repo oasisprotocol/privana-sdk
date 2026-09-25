@@ -3,14 +3,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useAccount } from 'wagmi'
-import { formatUnits } from 'viem'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import { getExplorerAddressUrl, getExplorerLabel } from '@/sdk/types/chains'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useBalance, useWithdraw } from '@/sdk/hooks'
 import type { WithdrawStep } from '@/sdk/hooks'
-import { cn, formatTokenAmount, parseTokenAmount, shortenAddress } from '@/lib/utils'
+import { cn, shortenAddress } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getTokenIcon } from './token-icons'
 import { TokenSelectorView } from './token-selector-view'
@@ -22,6 +21,13 @@ import {
   TransactionWarningView,
   type Step,
 } from './transaction-steps'
+import {
+  formatTokenAmount,
+  isPositiveAmountText,
+  maxAmount,
+  normalizeAmountInput,
+  parseAmountInput,
+} from '@/sdk/utils/amount-format'
 
 type WithdrawModalView = 'select-destination' | 'form' | 'select-token'
 
@@ -59,7 +65,7 @@ function WithdrawView({
   })
 
   const formattedBalance = selectedToken
-    ? formatTokenAmount(balanceWei, selectedToken.decimals)
+    ? formatTokenAmount(balanceWei, selectedToken).display
     : '0.00'
 
   const { withdraw, isPending, currentStep, error, reset } = useWithdraw({
@@ -124,19 +130,22 @@ function WithdrawView({
     onPendingChange?.(isPending && !cancelled)
   }, [isPending, cancelled, onPendingChange])
 
-  const hasValidAmount = !!amount && parseFloat(amount) > 0
+  const hasValidAmount = isPositiveAmountText(amount)
   const tooManyDecimals =
     !!hasValidAmount &&
     !!selectedToken &&
     amount.includes('.') &&
     amount.split('.')[1].length > selectedToken.decimals
+  const parsedAmount = selectedToken ? parseAmountInput(amount, selectedToken) : null
+  const amountRaw = parsedAmount?.ok ? parsedAmount.raw : null
   const exceedsBalance =
     !!hasValidAmount &&
     !tooManyDecimals &&
     !!selectedToken &&
     !isBalanceLoading &&
     !isBalanceError &&
-    parseTokenAmount(amount, selectedToken.decimals) > BigInt(balanceWei)
+    amountRaw != null &&
+    amountRaw > BigInt(balanceWei)
 
   const canWithdraw =
     isConnected && hasValidAmount && !!selectedToken && !tooManyDecimals && !exceedsBalance
@@ -144,16 +153,16 @@ function WithdrawView({
   const handleMax = () => {
     if (!selectedToken) return
     const wei = BigInt(balanceWei)
-    if (wei > 0n) onAmountChange(formatUnits(wei, selectedToken.decimals))
+    if (wei > 0n) onAmountChange(maxAmount(wei, selectedToken).input)
   }
 
   const handleWithdraw = async () => {
-    if (!selectedToken || !canWithdraw) return
+    if (!selectedToken || !canWithdraw || amountRaw == null) return
     setCancelled(false)
     reachedSubmitRef.current = false
     await withdraw({
       tokenId: selectedToken.id,
-      amount: parseTokenAmount(amount, selectedToken.decimals),
+      amount: amountRaw,
     })
   }
 
@@ -258,8 +267,8 @@ function WithdrawView({
             placeholder="Enter Amount"
             value={amount}
             onChange={(e) => {
-              const value = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.')
-              if (value.split('.').length <= 2) onAmountChange(value)
+              const value = normalizeAmountInput(e.target.value)
+              if (value != null) onAmountChange(value)
             }}
             className="text-foreground placeholder:text-muted-foreground/50 flex-1 bg-transparent text-sm outline-none"
           />

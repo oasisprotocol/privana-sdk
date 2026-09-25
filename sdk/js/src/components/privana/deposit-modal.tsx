@@ -22,7 +22,8 @@ import {
   resolveProductOnRamp,
   type ProductOnRampFlowSnapshot,
 } from '@/sdk/on-ramp/product-config'
-import { cn, parseTokenAmount, shortenAddress } from '@/lib/utils'
+import { cn, shortenAddress } from '@/lib/utils'
+import { parseAmountInput } from '@/sdk/utils/amount-format'
 import { TokenSelectorView } from './token-selector-view'
 import { CreditCardWidgetView } from './credit-card-widget-view'
 import {
@@ -462,7 +463,9 @@ export function DepositModalContent({
         toast.error('External deposits support ERC20 tokens only')
         return
       }
-      const depositAmount = parseTokenAmount(args.amount, token.decimals)
+      const parsedAmount = parseAmountInput(args.amount, token)
+      if (!parsedAmount.ok) return
+      const depositAmount = parsedAmount.raw
       if (typeof externalMinimum !== 'bigint') {
         toast.error('Minimum deposit is unavailable. Please try again.')
         return
@@ -518,11 +521,13 @@ export function DepositModalContent({
     }
     const token = enabledTokens.find((t) => t.id === args.tokenId)
     if (!token) return
+    const parsedAmount = parseAmountInput(args.amount, token)
+    if (!parsedAmount.ok) return
     onDeposit?.(args)
     setCancelled(false)
     deposit({
       tokenId: token.id,
-      amount: parseTokenAmount(args.amount, token.decimals),
+      amount: parsedAmount.raw,
       postDepositLock: allowance
         ? {
             maxAmount: BigInt(allowance.value),
