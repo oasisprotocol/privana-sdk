@@ -19,7 +19,13 @@ import { ChevronRightIcon } from './icons'
 import { lacksGasForErc20Deposit, maxNativeDeposit } from '@/sdk/utils/native-gas-reserve'
 import { AllowancePolicySection } from './allowance-policy-section'
 import type { DepositSource } from './deposit-modal'
-import { formatTokenAmount, maxAmount, parseAmountInput } from '@/sdk/utils/amount-format'
+import {
+  formatTokenAmount,
+  isPositiveAmountText,
+  maxAmount,
+  normalizeAmountInput,
+  parseAmountInput,
+} from '@/sdk/utils/amount-format'
 
 export function DepositView({
   source,
@@ -108,7 +114,7 @@ export function DepositView({
     enabled: isMoonPayCard,
   })
 
-  const hasValidAmount = !!amount && parseFloat(amount) > 0
+  const hasValidAmount = isPositiveAmountText(amount)
   // MoonPay keeps its existing two-decimal quote cap. Other sources, including
   // Transak, accept the configured token's precision.
   const maxAmountDecimals = isMoonPayCard ? 2 : selectedToken?.decimals
@@ -266,8 +272,8 @@ export function DepositView({
             disabled={isSubmitting}
             value={amount}
             onChange={(e) => {
-              const value = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.')
-              if (value.split('.').length <= 2) {
+              const value = normalizeAmountInput(e.target.value)
+              if (value != null) {
                 setGasReserveApplied(false)
                 setFeeExceedsBalance(false)
                 onAmountChange(value)

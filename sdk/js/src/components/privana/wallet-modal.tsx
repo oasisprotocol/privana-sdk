@@ -16,7 +16,13 @@ import {
 } from './deposit-modal'
 import { WithdrawModalContent } from './withdraw-modal'
 import { TransactionProgressView, TransactionErrorView } from './transaction-steps'
-import { formatTokenAmount, maxAmount, parseAmountInput } from '@/sdk/utils/amount-format'
+import {
+  formatTokenAmount,
+  isPositiveAmountText,
+  maxAmount,
+  normalizeAmountInput,
+  parseAmountInput,
+} from '@/sdk/utils/amount-format'
 
 const AVAILABLE_COLOR = 'bg-[#007bff]'
 const IN_USE_COLOR = 'bg-[#4fc77f]'
@@ -150,7 +156,7 @@ function WalletBalanceView({
   const availableFormatted = formatTokenAmount(availableWei, meta).display
   const inUseFormatted = formatTokenAmount(inUseWei, meta).display
 
-  const hasValidAmount = !!amount && parseFloat(amount) > 0
+  const hasValidAmount = isPositiveAmountText(amount)
   const tooManyDecimals =
     hasValidAmount &&
     !!token &&
@@ -246,8 +252,8 @@ function WalletBalanceView({
                 placeholder="Enter Amount"
                 value={amount}
                 onChange={(e) => {
-                  const value = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.')
-                  if (value.split('.').length <= 2) onAmountChange(value)
+                  const value = normalizeAmountInput(e.target.value)
+                  if (value != null) onAmountChange(value)
                 }}
                 className="text-foreground placeholder:text-muted-foreground/50 min-w-0 flex-1 bg-transparent text-sm outline-none"
               />

@@ -239,6 +239,28 @@ export function parseAmountInput(
   return { ok: true, raw }
 }
 
+/**
+ * Cleans typed or pasted text for an amount field: digits and one decimal point.
+ * A comma is thousands grouping when the whole text is well-formed grouping (a
+ * pasted displayed balance like "1,234.50"), otherwise a decimal comma ("1,5").
+ * Typing never reaches the grouping branch: each keystroke already turned the
+ * first comma into a point. Returns null when the text is still not one number,
+ * so the field can ignore that change.
+ */
+export function normalizeAmountInput(text: string): string | null {
+  const kept = text.replace(/[^0-9.,]/g, '')
+  const value = /^\d{1,3}(,\d{3})+(\.\d*)?$/.test(kept)
+    ? kept.replace(/,/g, '')
+    : kept.replace(/,/g, '.')
+  return value.split('.').length <= 2 ? value : null
+}
+
+/** Whether amount text holds a positive number, decided on its digits, never via a float. */
+export function isPositiveAmountText(text: string): boolean {
+  const value = normalizeAmountInput(text)
+  return value != null && /[1-9]/.test(value)
+}
+
 export function maxAmount(raw: bigint, token: TokenMeta): { raw: bigint; input: string } {
   return { raw, input: exactString(raw, token.decimals) }
 }

@@ -6,7 +6,9 @@ import {
   formatFiatAmount,
   formatPercent,
   formatTokenAmount,
+  isPositiveAmountText,
   maxAmount,
+  normalizeAmountInput,
   parseAmountInput,
   truncateToDecimals,
   type TokenMeta,
@@ -247,5 +249,60 @@ describe('helpers', () => {
   test('rules are exported for inspection', () => {
     expect(AMOUNT_RULES.modes.balance).toBe('trunc')
     expect(AMOUNT_RULES.modes.fee).toBe('up')
+  })
+})
+
+describe('normalizeAmountInput', () => {
+  test('a pasted displayed balance keeps its value', () => {
+    const shown = formatTokenAmount(1_234_500_000n, USDC).display
+    expect(shown).toBe('1,234.50')
+    const field = normalizeAmountInput(shown)
+    expect(field).toBe('1234.50')
+    expect(parseAmountInput(field!, USDC)).toEqual({ ok: true, raw: 1_234_500_000n })
+  })
+
+  test.each([
+    ['1,234,567', '1234567'],
+    ['1 234.50', '1234.50'],
+    ['12a3', '123'],
+    ['.5', '.5'],
+    ['', ''],
+  ])('%j becomes %j', (typed, field) => {
+    expect(normalizeAmountInput(typed)).toBe(field)
+  })
+
+  test('a decimal comma still works', () => {
+    expect(normalizeAmountInput('1,5')).toBe('1.5')
+    // Typed one key at a time the first comma is already a point, so the
+    // grouping branch never sees it.
+    let field = ''
+    for (const key of '1,234') field = normalizeAmountInput(field + key) ?? field
+    expect(field).toBe('1.234')
+  })
+
+  test('refuses text that is still not one number', () => {
+    expect(normalizeAmountInput('1.234.56')).toBeNull()
+    expect(normalizeAmountInput('1.234,56')).toBeNull()
+  })
+})
+
+describe('isPositiveAmountText', () => {
+  test.each([
+    ['0', false],
+    ['0.00', false],
+    ['.', false],
+    ['', false],
+    ['0.01', true],
+    ['.5', true],
+    ['1,234.50', true],
+  ])('%j → %s', (text, positive) => {
+    expect(isPositiveAmountText(text)).toBe(positive)
+  })
+
+  test('agrees with the parser on what the field can hold', () => {
+    for (const text of ['0', '0.000001', '1', '1234.5', '.5', '5.']) {
+      const parsed = parseAmountInput(text, USDC)
+      expect(isPositiveAmountText(text)).toBe(parsed.ok && parsed.raw > 0n)
+    }
   })
 })

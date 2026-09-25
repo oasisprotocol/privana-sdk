@@ -21,7 +21,13 @@ import {
   TransactionWarningView,
   type Step,
 } from './transaction-steps'
-import { formatTokenAmount, maxAmount, parseAmountInput } from '@/sdk/utils/amount-format'
+import {
+  formatTokenAmount,
+  isPositiveAmountText,
+  maxAmount,
+  normalizeAmountInput,
+  parseAmountInput,
+} from '@/sdk/utils/amount-format'
 
 type WithdrawModalView = 'select-destination' | 'form' | 'select-token'
 
@@ -124,7 +130,7 @@ function WithdrawView({
     onPendingChange?.(isPending && !cancelled)
   }, [isPending, cancelled, onPendingChange])
 
-  const hasValidAmount = !!amount && parseFloat(amount) > 0
+  const hasValidAmount = isPositiveAmountText(amount)
   const tooManyDecimals =
     !!hasValidAmount &&
     !!selectedToken &&
@@ -261,8 +267,8 @@ function WithdrawView({
             placeholder="Enter Amount"
             value={amount}
             onChange={(e) => {
-              const value = e.target.value.replace(/[^0-9.,]/g, '').replace(/,/g, '.')
-              if (value.split('.').length <= 2) onAmountChange(value)
+              const value = normalizeAmountInput(e.target.value)
+              if (value != null) onAmountChange(value)
             }}
             className="text-foreground placeholder:text-muted-foreground/50 flex-1 bg-transparent text-sm outline-none"
           />
