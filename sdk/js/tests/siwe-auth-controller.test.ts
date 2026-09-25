@@ -15,6 +15,7 @@ function buildController(opts: {
   logoutThrows?: boolean
 }): ControllerFixture {
   const calls: string[] = []
+  const cacheDeletes: string[] = []
   const logoutCalls: Array<{
     refreshToken: string
     revokeAll: boolean
@@ -70,7 +71,12 @@ function buildController(opts: {
       persistJwt: false,
       client,
       storage: { read: () => null, write: () => {}, remove: () => {} },
-      cache: { set: () => {} },
+      cache: {
+        set: () => {},
+        delete: (scopeKey: string) => {
+          cacheDeletes.push(scopeKey)
+        },
+      },
       react: {
         setSession: () => {},
         setTokens: () => {},
@@ -95,6 +101,7 @@ function buildController(opts: {
   return {
     ctrl,
     calls,
+    cacheDeletes,
     logoutCalls,
     get clearBearerCalls() {
       return clearBearerCalls
@@ -113,6 +120,12 @@ describe('ctrlLogout', () => {
     expect(fixture.logoutCalls[0].bearerAtCallTime).toBe('access-token')
     expect(fixture.calls).toEqual(['logout:bearer=access-token', 'clearBearer:bearer=access-token'])
     expect(fixture.clearBearerCalls).toBe(1)
+  })
+
+  it('drops the cached private-read token for the wallet', async () => {
+    const fixture = buildController({ refreshToken: null, bearerToken: 'access-token' })
+    await ctrlLogout(fixture.ctrl)
+    expect(fixture.cacheDeletes).toEqual(['0x000000000000000000000000000000000000dEaD'])
   })
 
   it('still clears local state when no refresh token is present', async () => {
