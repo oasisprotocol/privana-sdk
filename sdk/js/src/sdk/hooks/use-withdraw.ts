@@ -152,12 +152,11 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
   const reset = useCallback(() => {
     generationRef.current++
     stopPolling()
-    if (address) clearPendingWithdrawal(address)
     setCurrentStep('idle')
     setDidTimeout(false)
     setIsSuccess(false)
     setWithdrawError(null)
-  }, [address, stopPolling])
+  }, [stopPolling])
 
   const pollWithdrawal = useCallback(
     (userAddress: string, withdrawalIndex: number | null, isStale: () => boolean) => {
@@ -177,7 +176,6 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
 
       const handleTimeout = () => {
         stopPolling()
-        clearPendingWithdrawal(userAddress)
         setCurrentStep('idle')
         setDidTimeout(true)
         onProcessingTimeoutRef.current?.()
