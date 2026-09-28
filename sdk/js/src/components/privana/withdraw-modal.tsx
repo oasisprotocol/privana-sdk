@@ -14,6 +14,7 @@ import { cn, shortenAddress } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getTokenIcon } from './token-icons'
 import { TokenSelectorView } from './token-selector-view'
+import { ConnectedWalletRow } from './connected-wallet-row'
 import { MethodOption, MODAL_CONTENT_CLASS } from './deposit-modal'
 import { CloseIcon, ChevronLeftIcon, ChevronRightIcon } from './icons'
 import {
@@ -297,14 +298,7 @@ function WithdrawView({
         {exceedsBalance && <p className="text-destructive text-sm">Insufficient balance</p>}
       </div>
 
-      {address && (
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground text-sm">To</span>
-          <span className="text-foreground text-sm font-medium">
-            Connected wallet · {shortenAddress(address)}
-          </span>
-        </div>
-      )}
+      {address && <ConnectedWalletRow label="To" address={address} />}
 
       <button
         type="button"
