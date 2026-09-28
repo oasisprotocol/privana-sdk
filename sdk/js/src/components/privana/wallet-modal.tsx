@@ -416,7 +416,7 @@ function WalletModalContent({
   const [view, setView] = useState<WalletView>('balance')
   const [amount, setAmount] = useState('')
   const [depositBlocked, setDepositBlocked] = useState(false)
-  const [withdrawPending, setWithdrawPending] = useState(false)
+  const [withdrawBlocked, setWithdrawBlocked] = useState(false)
   const [endSessionError, setEndSessionError] = useState<string | null>(null)
   const [fundSessionError, setFundSessionError] = useState<string | null>(null)
 
@@ -436,7 +436,7 @@ function WalletModalContent({
       setView('balance')
       setAmount('')
       setDepositBlocked(false)
-      setWithdrawPending(false)
+      setWithdrawBlocked(false)
       setEndSessionError(null)
       setFundSessionError(null)
       setPendingFundSession(null)
@@ -446,7 +446,7 @@ function WalletModalContent({
   }, [address, hostedAuthConfig])
 
   const closeBlocked =
-    depositBlocked || withdrawPending || view === 'funding-session' || view === 'ending-session'
+    depositBlocked || withdrawBlocked || view === 'funding-session' || view === 'ending-session'
   useEffect(() => {
     onCloseBlockedChange?.(closeBlocked)
   }, [closeBlocked, onCloseBlockedChange])
@@ -458,7 +458,7 @@ function WalletModalContent({
   }
 
   const exitWithdraw = () => {
-    setWithdrawPending(false)
+    setWithdrawBlocked(false)
     setView('balance')
   }
 
@@ -618,7 +618,7 @@ function WalletModalContent({
       {view === 'withdraw' && (
         <WithdrawModalContent
           onBack={exitWithdraw}
-          onPendingChange={setWithdrawPending}
+          onCloseBlockedChange={setWithdrawBlocked}
           onWithdrawSuccess={() => {
             exitWithdraw()
             onWithdrawSuccess?.()

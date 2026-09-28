@@ -37,6 +37,7 @@ function WithdrawView({
   onAmountChange,
   onSelectToken,
   onPendingChange,
+  onCloseBlockedChange,
   onWithdrawSuccess,
 }: {
   selectedToken: TokenConfig | undefined
@@ -44,6 +45,7 @@ function WithdrawView({
   onAmountChange: (value: string) => void
   onSelectToken: () => void
   onPendingChange?: (pending: boolean) => void
+  onCloseBlockedChange?: (blocked: boolean) => void
   onWithdrawSuccess?: () => void
 }) {
   const { chains, getChainById } = usePrivanaContext()
@@ -129,6 +131,11 @@ function WithdrawView({
   useEffect(() => {
     onPendingChange?.(isPending && !cancelled)
   }, [isPending, cancelled, onPendingChange])
+
+  const closeBlocked = isPending && !cancelled && currentStep !== 'processing'
+  useEffect(() => {
+    onCloseBlockedChange?.(closeBlocked)
+  }, [closeBlocked, onCloseBlockedChange])
 
   const hasValidAmount = isPositiveAmountText(amount)
   const tooManyDecimals =
@@ -312,12 +319,12 @@ function WithdrawView({
 
 export function WithdrawModalContent({
   onClose,
-  onPendingChange,
+  onCloseBlockedChange,
   onBack,
   onWithdrawSuccess,
 }: {
   onClose?: () => void
-  onPendingChange?: (pending: boolean) => void
+  onCloseBlockedChange?: (blocked: boolean) => void
   /** Renders a back chevron on the form view (for embedding, e.g. WalletModal). */
   onBack?: () => void
   onWithdrawSuccess?: () => void
@@ -329,10 +336,11 @@ export function WithdrawModalContent({
   const [selectedTokenId, setSelectedTokenId] = useState(defaultToken?.id ?? '')
   const [amount, setAmount] = useState('')
   const [isPending, setIsPending] = useState(false)
+  const [closeBlocked, setCloseBlocked] = useState(false)
 
-  const handlePendingChange = (pending: boolean) => {
-    setIsPending(pending)
-    onPendingChange?.(pending)
+  const handleCloseBlockedChange = (blocked: boolean) => {
+    setCloseBlocked(blocked)
+    onCloseBlockedChange?.(blocked)
   }
 
   const selectedToken = enabledTokens.find((t) => t.id === selectedTokenId) ?? defaultToken
@@ -351,12 +359,18 @@ export function WithdrawModalContent({
 
   return (
     <>
-      {onClose && !isPending && (
+      {onClose && (
         <button
           data-privana-close
           onClick={onClose}
+          disabled={closeBlocked}
           aria-label="Close"
-          className="text-muted-foreground hover:text-foreground absolute top-6 right-5 z-20 flex h-5 w-5 cursor-pointer items-center justify-center transition-colors"
+          className={cn(
+            'absolute top-6 right-5 z-20 flex h-5 w-5 items-center justify-center transition-colors',
+            closeBlocked
+              ? 'text-muted-foreground/40 cursor-not-allowed'
+              : 'text-muted-foreground hover:text-foreground cursor-pointer'
+          )}
         >
           <CloseIcon />
         </button>
@@ -422,7 +436,8 @@ export function WithdrawModalContent({
           amount={amount}
           onAmountChange={setAmount}
           onSelectToken={() => setView('select-token')}
-          onPendingChange={handlePendingChange}
+          onPendingChange={setIsPending}
+          onCloseBlockedChange={handleCloseBlockedChange}
           onWithdrawSuccess={onWithdrawSuccess}
         />
       )}
@@ -473,7 +488,7 @@ export function WithdrawModal({ open, onClose, onWithdrawSuccess }: WithdrawModa
         <DialogDescription className="sr-only">Withdraw funds from your account.</DialogDescription>
         <WithdrawModalContent
           onClose={handleClose}
-          onPendingChange={setIsCloseBlocked}
+          onCloseBlockedChange={setIsCloseBlocked}
           onWithdrawSuccess={onWithdrawSuccess}
         />
       </DialogContent>

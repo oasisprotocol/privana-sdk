@@ -126,21 +126,23 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
 
   const { chainId: signingChainId } = networkConfig
 
-  // Cleanup polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollIntervalRef.current) {
-        clearTimeout(pollIntervalRef.current)
-      }
-    }
-  }, [])
-
   const stopPolling = useCallback(() => {
     if (pollIntervalRef.current) {
       clearTimeout(pollIntervalRef.current)
       pollIntervalRef.current = null
     }
   }, [])
+
+  const invalidateGeneration = useCallback(() => {
+    generationRef.current++
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      invalidateGeneration()
+      stopPolling()
+    }
+  }, [invalidateGeneration, stopPolling])
 
   const reset = useCallback(() => {
     generationRef.current++
