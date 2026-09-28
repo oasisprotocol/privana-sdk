@@ -356,8 +356,11 @@ export function WithdrawModalContent({
       setView('select-destination')
       setAmount('')
       setSelectedTokenId('')
+      setIsPending(false)
+      setCloseBlocked(false)
+      onCloseBlockedChange?.(false)
     }
-  }, [address, hostedAuthConfig])
+  }, [address, hostedAuthConfig, onCloseBlockedChange])
 
   return (
     <>
