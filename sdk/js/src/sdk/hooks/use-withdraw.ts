@@ -6,6 +6,11 @@ import { useAccount } from 'wagmi'
 import { usePrivanaContext } from '../context/privana-provider'
 import { signWithdrawMessage } from '../signatures'
 import type { Bytes32, TransactionSubmissionResponse } from '../types'
+import {
+  clearPendingWithdrawal,
+  loadPendingWithdrawal,
+  savePendingWithdrawal,
+} from '../utils/pending-withdrawal'
 import { useSigningClient } from './use-signing-client'
 
 export interface UseWithdrawOptions {
@@ -126,21 +131,23 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
 
   const { chainId: signingChainId } = networkConfig
 
-  // Cleanup polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollIntervalRef.current) {
-        clearTimeout(pollIntervalRef.current)
-      }
-    }
-  }, [])
-
   const stopPolling = useCallback(() => {
     if (pollIntervalRef.current) {
       clearTimeout(pollIntervalRef.current)
       pollIntervalRef.current = null
     }
   }, [])
+
+  const invalidateGeneration = useCallback(() => {
+    generationRef.current++
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      invalidateGeneration()
+      stopPolling()
+    }
+  }, [invalidateGeneration, stopPolling])
 
   const reset = useCallback(() => {
     generationRef.current++
@@ -150,6 +157,83 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
     setIsSuccess(false)
     setWithdrawError(null)
   }, [stopPolling])
+
+  const pollWithdrawal = useCallback(
+    (userAddress: string, withdrawalIndex: number | null, isStale: () => boolean) => {
+      setCurrentStep('processing')
+      const pollStartTime = Date.now()
+      let consecutiveFailures = 0
+
+      const handleSuccess = () => {
+        stopPolling()
+        clearPendingWithdrawal(userAddress)
+        setCurrentStep('idle')
+        setIsSuccess(true)
+        onProcessingSuccessRef.current?.()
+        queryClient.refetchQueries({ queryKey: ['accounting-balance'] })
+        queryClient.refetchQueries({ queryKey: ['accounting-pending-withdrawals'] })
+      }
+
+      const handleTimeout = () => {
+        stopPolling()
+        setCurrentStep('idle')
+        setDidTimeout(true)
+        onProcessingTimeoutRef.current?.()
+        queryClient.refetchQueries({ queryKey: ['accounting-balance'] })
+        queryClient.refetchQueries({ queryKey: ['accounting-pending-withdrawals'] })
+      }
+
+      if (withdrawalIndex == null) {
+        handleTimeout()
+        return
+      }
+
+      const checkWithdrawalStatus = async (): Promise<boolean> => {
+        if (isStale()) return true
+
+        if (Date.now() - pollStartTime > pollTimeout) {
+          handleTimeout()
+          return true
+        }
+
+        try {
+          const info = await client.getWithdrawalInfo(withdrawalIndex)
+          if (isStale()) return true
+          consecutiveFailures = 0
+          if (info.resolved) {
+            handleSuccess()
+            return true
+          }
+        } catch (err) {
+          if (isStale()) return true
+          consecutiveFailures++
+          console.warn('Error polling withdrawal status:', err)
+          if (consecutiveFailures >= 3) {
+            handleTimeout()
+            return true
+          }
+        }
+        return false
+      }
+
+      const pollLoop = async () => {
+        const done = await checkWithdrawalStatus()
+        if (!done && !isStale() && pollIntervalRef.current !== null) {
+          pollIntervalRef.current = setTimeout(pollLoop, pollInterval)
+        }
+      }
+      pollIntervalRef.current = setTimeout(pollLoop, 0)
+    },
+    [client, pollInterval, pollTimeout, queryClient, stopPolling]
+  )
+
+  useEffect(() => {
+    if (!address) return
+    const pending = loadPendingWithdrawal(address)
+    if (!pending) return
+    const generation = ++generationRef.current
+    pollWithdrawal(address, pending.index, () => generation !== generationRef.current)
+  }, [address, pollWithdrawal])
 
   const withdraw = useCallback(
     async (params: WithdrawParams): Promise<TransactionSubmissionResponse | undefined> => {
@@ -191,6 +275,14 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
           nonce: String(nonce),
           signature,
         })
+        if (submissionResponse.index != null) {
+          savePendingWithdrawal(address, {
+            index: submissionResponse.index,
+            tokenId: params.tokenId,
+            amount: params.amount.toString(),
+            savedAt: Date.now(),
+          })
+        }
         queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
         queryClient.invalidateQueries({ queryKey: ['accounting-pending-withdrawals'] })
         if (isStale()) return submissionResponse
@@ -199,69 +291,7 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
         onSuccessRef.current?.(submissionResponse)
 
         // 4. Poll for withdrawal completion
-        setCurrentStep('processing')
-        const pollStartTime = Date.now()
-        const withdrawalIndex = submissionResponse.index
-        let consecutiveFailures = 0
-
-        const handleSuccess = () => {
-          stopPolling()
-          setCurrentStep('idle')
-          setIsSuccess(true)
-          onProcessingSuccessRef.current?.()
-          queryClient.refetchQueries({ queryKey: ['accounting-balance'] })
-          queryClient.refetchQueries({ queryKey: ['accounting-pending-withdrawals'] })
-        }
-
-        const handleTimeout = () => {
-          stopPolling()
-          setCurrentStep('idle')
-          setDidTimeout(true)
-          onProcessingTimeoutRef.current?.()
-          queryClient.refetchQueries({ queryKey: ['accounting-balance'] })
-          queryClient.refetchQueries({ queryKey: ['accounting-pending-withdrawals'] })
-        }
-
-        if (withdrawalIndex == null) {
-          handleTimeout()
-          return submissionResponse
-        }
-
-        const checkWithdrawalStatus = async (): Promise<boolean> => {
-          if (isStale()) return true
-
-          if (Date.now() - pollStartTime > pollTimeout) {
-            handleTimeout()
-            return true
-          }
-
-          try {
-            const info = await client.getWithdrawalInfo(withdrawalIndex)
-            if (isStale()) return true
-            consecutiveFailures = 0
-            if (info.resolved) {
-              handleSuccess()
-              return true
-            }
-          } catch (err) {
-            if (isStale()) return true
-            consecutiveFailures++
-            console.warn('Error polling withdrawal status:', err)
-            if (consecutiveFailures >= 3) {
-              handleTimeout()
-              return true
-            }
-          }
-          return false
-        }
-
-        const pollLoop = async () => {
-          const done = await checkWithdrawalStatus()
-          if (!done && !isStale() && pollIntervalRef.current !== null) {
-            pollIntervalRef.current = setTimeout(pollLoop, pollInterval)
-          }
-        }
-        pollIntervalRef.current = setTimeout(pollLoop, 0)
+        pollWithdrawal(address, submissionResponse.index, isStale)
 
         return submissionResponse
       } catch (err) {
@@ -307,10 +337,8 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
       client,
       signingChainId,
       networkConfig.accountingContract,
-      pollInterval,
-      pollTimeout,
       queryClient,
-      stopPolling,
+      pollWithdrawal,
       reset,
     ]
   )
