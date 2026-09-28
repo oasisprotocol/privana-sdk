@@ -9,6 +9,7 @@ import { getExplorerAddressUrl, getExplorerLabel } from '@/sdk/types/chains'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useBalance, useWithdraw } from '@/sdk/hooks'
 import type { WithdrawStep } from '@/sdk/hooks'
+import { loadPendingWithdrawal } from '@/sdk/utils/pending-withdrawal'
 import { cn, shortenAddress } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getTokenIcon } from './token-icons'
@@ -332,8 +333,9 @@ export function WithdrawModalContent({
   const { serviceName, enabledTokens, defaultToken, hostedAuthConfig } = usePrivanaContext()
   const { address } = useAccount()
   const appName = serviceName ?? 'Privana'
-  const [view, setView] = useState<WithdrawModalView>('select-destination')
-  const [selectedTokenId, setSelectedTokenId] = useState(defaultToken?.id ?? '')
+  const [resumed] = useState(() => (address ? loadPendingWithdrawal(address) : null))
+  const [view, setView] = useState<WithdrawModalView>(resumed ? 'form' : 'select-destination')
+  const [selectedTokenId, setSelectedTokenId] = useState(resumed?.tokenId ?? defaultToken?.id ?? '')
   const [amount, setAmount] = useState('')
   const [isPending, setIsPending] = useState(false)
   const [closeBlocked, setCloseBlocked] = useState(false)
