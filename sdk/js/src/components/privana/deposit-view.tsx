@@ -12,12 +12,13 @@ import type { Allowance } from '@/sdk/types/allowance'
 import { isMoonPayProductOnRamp, type ProductOnRampSelection } from '@/sdk/on-ramp/product-config'
 import { usePrivanaContext } from '@/sdk/context/privana-provider'
 import { useMoonpayLimits } from '@/sdk/hooks/use-moonpay-limits'
-import { cn, shortenAddress } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getTokenIcon } from './token-icons'
 import { ChevronRightIcon } from './icons'
 import { lacksGasForErc20Deposit, maxNativeDeposit } from '@/sdk/utils/native-gas-reserve'
 import { AllowancePolicySection } from './allowance-policy-section'
+import { ConnectedWalletRow } from './connected-wallet-row'
 import type { DepositSource } from './deposit-modal'
 import {
   formatTokenAmount,
@@ -362,14 +363,7 @@ export function DepositView({
         )}
       </div>
 
-      {isConnectedSource && address && (
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground text-sm">From</span>
-          <span className="text-foreground text-sm font-medium">
-            Connected wallet · {shortenAddress(address)}
-          </span>
-        </div>
-      )}
+      {isConnectedSource && address && <ConnectedWalletRow label="From" address={address} />}
 
       {allowance && (
         <AllowancePolicySection
