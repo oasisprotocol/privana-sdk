@@ -229,7 +229,9 @@ function WithdrawView({
 
   return (
     <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
-      <h2 className="text-foreground text-[28px] leading-8 font-medium">Withdraw</h2>
+      <h2 className="text-foreground text-[28px] leading-8 font-medium">
+        Withdraw to Connected Wallet
+      </h2>
 
       <div className="flex flex-col gap-3">
         <label className="text-muted-foreground text-sm">Token</label>
