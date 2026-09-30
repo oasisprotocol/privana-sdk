@@ -30,6 +30,7 @@ import { NETWORK_CONFIG, type TokenConfig } from '../types'
 import { SUPPORTED_CHAINS, type ChainConfig } from '../types/chains'
 import { resolveMoonpayCurrencyCode } from '../moonpay-currency-codes'
 import { SiweAuthProvider, type SiweAuthConfig } from './siwe-auth-provider'
+import { DepositFlowProvider } from './deposit-flow-provider'
 
 export type TokensStatus = 'loading' | 'ready' | 'error'
 
@@ -460,6 +461,8 @@ export function PrivanaProvider({
     ]
   )
 
+  const content = <DepositFlowProvider>{children}</DepositFlowProvider>
+
   return (
     <PrivanaContext.Provider value={value}>
       {siweAuth ? (
@@ -469,10 +472,10 @@ export function PrivanaProvider({
           autoLogin={typeof siweAuth === 'object' ? siweAuth.autoLogin : undefined}
           persistJwt={typeof siweAuth === 'object' ? siweAuth.persistJwt : undefined}
         >
-          {children}
+          {content}
         </SiweAuthProvider>
       ) : (
-        children
+        content
       )}
     </PrivanaContext.Provider>
   )
