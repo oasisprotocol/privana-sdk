@@ -213,7 +213,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
 }
 
 export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
-  const { address } = useAccount()
+  const { address, status } = useAccount()
   const { client, enabledTokens, getChainById, hostedAuthConfig, networkConfig, serviceAddress } =
     usePrivanaContext()
   const walletClient = useSigningClient()
@@ -224,11 +224,12 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
   privateReadAddressRef.current = privateReadAddress
   const siwe = useSafeSiweAuth()
   // Private reads without a session prompt for a signature, which must not
-  // come from a deposit resuming in the background.
+  // come from a deposit resuming in the background. Not while reconnecting
+  // either: a reconnect that then fails drops the session it restored.
   const signedIn = hostedAuthConfig
     ? privateReadReady
     : !siwe || siwe.session?.address.toLowerCase() === address?.toLowerCase()
-  const owner = signedIn ? address : undefined
+  const owner = signedIn && status === 'connected' ? address : undefined
 
   const [depositAddress, setDepositAddress] = useState<DepositAddressResponse | null>(null)
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>()
