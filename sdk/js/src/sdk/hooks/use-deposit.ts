@@ -74,6 +74,7 @@ export interface DepositProgress {
   chainId: number
   tokenId?: Bytes32
   amount: bigint
+  sentAt: number
   stage: DepositStage
   depositId?: string
 }
@@ -442,6 +443,7 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
       chainId: persisted.chainId,
       tokenId: persisted.tokenId,
       amount: BigInt(persisted.amount),
+      sentAt: persisted.savedAt,
     })
     setDepositAddress(persisted.depositAddress)
     setIsWaitingForConfirmation(true)
@@ -609,6 +611,7 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
                 args: [depositAddr, params.amount],
                 chainId: sourceChain.id,
               })
+        const sentAt = Date.now()
         // Persist before the stale check: a flow stopped while the wallet was
         // open (cancel, sign-out, account switch) still sent the funds, and the
         // record lets the next resume credit them.
@@ -620,14 +623,20 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
             amount: params.amount.toString(),
             depositAddress: addrResponse,
             signedLock,
-            savedAt: Date.now(),
+            savedAt: sentAt,
           })
         } catch (err) {
           console.warn('Failed to persist pending deposit after transfer broadcast:', err)
         }
         if (isStale()) return
         setTxHash(hash)
-        setSent({ txHash: hash, chainId: sourceChain.id, tokenId: token.id, amount: params.amount })
+        setSent({
+          txHash: hash,
+          chainId: sourceChain.id,
+          tokenId: token.id,
+          amount: params.amount,
+          sentAt,
+        })
 
         // Past this point the wallet has already dispatched the transfer, so any
         // subsequent failure must preserve the hash and route to a retry state
