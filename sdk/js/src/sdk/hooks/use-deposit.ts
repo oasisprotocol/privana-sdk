@@ -242,7 +242,8 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
   const [receiptFailed, setReceiptFailed] = useState(false)
   const [depositError, setDepositError] = useState<Error | null>(null)
   const [sent, setSent] = useState<Omit<DepositProgress, 'stage' | 'depositId'> | null>(null)
-  const [credit, setCredit] = useState<DepositCheckResponse | null>(null)
+  const [credited, setCredited] = useState(false)
+  const [depositId, setDepositId] = useState<string | undefined>()
 
   const generationRef = useRef(0)
   // Set the moment we know an on-chain transfer has been dispatched so we
@@ -340,8 +341,12 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
       } else if (address) {
         clearPendingDeposit(address)
       }
-      setCredit(response)
+      setCredited(true)
+      if (response.deposit_id) setDepositId(response.deposit_id)
       onCreditedRef.current?.(hash, response, signedLock !== null)
+    },
+    onCheckAccepted: (_hash, id) => {
+      setDepositId(id)
     },
     onCheckTimeout: (hash) => {
       onCheckTimeoutRef.current?.(hash)
@@ -409,7 +414,8 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
     setReceiptFailed(false)
     setDepositError(null)
     setSent(null)
-    setCredit(null)
+    setCredited(false)
+    setDepositId(undefined)
     addressMutation.reset()
     resetWriteContract()
     resetSendTransaction()
@@ -736,14 +742,14 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
   const verificationFailed = innerVerificationFailed || receiptFailed
 
   const stage = depositStage({
-    credited: credit !== null,
+    credited,
     failed: verificationFailed,
     timedOut: didTimeout,
     confirming: isWaitingForConfirmation,
   })
   const progress = useMemo<DepositProgress | null>(
-    () => sent && { ...sent, stage, depositId: credit?.deposit_id ?? undefined },
-    [sent, stage, credit]
+    () => sent && { ...sent, stage, depositId },
+    [sent, stage, depositId]
   )
 
   return {

@@ -309,7 +309,6 @@ export function DepositModalContent({
     setAmount('')
     if (view === 'external-deposit') setView('deposit')
     if (onDepositSuccess) {
-      resetDeposit()
       onDepositSuccess()
     } else {
       setShowSuccess(true)
