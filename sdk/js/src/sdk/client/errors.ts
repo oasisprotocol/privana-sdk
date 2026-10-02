@@ -10,6 +10,15 @@ export class AccountingApiError extends Error {
   }
 }
 
+/** A private read was attempted without a SIWE session; ask the user to sign in. */
+export class PrivateReadAuthRequiredError extends Error {
+  constructor(message = 'Sign in to Privana to read private data.') {
+    super(message)
+    this.name = 'PrivateReadAuthRequiredError'
+    Object.setPrototypeOf(this, PrivateReadAuthRequiredError.prototype)
+  }
+}
+
 export class NetworkError extends Error {
   constructor(
     message: string,

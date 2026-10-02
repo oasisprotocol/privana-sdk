@@ -90,6 +90,13 @@ export function ctrlReset(ctrl: SiweAuthController, removeStorage: boolean): voi
   if (removeStorage) persistRecordIfEnabled(ctrl.ports, null)
 }
 
+export function ctrlExpireSession(ctrl: SiweAuthController): void {
+  const address = activeAddress(ctrl) ?? ctrl.config.address ?? null
+  ctrlReset(ctrl, ctrl.config.persistJwt)
+  ctrl.dispatch({ type: 'setAutoAttemptedAddress', address })
+  ctrl.ports.react.setSessionExpired(true)
+}
+
 /** Make a record the live session: commit + private-read arming + session publish. */
 export function ctrlRestoreSession(
   ctrl: SiweAuthController,

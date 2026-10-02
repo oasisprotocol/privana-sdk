@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'bun:test'
-import { ctrlLogout, type SiweAuthController } from '../src/sdk/auth/siwe-auth-controller'
-import type { AuthLifecycleState } from '../src/sdk/auth/auth-lifecycle'
+import {
+  ctrlExpireSession,
+  ctrlLogout,
+  type SiweAuthController,
+} from '../src/sdk/auth/siwe-auth-controller'
+import type { AuthLifecycleEvent, AuthLifecycleState } from '../src/sdk/auth/auth-lifecycle'
 
 interface ControllerFixture {
   ctrl: SiweAuthController
   calls: string[]
+  cacheDeletes: string[]
+  events: AuthLifecycleEvent[]
+  expiredFlags: boolean[]
+  storageRemoves: number
   logoutCalls: Array<{ refreshToken: string; revokeAll: boolean; bearerAtCallTime: string | null }>
   clearBearerCalls: number
 }
@@ -13,9 +21,14 @@ function buildController(opts: {
   refreshToken: string | null
   bearerToken: string | null
   logoutThrows?: boolean
+  persistJwt?: boolean
 }): ControllerFixture {
+  const persistJwt = opts.persistJwt ?? false
   const calls: string[] = []
   const cacheDeletes: string[] = []
+  const events: AuthLifecycleEvent[] = []
+  const expiredFlags: boolean[] = []
+  let storageRemoves = 0
   const logoutCalls: Array<{
     refreshToken: string
     revokeAll: boolean
@@ -65,12 +78,18 @@ function buildController(opts: {
       address: '0x000000000000000000000000000000000000dEaD',
       chainId: 1,
       apiUrl: 'https://privana.example.com',
-      persistJwt: false,
+      persistJwt,
     },
     ports: {
-      persistJwt: false,
+      persistJwt,
       client,
-      storage: { read: () => null, write: () => {}, remove: () => {} },
+      storage: {
+        read: () => null,
+        write: () => {},
+        remove: () => {
+          storageRemoves += 1
+        },
+      },
       cache: {
         set: () => {},
         delete: (scopeKey: string) => {
@@ -81,6 +100,10 @@ function buildController(opts: {
         setSession: () => {},
         setTokens: () => {},
         setAccessTokenExpiresAt: () => {},
+        setSiweTokenExpiresAt: () => {},
+        setSessionExpired: (expired: boolean) => {
+          expiredFlags.push(expired)
+        },
         setIsLoading: () => {},
         setIsHydrating: () => {},
         setError: () => {},
@@ -95,13 +118,20 @@ function buildController(opts: {
     refreshPromise: null,
     getState: () => state,
     getSessionAddress: () => null,
-    dispatch: () => {},
+    dispatch: (event: AuthLifecycleEvent) => {
+      events.push(event)
+    },
   } as unknown as SiweAuthController
 
   return {
     ctrl,
     calls,
     cacheDeletes,
+    events,
+    expiredFlags,
+    get storageRemoves() {
+      return storageRemoves
+    },
     logoutCalls,
     get clearBearerCalls() {
       return clearBearerCalls
@@ -143,5 +173,36 @@ describe('ctrlLogout', () => {
     })
     await ctrlLogout(fixture.ctrl)
     expect(fixture.clearBearerCalls).toBe(1)
+  })
+})
+
+describe('ctrlExpireSession', () => {
+  const ADDRESS = '0x000000000000000000000000000000000000dEaD'
+
+  it('ends the session and drops the stored record and cached private-read token', () => {
+    const fixture = buildController({
+      refreshToken: 'refresh-token',
+      bearerToken: 'access-token',
+      persistJwt: true,
+    })
+    ctrlExpireSession(fixture.ctrl)
+    expect(fixture.clearBearerCalls).toBe(1)
+    expect(fixture.storageRemoves).toBe(1)
+    expect(fixture.cacheDeletes).toEqual([ADDRESS])
+  })
+
+  it('marks the session expired and keeps auto-login off for the wallet', () => {
+    const fixture = buildController({ refreshToken: 'refresh-token', bearerToken: 'access-token' })
+    ctrlExpireSession(fixture.ctrl)
+    // The reset clears the auto-login marker; it has to be set again after it.
+    expect(fixture.events.map((e) => e.type)).toEqual(['reset', 'setAutoAttemptedAddress'])
+    expect(fixture.events[1]).toEqual({ type: 'setAutoAttemptedAddress', address: ADDRESS })
+    expect(fixture.expiredFlags.at(-1)).toBe(true)
+  })
+
+  it('is not reported as an expiry when the user logs out', async () => {
+    const fixture = buildController({ refreshToken: null, bearerToken: 'access-token' })
+    await ctrlLogout(fixture.ctrl)
+    expect(fixture.expiredFlags.at(-1)).toBe(false)
   })
 })
