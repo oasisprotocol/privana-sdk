@@ -301,7 +301,6 @@ export function DepositModalContent({
   }
 
   const [showSuccess, setShowSuccess] = useState(false)
-  const [showTimeout, setShowTimeout] = useState(false)
   const [cancelled, setCancelled] = useState(false)
   const [isSubmittingLock, setIsSubmittingLock] = useState(false)
   const [lockFailure, setLockFailure] = useState<PostDepositLockError | null>(null)
@@ -310,7 +309,6 @@ export function DepositModalContent({
     setAmount('')
     if (view === 'external-deposit') setView('deposit')
     if (onDepositSuccess) {
-      resetDeposit()
       onDepositSuccess()
     } else {
       setShowSuccess(true)
@@ -361,6 +359,7 @@ export function DepositModalContent({
     isSendingTransaction,
     isWaitingForConfirmation,
     isWaitingForProcessing,
+    didTimeout,
     verificationFailed,
     isPending,
     error: depositError,
@@ -392,7 +391,6 @@ export function DepositModalContent({
     },
     onCheckTimeout: () => {
       setAmount('')
-      setShowTimeout(true)
     },
   })
 
@@ -615,7 +613,7 @@ export function DepositModalContent({
     ? 'deposit-success'
     : lockFailure
       ? 'lock-error'
-      : showTimeout
+      : didTimeout
         ? 'deposit-timeout'
         : verificationFailed
           ? 'deposit-error'
@@ -626,7 +624,6 @@ export function DepositModalContent({
 
   const handleDepositDone = () => {
     setShowSuccess(false)
-    setShowTimeout(false)
     setCancelled(false)
     resetDeposit()
   }

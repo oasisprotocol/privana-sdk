@@ -78,3 +78,7 @@ export function useSiweAuth(): SiweAuthContextValue {
   if (!ctx) throw new Error('useSiweAuth must be used within SiweAuthProvider')
   return ctx
 }
+
+export function useSafeSiweAuth(): SiweAuthContextValue | null {
+  return useContext(SiweAuthContext)
+}
