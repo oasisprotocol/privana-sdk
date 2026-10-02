@@ -5,7 +5,11 @@ import { WagmiContext } from 'wagmi'
 import { getWalletClient } from 'wagmi/actions'
 import { isHostedAuthSessionActive } from '../auth'
 import { buildSiweLoginMessage } from '../auth/siwe'
-import { AccountingApiError, HostedAuthRequiredError } from '../client'
+import {
+  AccountingApiError,
+  HostedAuthRequiredError,
+  PrivateReadAuthRequiredError,
+} from '../client'
 import type { PrivanaClient } from '../client'
 import { usePrivanaContext } from '../context/privana-context'
 import { useSafeSiweAuth } from '../context/siwe-auth-provider'
@@ -108,6 +112,12 @@ export async function executeSiwePrivateReadRequest<T>({
   }
 }
 
+export function requireSessionPrivateReadToken(scopeKey: string): string {
+  const cached = getCachedPrivateReadToken(scopeKey)
+  if (!cached) throw new PrivateReadAuthRequiredError()
+  return cached
+}
+
 function recordPrivateReadFailure(scopeKey: string): void {
   const previous = privateReadFailureCache.get(scopeKey)
   const backoffMs = Math.min(
@@ -152,15 +162,17 @@ export function usePrivateReadRequest(): {
     usePrivanaContext()
   const { address: walletAddress } = useSafeAccount()
   const siwe = useSafeSiweAuth()
+  const hasSiweProvider = siwe !== null
   const privateReadAddress = hostedAuthConfig
     ? (hostedAuthSession?.address ?? null)
     : (walletAddress ?? null)
-  const privateReadReady = hostedAuthConfig ? !!hostedAuthSession : !!walletAddress
   const privateReadAuthorized = hostedAuthConfig
     ? !!hostedAuthSession
-    : siwe
+    : hasSiweProvider
       ? !!walletAddress && siwe.session?.address.toLowerCase() === walletAddress.toLowerCase()
       : !!walletAddress
+  // Under SiweAuthProvider private reads never sign in on their own, so they wait for the session.
+  const privateReadReady = privateReadAuthorized
 
   const executePrivateRead = useCallback(
     async <T>(request: (client: PrivanaClient) => Promise<T>): Promise<T> => {
@@ -182,6 +194,15 @@ export function usePrivateReadRequest(): {
 
       const apiUrl = networkConfig.apiUrl
       const scopeKey = createScopeKey(apiUrl, networkConfig.chainId, walletAddress)
+
+      if (hasSiweProvider) {
+        return executeSiwePrivateReadRequest({
+          client,
+          scopeKey,
+          getToken: async () => requireSessionPrivateReadToken(scopeKey),
+          request,
+        })
+      }
 
       const getToken = async (forceRefresh: boolean): Promise<string> => {
         const inflight = privateReadInflight.get(scopeKey)
@@ -241,6 +262,7 @@ export function usePrivateReadRequest(): {
     },
     [
       client,
+      hasSiweProvider,
       hostedAuthConfig,
       hostedAuthSession,
       networkConfig.apiUrl,

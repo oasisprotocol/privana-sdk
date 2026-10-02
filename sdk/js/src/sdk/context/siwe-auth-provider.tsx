@@ -12,6 +12,7 @@ export type { SiweAuthSession, SiweAuthTokens }
 export interface SiweAuthContextValue {
   isAuthenticated: boolean
   isLoading: boolean
+  sessionExpired: boolean
   error: Error | null
   session: SiweAuthSession | null
   accessToken: string | undefined

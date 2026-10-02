@@ -121,6 +121,14 @@ export function isPersistedSiweAuthRefreshActive(
   return record.refreshTokenExpiresAt > now + AUTH_CLOCK_SKEW_MS
 }
 
+/** The SIWE (private-read) token caps the session: JWT refreshes do not extend it. */
+export function isPersistedSiweTokenActive(
+  record: PersistedSiweAuthRecord,
+  now = Date.now()
+): boolean {
+  return record.siweTokenExpiresAt > now + AUTH_CLOCK_SKEW_MS
+}
+
 /** Validates a raw payload without touching storage. Used for cross-tab `storage` events. */
 export function parsePersistedSiweAuthRecord(
   raw: string,
@@ -216,6 +224,7 @@ export function isAdoptableRecord(
 export type HydrationAction =
   | { type: 'restore'; record: PersistedSiweAuthRecord }
   | { type: 'refresh'; record: PersistedSiweAuthRecord }
+  | { type: 'expired' }
   | { type: 'remove' }
   | { type: 'dormant' }
 
@@ -230,6 +239,9 @@ export function resolveHydrationAction(
   if (record.tokens.address.toLowerCase() !== connectedAddress.toLowerCase()) {
     return { type: 'remove' }
   }
+  // Checked before the JWT: a still-refreshable JWT must not revive a session whose
+  // private reads would need a new signature.
+  if (!isPersistedSiweTokenActive(record, now)) return { type: 'expired' }
   if (isPersistedSiweAuthAccessActive(record, now)) return { type: 'restore', record }
   if (isPersistedSiweAuthRefreshActive(record, now)) return { type: 'refresh', record }
   return { type: 'remove' }
