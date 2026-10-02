@@ -12,6 +12,7 @@ export type { SiweAuthSession, SiweAuthTokens }
 export interface SiweAuthContextValue {
   isAuthenticated: boolean
   isLoading: boolean
+  sessionExpired: boolean
   error: Error | null
   session: SiweAuthSession | null
   accessToken: string | undefined
@@ -77,4 +78,8 @@ export function useSiweAuth(): SiweAuthContextValue {
   const ctx = useContext(SiweAuthContext)
   if (!ctx) throw new Error('useSiweAuth must be used within SiweAuthProvider')
   return ctx
+}
+
+export function useSafeSiweAuth(): SiweAuthContextValue | null {
+  return useContext(SiweAuthContext)
 }
