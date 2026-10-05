@@ -222,7 +222,7 @@ Notes:
 | `useHostedRedirectAuth`  | Hosted redirect auth for widget apps                                                                               |
 | `useBalance`             | Get token balance (available + locked)                                                                             |
 | `useBatchBalances`       | Get multiple token balances                                                                                        |
-| `useDeposit`             | Deposit tokens                                                                                                     |
+| `useDeposit`             | Deposit tokens. One flow per app, run by `PrivanaProvider`, so a deposit keeps crediting after unmount             |
 | `useDepositVerification` | Run checkDeposit + status polling against an existing on-chain transfer (used by `useDeposit` and `useFiatOnRamp`) |
 | `useFiatOnRamp`          | MoonPay on-ramp with provider-neutral recovery, verification, credit, and locking (from `/on-ramp` sub-export)     |
 | `useTransakOnRamp`       | Explicit Transak session launch and hardened iframe over the same shared recovery and credit core                  |
@@ -237,6 +237,22 @@ Notes:
 | `useExpiredLocks`        | Get expired locks that can be claimed                                                                              |
 | `useTokenList`           | List all registered tokens                                                                                         |
 | `useTokenInfo`           | Get info for a single token                                                                                        |
+
+### Reacting to credited deposits
+
+A deposit keeps crediting after the deposit modal closes, so `DepositModal`'s
+`onDepositSuccess` fires only for deposits credited while it is open. To react to
+every credit, subscribe once in a component that is always mounted:
+
+```tsx
+useDeposit({
+  // With an allowance, the deposit is done once the lock is accepted.
+  onCredited: (_txHash, _response, lockPending) => {
+    if (!lockPending) refreshBalances()
+  },
+  onLockSubmitted: () => refreshBalances(),
+})
+```
 
 ## Fiat On-Ramp
 

@@ -2,7 +2,7 @@
 
 import { useContext } from 'react'
 import { useQuery, QueryClientContext } from '@tanstack/react-query'
-import { useSafePrivanaContext } from '../context/privana-provider'
+import { useSafePrivanaContext } from '../context/privana-context'
 import type { Bytes32, BalanceResponse } from '../types'
 import { usePrivateReadRequest } from './use-private-read-request'
 import { formatTokenAmount } from '@/sdk/utils/amount-format'

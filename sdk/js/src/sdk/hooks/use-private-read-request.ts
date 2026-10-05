@@ -7,7 +7,8 @@ import { isHostedAuthSessionActive } from '../auth'
 import { buildSiweLoginMessage } from '../auth/siwe'
 import { AccountingApiError, HostedAuthRequiredError } from '../client'
 import type { PrivanaClient } from '../client'
-import { usePrivanaContext } from '../context'
+import { usePrivanaContext } from '../context/privana-context'
+import { useSafeSiweAuth } from '../context/siwe-auth-provider'
 import type { Address, HostedAuthSession } from '../types'
 import { useSafeAccount } from './use-safe-account'
 import {
@@ -139,16 +140,27 @@ export function usePrivateReadRequest(): {
   executePrivateRead<T>(request: (client: PrivanaClient) => Promise<T>): Promise<T>
   privateReadAddress: Address | null
   privateReadReady: boolean
+  /**
+   * The user is signed in for private reads: an active hosted session, or under SiweAuthProvider a
+   * SIWE session for the connected wallet. Without either provider any connected wallet counts.
+   */
+  privateReadAuthorized: boolean
   privateReadQueryScope: readonly [string, number, Address | null]
 } {
   const wagmiContext = useContext(WagmiContext)
   const { client, networkConfig, hostedAuthConfig, hostedAuthSession, refreshHostedAuthSession } =
     usePrivanaContext()
   const { address: walletAddress } = useSafeAccount()
+  const siwe = useSafeSiweAuth()
   const privateReadAddress = hostedAuthConfig
     ? (hostedAuthSession?.address ?? null)
     : (walletAddress ?? null)
   const privateReadReady = hostedAuthConfig ? !!hostedAuthSession : !!walletAddress
+  const privateReadAuthorized = hostedAuthConfig
+    ? !!hostedAuthSession
+    : siwe
+      ? !!walletAddress && siwe.session?.address.toLowerCase() === walletAddress.toLowerCase()
+      : !!walletAddress
 
   const executePrivateRead = useCallback(
     async <T>(request: (client: PrivanaClient) => Promise<T>): Promise<T> => {
@@ -248,6 +260,7 @@ export function usePrivateReadRequest(): {
     executePrivateRead,
     privateReadAddress,
     privateReadReady,
+    privateReadAuthorized,
     privateReadQueryScope,
   }
 }

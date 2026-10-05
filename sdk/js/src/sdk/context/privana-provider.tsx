@@ -1,15 +1,6 @@
 'use client'
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { zeroAddress } from 'viem'
 import { PrivanaClient } from '../client'
 import {
@@ -19,44 +10,13 @@ import {
   isHostedAuthSessionActive,
 } from '../auth'
 import { HostedAuthRequiredError } from '../client'
-import type {
-  Address,
-  HostedAuthConfig,
-  HostedAuthSession,
-  NetworkConfig,
-  OnRampConfig,
-} from '../types'
-import { NETWORK_CONFIG, type TokenConfig } from '../types'
+import type { Address, HostedAuthConfig, HostedAuthSession, OnRampConfig } from '../types'
+import { NETWORK_CONFIG, type NetworkConfig, type TokenConfig } from '../types'
 import { SUPPORTED_CHAINS, type ChainConfig } from '../types/chains'
 import { resolveMoonpayCurrencyCode } from '../moonpay-currency-codes'
 import { SiweAuthProvider, type SiweAuthConfig } from './siwe-auth-provider'
-
-export type TokensStatus = 'loading' | 'ready' | 'error'
-
-export interface PrivanaContextValue {
-  client: PrivanaClient
-  networkConfig: NetworkConfig
-  /** Explicit product on-ramp selection. Undefined preserves legacy MoonPay behavior. */
-  onRamp?: OnRampConfig
-  enabledTokens: TokenConfig[]
-  defaultToken: TokenConfig | undefined
-  getTokenById: (id: string) => TokenConfig | undefined
-  getChainById: (id: number) => ChainConfig | undefined
-  chains: ChainConfig[]
-  tokensStatus: TokensStatus
-  tokensError?: Error
-  pollingInterval: number
-  serviceAddress?: Address
-  serviceName?: string
-  serviceIcon?: ReactNode
-  hostedAuthConfig: HostedAuthConfig | null
-  hostedAuthSession: HostedAuthSession | null
-  setHostedAuthSession: (session: HostedAuthSession | null) => void
-  clearHostedAuthSession: () => void
-  refreshHostedAuthSession: () => Promise<HostedAuthSession>
-}
-
-const PrivanaContext = createContext<PrivanaContextValue | null>(null)
+import { DepositFlowProvider } from './deposit-flow-provider'
+import { PrivanaContext, type PrivanaContextValue, type TokensStatus } from './privana-context'
 
 export function readStoredHostedAuthSession(
   storage: Pick<Storage, 'getItem' | 'removeItem'>,
@@ -460,6 +420,8 @@ export function PrivanaProvider({
     ]
   )
 
+  const content = <DepositFlowProvider>{children}</DepositFlowProvider>
+
   return (
     <PrivanaContext.Provider value={value}>
       {siweAuth ? (
@@ -469,23 +431,11 @@ export function PrivanaProvider({
           autoLogin={typeof siweAuth === 'object' ? siweAuth.autoLogin : undefined}
           persistJwt={typeof siweAuth === 'object' ? siweAuth.persistJwt : undefined}
         >
-          {children}
+          {content}
         </SiweAuthProvider>
       ) : (
-        children
+        content
       )}
     </PrivanaContext.Provider>
   )
-}
-
-export function usePrivanaContext(): PrivanaContextValue {
-  const context = useContext(PrivanaContext)
-  if (!context) {
-    throw new Error('usePrivanaContext must be used within a PrivanaProvider')
-  }
-  return context
-}
-
-export function useSafePrivanaContext(): PrivanaContextValue | null {
-  return useContext(PrivanaContext)
 }

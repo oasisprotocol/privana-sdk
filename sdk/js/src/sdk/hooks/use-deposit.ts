@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { createContext, useState, useCallback, useContext, useEffect, useMemo, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAccount, useWriteContract, useSendTransaction, useConfig } from 'wagmi'
 import { getBlockNumber, getTransactionReceipt, waitForTransactionReceipt } from '@wagmi/core'
 import { erc20Abi, zeroAddress } from 'viem'
-import { usePrivanaContext } from '../context/privana-provider'
+import { usePrivanaContext } from '../context/privana-context'
 import { useEnsureCorrectChain } from './use-ensure-correct-chain'
 import { usePrivateReadRequest } from './use-private-read-request'
 import { useDepositVerification, type VerificationContext } from './use-deposit-verification'
@@ -54,10 +54,6 @@ export interface UseDepositOptions {
   /** Called when deposit check polling times out - deposit may still be processing */
   onCheckTimeout?: (txHash: string) => void
   onError?: (error: Error) => void
-  /** Polling interval in ms for checking deposit status (default: 5000) */
-  pollInterval?: number
-  /** Max time to wait for deposit to be credited in ms (default: 180000 = 3 minutes) */
-  pollTimeout?: number
 }
 
 export interface DepositParams {
@@ -70,9 +66,22 @@ export interface DepositParams {
   postDepositLock?: PostDepositLockConfig
 }
 
+export type DepositStage = 'confirming' | 'crediting' | 'credited' | 'failed' | 'timeout'
+
+export interface DepositProgress {
+  txHash: `0x${string}`
+  chainId: number
+  tokenId?: Bytes32
+  amount: bigint
+  sentAt: number
+  stage: DepositStage
+  depositId?: string
+}
+
 export interface UseDepositResult {
   depositAddress: DepositAddressResponse | null
   txHash: `0x${string}` | undefined
+  progress: DepositProgress | null
   isGettingAddress: boolean
   isSwitchingChain: boolean
   isSendingTransaction: boolean
@@ -89,17 +98,24 @@ export interface UseDepositResult {
    * in the background).
    */
   verificationFailed: boolean
+  /** True while the pre-signed post-deposit lock is being submitted after the credit. */
+  isSubmittingLock: boolean
+  /** Why the post-deposit lock failed; the deposit itself credited. Kept until `reset()`. */
+  lockError: PostDepositLockError | null
   isPending: boolean
   error: Error | null
+  /** Throws while another deposit is in progress: there is one deposit flow per app. */
   deposit: (params: DepositParams) => Promise<void>
   /** Re-run the API verification (sweep trigger + polling) for the existing txHash. */
   retryVerification: () => Promise<void>
+  /** Discards the app's deposit flow, for every `useDeposit` consumer. */
   reset: () => void
 }
 
 interface PersistedDeposit {
   txHash: string
   chainId: number
+  tokenId?: Bytes32
   amount: string
   depositAddress: DepositAddressResponse
   signedLock?: LockFundsRequest
@@ -114,6 +130,19 @@ function resolveConfirmations(depositAddress: DepositAddressResponse, chainId: n
     throw new Error(`Deposits are not supported on chain ${chainId}`)
   }
   return confirmations
+}
+
+function depositStage(state: {
+  credited: boolean
+  failed: boolean
+  timedOut: boolean
+  confirming: boolean
+}): DepositStage {
+  if (state.credited) return 'credited'
+  if (state.failed) return 'failed'
+  if (state.timedOut) return 'timeout'
+  if (state.confirming) return 'confirming'
+  return 'crediting'
 }
 
 function storageKey(address: string): string {
@@ -165,15 +194,43 @@ function clearPendingDeposit(address: string, onlyForTxHash?: string): void {
   removeBrowserStorageItem(storageKey(address))
 }
 
+export interface DepositFlow {
+  result: UseDepositResult
+  subscribe: (listener: { current: UseDepositOptions }) => () => void
+}
+
+export const DepositFlowContext = createContext<DepositFlow | null>(null)
+
+/** Attaches to the app's deposit flow, which `PrivanaProvider` keeps running after unmount. */
 export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
-  const { address } = useAccount()
+  const flow = useContext(DepositFlowContext)
+  const listener = useRef(options)
+  useEffect(() => {
+    listener.current = options
+  })
+  const subscribe = flow?.subscribe
+  useEffect(() => subscribe?.(listener), [subscribe])
+  if (!flow) {
+    throw new Error(
+      'useDeposit must be used within a PrivanaProvider inside WagmiProvider and QueryClientProvider'
+    )
+  }
+  return flow.result
+}
+
+export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
+  const { address, status } = useAccount()
   const { client, enabledTokens, getChainById, networkConfig, serviceAddress } = usePrivanaContext()
   const walletClient = useSigningClient()
   const queryClient = useQueryClient()
   const config = useConfig()
-  const { executePrivateRead, privateReadAddress } = usePrivateReadRequest()
+  const { executePrivateRead, privateReadAddress, privateReadAuthorized } = usePrivateReadRequest()
   const privateReadAddressRef = useRef(privateReadAddress)
   privateReadAddressRef.current = privateReadAddress
+  // Private reads without a session prompt for a signature, which must not
+  // come from a deposit resuming in the background. Not while reconnecting
+  // either: a reconnect that then fails drops the session it restored.
+  const owner = privateReadAuthorized && status === 'connected' ? address : undefined
 
   const [depositAddress, setDepositAddress] = useState<DepositAddressResponse | null>(null)
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>()
@@ -184,12 +241,20 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
   // verificationFailed when surfacing state to consumers.
   const [receiptFailed, setReceiptFailed] = useState(false)
   const [depositError, setDepositError] = useState<Error | null>(null)
+  const [sent, setSent] = useState<Omit<DepositProgress, 'stage' | 'depositId'> | null>(null)
+  const [credited, setCredited] = useState(false)
+  const [depositId, setDepositId] = useState<string | undefined>()
+  const [isSubmittingLock, setIsSubmittingLock] = useState(false)
+  const [lockError, setLockError] = useState<PostDepositLockError | null>(null)
 
   const generationRef = useRef(0)
   // Set the moment we know an on-chain transfer has been dispatched so we
   // refuse a second deposit() call that would double-spend. Cleared on
   // credit / reset.
   const verificationContextRef = useRef<VerificationContext | null>(null)
+  // Set while a deposit() call runs, so another consumer's call cannot cancel
+  // it before the transfer is out. Cleared when it returns or on reset.
+  const depositingRef = useRef(false)
 
   // Use refs for callbacks to avoid stale closures in the long-running deposit flow
   const onDepositAddressReceivedRef = useRef(options.onDepositAddressReceived)
@@ -223,9 +288,13 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
 
   // The deposit is credited either way; only the lock half can fail here, so
   // route failures to the dedicated callback (or onError as fallback) instead
-  // of the deposit error state.
+  // of the deposit error state. The outcome is also kept in flow state, so a
+  // consumer that mounts later (the modal reopened) still sees it.
   const submitPendingLockAfterCredit = useCallback(
     async (signedLock: LockFundsRequest, creditedAmount: bigint) => {
+      const generation = generationRef.current
+      const isCurrent = () => generation === generationRef.current
+      setIsSubmittingLock(true)
       try {
         const result = await submitPendingLock({
           client,
@@ -236,6 +305,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
         queryClient.invalidateQueries({ queryKey: ['accounting-locked-funds'] })
         queryClient.invalidateQueries({ queryKey: ['accounting-total-locked-balance'] })
         queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
+        if (isCurrent()) setIsSubmittingLock(false)
         onLockSubmittedRef.current?.(result)
       } catch (err) {
         const error =
@@ -248,6 +318,10 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
                 creditedAmount,
                 { cause: err }
               )
+        if (isCurrent()) {
+          setIsSubmittingLock(false)
+          setLockError(error)
+        }
         ;(onLockFailedRef.current ?? onErrorRef.current)?.(error)
       }
     },
@@ -262,8 +336,6 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     verify,
     reset: resetVerification,
   } = useDepositVerification({
-    pollInterval: options.pollInterval,
-    pollTimeout: options.pollTimeout,
     onCredited: (hash, response, creditedAmount) => {
       verificationContextRef.current = null
       const signedLock = pendingLockRef.current
@@ -283,7 +355,12 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
       } else if (address) {
         clearPendingDeposit(address)
       }
+      setCredited(true)
+      if (response.deposit_id) setDepositId(response.deposit_id)
       onCreditedRef.current?.(hash, response, signedLock !== null)
+    },
+    onCheckAccepted: (_hash, id) => {
+      setDepositId(id)
     },
     onCheckTimeout: (hash) => {
       onCheckTimeoutRef.current?.(hash)
@@ -339,11 +416,11 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
 
   const resumedAddressRef = useRef<string | undefined>(undefined)
 
-  const reset = useCallback(() => {
+  const clearFlow = useCallback(() => {
     generationRef.current++
     resetVerification()
-    if (address) clearPendingDeposit(address)
     verificationContextRef.current = null
+    depositingRef.current = false
     pendingLockRef.current = null
     setDepositAddress(null)
     setTxHash(undefined)
@@ -351,20 +428,46 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     setIsWaitingForConfirmation(false)
     setReceiptFailed(false)
     setDepositError(null)
+    setSent(null)
+    setCredited(false)
+    setDepositId(undefined)
+    setIsSubmittingLock(false)
+    setLockError(null)
     addressMutation.reset()
     resetWriteContract()
     resetSendTransaction()
-  }, [address, addressMutation, resetWriteContract, resetSendTransaction, resetVerification])
+  }, [addressMutation, resetWriteContract, resetSendTransaction, resetVerification])
 
-  // Resume a persisted deposit on mount
+  const reset = useCallback(() => {
+    clearFlow()
+    if (address) clearPendingDeposit(address)
+  }, [address, clearFlow])
+
+  // Sign-out or account switch stops the flow but keeps the persisted record,
+  // so the deposit resumes on the next sign-in.
+  const ownerRef = useRef(owner)
   useEffect(() => {
-    if (!address || resumedAddressRef.current === address) return
-    const persisted = loadPendingDeposit(address)
+    if (ownerRef.current === owner) return
+    ownerRef.current = owner
+    resumedAddressRef.current = undefined
+    clearFlow()
+  }, [owner, clearFlow])
+
+  useEffect(() => {
+    if (!owner || resumedAddressRef.current === owner) return
+    const persisted = loadPendingDeposit(owner)
     if (!persisted) return
-    resumedAddressRef.current = address
+    resumedAddressRef.current = owner
 
     const hash = persisted.txHash as `0x${string}`
     setTxHash(hash)
+    setSent({
+      txHash: hash,
+      chainId: persisted.chainId,
+      tokenId: persisted.tokenId,
+      amount: BigInt(persisted.amount),
+      sentAt: persisted.savedAt,
+    })
     setDepositAddress(persisted.depositAddress)
     setIsWaitingForConfirmation(true)
     pendingLockRef.current = persisted.signedLock ?? null
@@ -422,10 +525,15 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
         onErrorRef.current?.(error)
       }
     })()
-  }, [address, config, queryClient, verify])
+  }, [owner, config, queryClient, verify])
 
   const deposit = useCallback(
     async (params: DepositParams) => {
+      // One deposit flow per app: a deposit() from another consumer must not
+      // cancel one that is still getting its transfer out.
+      if (depositingRef.current) {
+        throw new Error('A deposit is already in progress.')
+      }
       // Guard: a prior deposit already sent funds on-chain and is waiting on
       // verification. Starting a new flow here would issue a second transfer.
       if (verificationContextRef.current) {
@@ -436,6 +544,7 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
 
       // Clear state from any previous deposit attempt
       reset()
+      depositingRef.current = true
       const generation = generationRef.current
       const isStale = () => generation !== generationRef.current
 
@@ -531,8 +640,32 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
                 args: [depositAddr, params.amount],
                 chainId: sourceChain.id,
               })
+        const sentAt = Date.now()
+        // Persist before the stale check: a flow stopped while the wallet was
+        // open (cancel, sign-out, account switch) still sent the funds, and the
+        // record lets the next resume credit them.
+        try {
+          savePendingDeposit(address, {
+            txHash: hash,
+            chainId: sourceChain.id,
+            tokenId: token.id,
+            amount: params.amount.toString(),
+            depositAddress: addrResponse,
+            signedLock,
+            savedAt: sentAt,
+          })
+        } catch (err) {
+          console.warn('Failed to persist pending deposit after transfer broadcast:', err)
+        }
         if (isStale()) return
         setTxHash(hash)
+        setSent({
+          txHash: hash,
+          chainId: sourceChain.id,
+          tokenId: token.id,
+          amount: params.amount,
+          sentAt,
+        })
 
         // Past this point the wallet has already dispatched the transfer, so any
         // subsequent failure must preserve the hash and route to a retry state
@@ -544,18 +677,6 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
         }
         verificationContextRef.current = ctx
         pendingLockRef.current = signedLock ?? null
-        try {
-          savePendingDeposit(address, {
-            txHash: hash,
-            chainId: sourceChain.id,
-            amount: params.amount.toString(),
-            depositAddress: addrResponse,
-            signedLock,
-            savedAt: Date.now(),
-          })
-        } catch (err) {
-          console.warn('Failed to persist pending deposit after transfer broadcast:', err)
-        }
 
         try {
           // 6. Wait for on-chain confirmation
@@ -596,6 +717,9 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
         // inner catch above and never reach here.
         setDepositError(error)
         onErrorRef.current?.(error)
+      } finally {
+        // A stale call was cancelled by a reset, which already cleared it.
+        if (!isStale()) depositingRef.current = false
       }
     },
     [
@@ -641,17 +765,32 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
     isVerifying
 
   const error = addressMutation.error || sendError || depositError || verificationError
+  const verificationFailed = innerVerificationFailed || receiptFailed
+
+  const stage = depositStage({
+    credited,
+    failed: verificationFailed,
+    timedOut: didTimeout,
+    confirming: isWaitingForConfirmation,
+  })
+  const progress = useMemo<DepositProgress | null>(
+    () => sent && { ...sent, stage, depositId },
+    [sent, stage, depositId]
+  )
 
   return {
     depositAddress,
     txHash,
+    progress,
     isGettingAddress: addressMutation.isPending,
     isSwitchingChain,
     isSendingTransaction: isSendingTx,
     isWaitingForConfirmation,
     isWaitingForProcessing: isVerifying,
     didTimeout,
-    verificationFailed: innerVerificationFailed || receiptFailed,
+    verificationFailed,
+    isSubmittingLock,
+    lockError,
     isPending,
     error: error as Error | null,
     deposit,

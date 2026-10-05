@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import type { TokenConfig } from '@/sdk/types/tokens'
 import type { Allowance } from '@/sdk/types/allowance'
 import { toast } from 'sonner'
-import { usePrivanaContext } from '@/sdk/context/privana-provider'
+import { usePrivanaContext } from '@/sdk/context/privana-context'
 import { useDeposit } from '@/sdk/hooks'
 import { isSignedLockUsable, type PostDepositLockError } from '@/sdk/utils/pending-lock'
 import { useDepositAddress } from '@/sdk/hooks/use-deposit-address'
@@ -170,7 +170,12 @@ export interface DepositMethodHandlers {
   onConnectWallet?: () => void
   /** Called when the user confirms the amount on the deposit view. */
   onDeposit?: (args: { source: DepositSource; tokenId: string; amount: string }) => void
-  /** With an allowance this fires only after the pre-signed lock is accepted. */
+  /**
+   * With an allowance this fires only after the pre-signed lock is accepted.
+   * Fires only while the modal is open: a deposit keeps crediting after it
+   * closes, so react to every credit with `useDeposit({ onCredited })` in an
+   * always-mounted component.
+   */
   onDepositSuccess?: () => void
   /** The deposit credited but the pre-signed lock failed — re-prompt. */
   onLockFailed?: (error: PostDepositLockError) => void
@@ -301,16 +306,14 @@ export function DepositModalContent({
   }
 
   const [showSuccess, setShowSuccess] = useState(false)
-  const [showTimeout, setShowTimeout] = useState(false)
   const [cancelled, setCancelled] = useState(false)
-  const [isSubmittingLock, setIsSubmittingLock] = useState(false)
-  const [lockFailure, setLockFailure] = useState<PostDepositLockError | null>(null)
+  // External-wallet and card lock failures; the connected flow keeps its own in useDeposit.
+  const [otherLockFailure, setLockFailure] = useState<PostDepositLockError | null>(null)
 
   const finishDeposit = () => {
     setAmount('')
     if (view === 'external-deposit') setView('deposit')
     if (onDepositSuccess) {
-      resetDeposit()
       onDepositSuccess()
     } else {
       setShowSuccess(true)
@@ -361,7 +364,10 @@ export function DepositModalContent({
     isSendingTransaction,
     isWaitingForConfirmation,
     isWaitingForProcessing,
+    didTimeout,
     verificationFailed,
+    isSubmittingLock,
+    lockError,
     isPending,
     error: depositError,
     deposit,
@@ -371,30 +377,26 @@ export function DepositModalContent({
     onCredited: (_txHash, _response, lockPending) => {
       // With an allowance the flow's promise is locked funds, not just a
       // credit — hold the progress view until the pre-signed lock settles.
-      if (lockPending) {
-        setIsSubmittingLock(true)
-        return
-      }
+      if (lockPending) return
       finishDeposit()
     },
     onLockSubmitted: () => {
-      setIsSubmittingLock(false)
       setLockFailure(null)
       finishDeposit()
     },
     // The deposit credited; only the policy lock failed. Success must not
-    // fire (the host would act on unlocked funds) — show the dedicated
-    // error view and let the host re-prompt for a fresh lock.
+    // fire (the host would act on unlocked funds) — the flow keeps the error
+    // for the lock-error view, and the host can re-prompt for a fresh lock.
     onLockFailed: (err) => {
-      setIsSubmittingLock(false)
-      setLockFailure(err)
       onLockFailed?.(err)
     },
     onCheckTimeout: () => {
       setAmount('')
-      setShowTimeout(true)
     },
   })
+
+  // Read from the flow, so a failure while the modal was closed shows on reopen.
+  const lockFailure = otherLockFailure ?? lockError
 
   // Pre-signed lock for the external-wallet flow. The connected flow above
   // runs its lock inside useDeposit; here the transfer happens outside the
@@ -615,7 +617,7 @@ export function DepositModalContent({
     ? 'deposit-success'
     : lockFailure
       ? 'lock-error'
-      : showTimeout
+      : didTimeout
         ? 'deposit-timeout'
         : verificationFailed
           ? 'deposit-error'
@@ -626,7 +628,6 @@ export function DepositModalContent({
 
   const handleDepositDone = () => {
     setShowSuccess(false)
-    setShowTimeout(false)
     setCancelled(false)
     resetDeposit()
   }

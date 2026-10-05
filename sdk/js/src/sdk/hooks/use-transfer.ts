@@ -3,7 +3,7 @@
 import { useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAccount } from 'wagmi'
-import { usePrivanaContext } from '../context/privana-provider'
+import { usePrivanaContext } from '../context/privana-context'
 import { signTransferMessage, signTransferLockedMessage } from '../signatures'
 import type { Bytes32, Address, TransactionSubmissionResponse } from '../types'
 import { useSigningClient } from './use-signing-client'

@@ -21,6 +21,12 @@ export interface VerificationContext {
 export interface UseDepositVerificationOptions {
   /** Fired when the deposit is credited inside the Privana accounting module. */
   onCredited?: (txHash: string, response: DepositCheckResponse, creditedAmount: bigint) => void
+  /**
+   * Fired when `checkDeposit` accepts the transfer for processing, with the
+   * deposit id status polling follows. The deposit can still credit after a
+   * polling timeout; the id is what identifies it in history.
+   */
+  onCheckAccepted?: (txHash: string, depositId: string) => void
   /** Fired when polling exceeds `pollTimeout` (the deposit may still be processing). */
   onCheckTimeout?: (txHash: string) => void
   onError?: (error: Error) => void
@@ -97,15 +103,23 @@ export function useDepositVerification(
   // Stable refs so callers can pass inline callbacks without re-triggering
   // the verify callback's useCallback identity.
   const onCreditedRef = useRef(options.onCredited)
+  const onCheckAcceptedRef = useRef(options.onCheckAccepted)
   const onCheckTimeoutRef = useRef(options.onCheckTimeout)
   const onErrorRef = useRef(options.onError)
   const onCheckRetryRef = useRef(options.onCheckRetry)
   useEffect(() => {
     onCreditedRef.current = options.onCredited
+    onCheckAcceptedRef.current = options.onCheckAccepted
     onCheckTimeoutRef.current = options.onCheckTimeout
     onErrorRef.current = options.onError
     onCheckRetryRef.current = options.onCheckRetry
-  }, [options.onCredited, options.onCheckTimeout, options.onError, options.onCheckRetry])
+  }, [
+    options.onCredited,
+    options.onCheckAccepted,
+    options.onCheckTimeout,
+    options.onError,
+    options.onCheckRetry,
+  ])
 
   const stopPolling = useCallback(() => {
     if (pollIntervalRef.current) {
@@ -202,6 +216,7 @@ export function useDepositVerification(
           markVerificationFailed(new Error('Deposit check did not return a deposit id'))
           return
         }
+        onCheckAcceptedRef.current?.(hash, depositId)
 
         // Phase 2: poll status
         let consecutiveFailures = 0

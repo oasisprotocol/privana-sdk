@@ -2,7 +2,14 @@ export * from './use-privana-client'
 export * from './use-hosted-redirect-auth'
 export * from './use-balance'
 export * from './use-batch-balances'
-export * from './use-deposit'
+export {
+  useDeposit,
+  type DepositParams,
+  type DepositProgress,
+  type DepositStage,
+  type UseDepositOptions,
+  type UseDepositResult,
+} from './use-deposit'
 export * from './use-deposit-address'
 export * from './use-deposit-verification'
 export * from './use-withdraw'

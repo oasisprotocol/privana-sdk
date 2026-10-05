@@ -8,7 +8,7 @@ import { parseUnits } from 'viem'
 import { waitForTransactionReceipt } from '@wagmi/core'
 import { useAccount, useConfig } from 'wagmi'
 
-import { usePrivanaContext } from '../context/privana-provider'
+import { usePrivanaContext } from '../context/privana-context'
 import {
   assertCreatedOnRampIntent,
   assertOnRampRecordProvider,
