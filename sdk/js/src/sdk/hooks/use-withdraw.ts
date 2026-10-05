@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAccount } from 'wagmi'
-import { usePrivanaContext } from '../context/privana-provider'
+import { usePrivanaContext } from '../context/privana-context'
 import { signWithdrawMessage } from '../signatures'
 import type { Bytes32, TransactionSubmissionResponse } from '../types'
 import {

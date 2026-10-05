@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { usePrivanaContext } from '@/sdk/context/privana-provider'
+import { usePrivanaContext } from '@/sdk/context/privana-context'
 import { useBatchBalances } from '@/sdk/hooks/use-batch-balances'
 import { useWalletTokenBalances } from '@/sdk/hooks/use-wallet-token-balances'
 import { TokenSelectList, type TokenSelectListItem } from './token-select-list'

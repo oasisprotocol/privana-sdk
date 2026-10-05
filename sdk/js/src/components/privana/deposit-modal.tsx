@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/compone
 import type { TokenConfig } from '@/sdk/types/tokens'
 import type { Allowance } from '@/sdk/types/allowance'
 import { toast } from 'sonner'
-import { usePrivanaContext } from '@/sdk/context/privana-provider'
+import { usePrivanaContext } from '@/sdk/context/privana-context'
 import { useDeposit } from '@/sdk/hooks'
 import { isSignedLockUsable, type PostDepositLockError } from '@/sdk/utils/pending-lock'
 import { useDepositAddress } from '@/sdk/hooks/use-deposit-address'
@@ -302,8 +302,8 @@ export function DepositModalContent({
 
   const [showSuccess, setShowSuccess] = useState(false)
   const [cancelled, setCancelled] = useState(false)
-  const [isSubmittingLock, setIsSubmittingLock] = useState(false)
-  const [lockFailure, setLockFailure] = useState<PostDepositLockError | null>(null)
+  // External-wallet and card lock failures; the connected flow keeps its own in useDeposit.
+  const [otherLockFailure, setLockFailure] = useState<PostDepositLockError | null>(null)
 
   const finishDeposit = () => {
     setAmount('')
@@ -361,6 +361,8 @@ export function DepositModalContent({
     isWaitingForProcessing,
     didTimeout,
     verificationFailed,
+    isSubmittingLock,
+    lockError,
     isPending,
     error: depositError,
     deposit,
@@ -370,29 +372,26 @@ export function DepositModalContent({
     onCredited: (_txHash, _response, lockPending) => {
       // With an allowance the flow's promise is locked funds, not just a
       // credit — hold the progress view until the pre-signed lock settles.
-      if (lockPending) {
-        setIsSubmittingLock(true)
-        return
-      }
+      if (lockPending) return
       finishDeposit()
     },
     onLockSubmitted: () => {
-      setIsSubmittingLock(false)
       setLockFailure(null)
       finishDeposit()
     },
     // The deposit credited; only the policy lock failed. Success must not
-    // fire (the host would act on unlocked funds) — show the dedicated
-    // error view and let the host re-prompt for a fresh lock.
+    // fire (the host would act on unlocked funds) — the flow keeps the error
+    // for the lock-error view, and the host can re-prompt for a fresh lock.
     onLockFailed: (err) => {
-      setIsSubmittingLock(false)
-      setLockFailure(err)
       onLockFailed?.(err)
     },
     onCheckTimeout: () => {
       setAmount('')
     },
   })
+
+  // Read from the flow, so a failure while the modal was closed shows on reopen.
+  const lockFailure = otherLockFailure ?? lockError
 
   // Pre-signed lock for the external-wallet flow. The connected flow above
   // runs its lock inside useDeposit; here the transfer happens outside the

@@ -5,8 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAccount, useWriteContract, useSendTransaction, useConfig } from 'wagmi'
 import { getBlockNumber, getTransactionReceipt, waitForTransactionReceipt } from '@wagmi/core'
 import { erc20Abi, zeroAddress } from 'viem'
-import { usePrivanaContext } from '../context/privana-provider'
-import { useSafeSiweAuth } from '../context/siwe-auth-provider'
+import { usePrivanaContext } from '../context/privana-context'
 import { useEnsureCorrectChain } from './use-ensure-correct-chain'
 import { usePrivateReadRequest } from './use-private-read-request'
 import { useDepositVerification, type VerificationContext } from './use-deposit-verification'
@@ -99,11 +98,17 @@ export interface UseDepositResult {
    * in the background).
    */
   verificationFailed: boolean
+  /** True while the pre-signed post-deposit lock is being submitted after the credit. */
+  isSubmittingLock: boolean
+  /** Why the post-deposit lock failed; the deposit itself credited. Kept until `reset()`. */
+  lockError: PostDepositLockError | null
   isPending: boolean
   error: Error | null
+  /** Throws while another deposit is in progress: there is one deposit flow per app. */
   deposit: (params: DepositParams) => Promise<void>
   /** Re-run the API verification (sweep trigger + polling) for the existing txHash. */
   retryVerification: () => Promise<void>
+  /** Discards the app's deposit flow, for every `useDeposit` consumer. */
   reset: () => void
 }
 
@@ -215,22 +220,17 @@ export function useDeposit(options: UseDepositOptions = {}): UseDepositResult {
 
 export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
   const { address, status } = useAccount()
-  const { client, enabledTokens, getChainById, hostedAuthConfig, networkConfig, serviceAddress } =
-    usePrivanaContext()
+  const { client, enabledTokens, getChainById, networkConfig, serviceAddress } = usePrivanaContext()
   const walletClient = useSigningClient()
   const queryClient = useQueryClient()
   const config = useConfig()
-  const { executePrivateRead, privateReadAddress, privateReadReady } = usePrivateReadRequest()
+  const { executePrivateRead, privateReadAddress, privateReadAuthorized } = usePrivateReadRequest()
   const privateReadAddressRef = useRef(privateReadAddress)
   privateReadAddressRef.current = privateReadAddress
-  const siwe = useSafeSiweAuth()
   // Private reads without a session prompt for a signature, which must not
   // come from a deposit resuming in the background. Not while reconnecting
   // either: a reconnect that then fails drops the session it restored.
-  const signedIn = hostedAuthConfig
-    ? privateReadReady
-    : !siwe || siwe.session?.address.toLowerCase() === address?.toLowerCase()
-  const owner = signedIn && status === 'connected' ? address : undefined
+  const owner = privateReadAuthorized && status === 'connected' ? address : undefined
 
   const [depositAddress, setDepositAddress] = useState<DepositAddressResponse | null>(null)
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>()
@@ -244,12 +244,17 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
   const [sent, setSent] = useState<Omit<DepositProgress, 'stage' | 'depositId'> | null>(null)
   const [credited, setCredited] = useState(false)
   const [depositId, setDepositId] = useState<string | undefined>()
+  const [isSubmittingLock, setIsSubmittingLock] = useState(false)
+  const [lockError, setLockError] = useState<PostDepositLockError | null>(null)
 
   const generationRef = useRef(0)
   // Set the moment we know an on-chain transfer has been dispatched so we
   // refuse a second deposit() call that would double-spend. Cleared on
   // credit / reset.
   const verificationContextRef = useRef<VerificationContext | null>(null)
+  // Set while a deposit() call runs, so another consumer's call cannot cancel
+  // it before the transfer is out. Cleared when it returns or on reset.
+  const depositingRef = useRef(false)
 
   // Use refs for callbacks to avoid stale closures in the long-running deposit flow
   const onDepositAddressReceivedRef = useRef(options.onDepositAddressReceived)
@@ -283,9 +288,13 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
 
   // The deposit is credited either way; only the lock half can fail here, so
   // route failures to the dedicated callback (or onError as fallback) instead
-  // of the deposit error state.
+  // of the deposit error state. The outcome is also kept in flow state, so a
+  // consumer that mounts later (the modal reopened) still sees it.
   const submitPendingLockAfterCredit = useCallback(
     async (signedLock: LockFundsRequest, creditedAmount: bigint) => {
+      const generation = generationRef.current
+      const isCurrent = () => generation === generationRef.current
+      setIsSubmittingLock(true)
       try {
         const result = await submitPendingLock({
           client,
@@ -296,6 +305,7 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
         queryClient.invalidateQueries({ queryKey: ['accounting-locked-funds'] })
         queryClient.invalidateQueries({ queryKey: ['accounting-total-locked-balance'] })
         queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
+        if (isCurrent()) setIsSubmittingLock(false)
         onLockSubmittedRef.current?.(result)
       } catch (err) {
         const error =
@@ -308,6 +318,10 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
                 creditedAmount,
                 { cause: err }
               )
+        if (isCurrent()) {
+          setIsSubmittingLock(false)
+          setLockError(error)
+        }
         ;(onLockFailedRef.current ?? onErrorRef.current)?.(error)
       }
     },
@@ -406,6 +420,7 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
     generationRef.current++
     resetVerification()
     verificationContextRef.current = null
+    depositingRef.current = false
     pendingLockRef.current = null
     setDepositAddress(null)
     setTxHash(undefined)
@@ -416,6 +431,8 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
     setSent(null)
     setCredited(false)
     setDepositId(undefined)
+    setIsSubmittingLock(false)
+    setLockError(null)
     addressMutation.reset()
     resetWriteContract()
     resetSendTransaction()
@@ -512,6 +529,11 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
 
   const deposit = useCallback(
     async (params: DepositParams) => {
+      // One deposit flow per app: a deposit() from another consumer must not
+      // cancel one that is still getting its transfer out.
+      if (depositingRef.current) {
+        throw new Error('A deposit is already in progress.')
+      }
       // Guard: a prior deposit already sent funds on-chain and is waiting on
       // verification. Starting a new flow here would issue a second transfer.
       if (verificationContextRef.current) {
@@ -522,6 +544,7 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
 
       // Clear state from any previous deposit attempt
       reset()
+      depositingRef.current = true
       const generation = generationRef.current
       const isStale = () => generation !== generationRef.current
 
@@ -694,6 +717,9 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
         // inner catch above and never reach here.
         setDepositError(error)
         onErrorRef.current?.(error)
+      } finally {
+        // A stale call was cancelled by a reset, which already cleared it.
+        if (!isStale()) depositingRef.current = false
       }
     },
     [
@@ -763,6 +789,8 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
     isWaitingForProcessing: isVerifying,
     didTimeout,
     verificationFailed,
+    isSubmittingLock,
+    lockError,
     isPending,
     error: error as Error | null,
     deposit,

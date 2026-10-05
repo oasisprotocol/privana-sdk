@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { usePrivanaContext } from '../context/privana-provider'
+import { usePrivanaContext } from '../context/privana-context'
 import type { LockInfo, ExpiredLocksResponse } from '../types'
 import { usePrivateReadRequest } from './use-private-read-request'
 

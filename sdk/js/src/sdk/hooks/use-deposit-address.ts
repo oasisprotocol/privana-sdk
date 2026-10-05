@@ -2,7 +2,7 @@
 
 import { useContext } from 'react'
 import { useQuery, QueryClientContext } from '@tanstack/react-query'
-import { useSafePrivanaContext } from '../context/privana-provider'
+import { useSafePrivanaContext } from '../context/privana-context'
 import type { DepositAddressResponse } from '../types'
 import { usePrivateReadRequest } from './use-private-read-request'
 
