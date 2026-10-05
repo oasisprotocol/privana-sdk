@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic'
 import type { ReactNode } from 'react'
 import { Toaster } from 'sonner'
+import { DepositToasts } from '@/components/deposit-toasts'
 
 const Providers = dynamic(() => import('@/providers').then((mod) => mod.Providers), {
   ssr: false,
@@ -12,6 +13,7 @@ export function ClientShell({ children }: { children: ReactNode }) {
   return (
     <Providers network="testnet">
       {children}
+      <DepositToasts />
       <Toaster
         theme="system"
         position="bottom-right"

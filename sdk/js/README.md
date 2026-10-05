@@ -238,6 +238,22 @@ Notes:
 | `useTokenList`           | List all registered tokens                                                                                         |
 | `useTokenInfo`           | Get info for a single token                                                                                        |
 
+### Reacting to credited deposits
+
+A deposit keeps crediting after the deposit modal closes, so `DepositModal`'s
+`onDepositSuccess` fires only for deposits credited while it is open. To react to
+every credit, subscribe once in a component that is always mounted:
+
+```tsx
+useDeposit({
+  // With an allowance, the deposit is done once the lock is accepted.
+  onCredited: (_txHash, _response, lockPending) => {
+    if (!lockPending) refreshBalances()
+  },
+  onLockSubmitted: () => refreshBalances(),
+})
+```
+
 ## Fiat On-Ramp
 
 The fiat on-ramp lets users buy tokens with a card and have them credited to

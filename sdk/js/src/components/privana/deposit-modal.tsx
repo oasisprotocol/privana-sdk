@@ -170,7 +170,12 @@ export interface DepositMethodHandlers {
   onConnectWallet?: () => void
   /** Called when the user confirms the amount on the deposit view. */
   onDeposit?: (args: { source: DepositSource; tokenId: string; amount: string }) => void
-  /** With an allowance this fires only after the pre-signed lock is accepted. */
+  /**
+   * With an allowance this fires only after the pre-signed lock is accepted.
+   * Fires only while the modal is open: a deposit keeps crediting after it
+   * closes, so react to every credit with `useDeposit({ onCredited })` in an
+   * always-mounted component.
+   */
   onDepositSuccess?: () => void
   /** The deposit credited but the pre-signed lock failed — re-prompt. */
   onLockFailed?: (error: PostDepositLockError) => void

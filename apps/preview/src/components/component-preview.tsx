@@ -71,7 +71,6 @@ export function ComponentPreview() {
           }
         }, 1500)
       }),
-    onDepositSuccess: () => toast.success('Deposit credited'),
   }
 
   return (
@@ -129,10 +128,7 @@ export function ComponentPreview() {
             allowance={demoAllowance}
             onConnectWallet={openConnectModal}
             onDeposit={(args) => console.log('DepositModal onDeposit', args)}
-            onDepositSuccess={() => {
-              setDepositModalOpen(false)
-              toast.success('Deposit credited')
-            }}
+            onDepositSuccess={() => setDepositModalOpen(false)}
           />
           <WithdrawModal open={withdrawModalOpen} onClose={() => setWithdrawModalOpen(false)} />
           <WalletModal
