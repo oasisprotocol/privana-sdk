@@ -6,7 +6,6 @@ import { WagmiContext } from 'wagmi'
 import type { HexString } from '../types'
 import {
   getSiweAuthLocalStorage,
-  isPersistedSiweTokenActive,
   readPersistedSiweAuth,
   removePersistedSiweAuth,
   resolveHydrationAction,
@@ -324,18 +323,11 @@ export function useSiweAuthLifecycle(deps: SiweAuthRuntimeDeps): SiweAuthLifecyc
         ctrl.getState().currentRecord?.updatedAt ?? null
       )
       switch (action.type) {
-        case 'logout': {
-          // Another tab ended the session; when ours had run out too, report it as an expiry.
-          const current = ctrl.getState().currentRecord
-          if (current && !isPersistedSiweTokenActive(current)) {
-            expireSession()
-            break
-          }
-          resetSession()
-          if (currentAddress)
-            ctrl.dispatch({ type: 'setAutoAttemptedAddress', address: currentAddress })
+        case 'logout':
+          // Another tab ended the session (it expired there, or the user signed out there). End
+          // ours the same way, so this tab waits for the user to sign again instead of on its own.
+          expireSession()
           break
-        }
         case 'adopt':
           // A full restore, not a JWT-only apply: the other tab may have performed a fresh
           // login, rotating the SIWE token and private-read token.
@@ -347,7 +339,7 @@ export function useSiweAuthLifecycle(deps: SiweAuthRuntimeDeps): SiweAuthLifecyc
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
-  }, [persistJwt, storageKey, ctrl, restoreSession, resetSession, expireSession])
+  }, [persistJwt, storageKey, ctrl, restoreSession, expireSession])
 
   // Only an observed runtime true->false transition removes storage. An initial `false` stays
   // dormant so a memory-only provider can never delete (and thus cross-tab log out) another tab's
