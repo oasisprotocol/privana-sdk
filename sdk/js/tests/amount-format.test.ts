@@ -214,6 +214,7 @@ describe('parseAmountInput', () => {
     expect(parseAmountInput('1,5', USDC)).toEqual({ ok: false, reason: 'nan' })
     expect(parseAmountInput('12,34', USDC)).toEqual({ ok: false, reason: 'nan' })
     expect(parseAmountInput('1,', USDC)).toEqual({ ok: false, reason: 'nan' })
+    expect(parseAmountInput('0,500', USDC)).toEqual({ ok: false, reason: 'nan' })
   })
 
   test('accepts grouped and dot-decimal input', () => {
@@ -269,6 +270,15 @@ describe('normalizeAmountInput', () => {
     ['', ''],
   ])('%j becomes %j', (typed, field) => {
     expect(normalizeAmountInput(typed)).toBe(field)
+  })
+
+  test('a leading 0 group is a decimal comma, never thousands grouping', () => {
+    expect(normalizeAmountInput('0,500')).toBe('0.500')
+    expect(parseAmountInput(normalizeAmountInput('0,500')!, USDC)).toEqual({
+      ok: true,
+      raw: 500_000n,
+    })
+    expect(normalizeAmountInput('00,500')).toBe('00.500')
   })
 
   test('a decimal comma still works', () => {

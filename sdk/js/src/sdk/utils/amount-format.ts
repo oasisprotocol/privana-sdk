@@ -228,9 +228,10 @@ export function parseAmountInput(
   const cleaned = text.trim()
   if (cleaned === '') return { ok: false, reason: 'empty' }
   if (cleaned.startsWith('-')) return { ok: false, reason: 'negative' }
-  // Commas count only as well-formed thousands grouping: '1,234.56' parses,
-  // while a decimal-comma '1,5' is rejected rather than silently read as 15.
-  const m = /^(\d+|\d{1,3}(?:,\d{3})+)?(?:\.(\d*))?$/.exec(cleaned)
+  // Commas count only as well-formed thousands grouping, which never starts with
+  // a 0 group: '1,234.56' parses, while a decimal comma '1,5' or '0,500' is
+  // rejected rather than silently read as 15 or 500.
+  const m = /^(\d+|[1-9]\d{0,2}(?:,\d{3})+)?(?:\.(\d*))?$/.exec(cleaned)
   if (!m || ((m[1] ?? '') === '' && (m[2] ?? '') === '')) return { ok: false, reason: 'nan' }
   const fraction = m[2] ?? ''
   if (fraction.length > token.decimals) return { ok: false, reason: 'too-precise' }
@@ -242,14 +243,15 @@ export function parseAmountInput(
 /**
  * Cleans typed or pasted text for an amount field: digits and one decimal point.
  * A comma is thousands grouping when the whole text is well-formed grouping (a
- * pasted displayed balance like "1,234.50"), otherwise a decimal comma ("1,5").
+ * pasted displayed balance like "1,234.50"), otherwise a decimal comma ("1,5",
+ * and "0,500": grouping never starts with a 0 group).
  * Typing never reaches the grouping branch: each keystroke already turned the
  * first comma into a point. Returns null when the text is still not one number,
  * so the field can ignore that change.
  */
 export function normalizeAmountInput(text: string): string | null {
   const kept = text.replace(/[^0-9.,]/g, '')
-  const value = /^\d{1,3}(,\d{3})+(\.\d*)?$/.test(kept)
+  const value = /^[1-9]\d{0,2}(,\d{3})+(\.\d*)?$/.test(kept)
     ? kept.replace(/,/g, '')
     : kept.replace(/,/g, '.')
   return value.split('.').length <= 2 ? value : null
