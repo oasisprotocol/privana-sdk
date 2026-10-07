@@ -32,3 +32,19 @@ export function setCachedPrivateReadToken(
 export function deleteCachedPrivateReadToken(scopeKey: string): void {
   cache.delete(scopeKey)
 }
+
+type RejectedTokenListener = (token: string) => void
+
+const rejectedTokenListeners = new Set<RejectedTokenListener>()
+
+/** Lets a session owner hear that the server rejected a private-read token. */
+export function onPrivateReadTokenRejected(listener: RejectedTokenListener): () => void {
+  rejectedTokenListeners.add(listener)
+  return () => {
+    rejectedTokenListeners.delete(listener)
+  }
+}
+
+export function reportPrivateReadTokenRejected(token: string): void {
+  for (const listener of rejectedTokenListeners) listener(token)
+}

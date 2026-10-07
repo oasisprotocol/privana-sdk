@@ -1,10 +1,30 @@
 import { describe, expect, it } from 'bun:test'
 import {
+  ctrlExpireIfCurrentToken,
   ctrlExpireSession,
   ctrlLogout,
   type SiweAuthController,
 } from '../src/sdk/auth/siwe-auth-controller'
+import {
+  PERSISTED_SIWE_AUTH_RECORD_VERSION,
+  type PersistedSiweAuthRecord,
+} from '../src/sdk/auth/siwe-persistence'
 import type { AuthLifecycleEvent, AuthLifecycleState } from '../src/sdk/auth/auth-lifecycle'
+
+const record = (overrides: Partial<PersistedSiweAuthRecord> = {}): PersistedSiweAuthRecord => ({
+  version: PERSISTED_SIWE_AUTH_RECORD_VERSION,
+  tokens: {
+    siwe_token: '0xsiwe',
+    jwt_access_token: 'access',
+    jwt_refresh_token: 'refresh',
+    address: '0x000000000000000000000000000000000000dEaD',
+  },
+  accessTokenExpiresAt: Date.now() + 60 * 60 * 1000,
+  refreshTokenExpiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+  siweTokenExpiresAt: Date.now() + 24 * 60 * 60 * 1000,
+  updatedAt: Date.now(),
+  ...overrides,
+})
 
 interface ControllerFixture {
   ctrl: SiweAuthController
@@ -22,6 +42,9 @@ function buildController(opts: {
   bearerToken: string | null
   logoutThrows?: boolean
   persistJwt?: boolean
+  /** What storage holds when the controller reads it. */
+  stored?: PersistedSiweAuthRecord | null
+  currentRecord?: PersistedSiweAuthRecord | null
 }): ControllerFixture {
   const persistJwt = opts.persistJwt ?? false
   const calls: string[] = []
@@ -67,7 +90,7 @@ function buildController(opts: {
     refreshData: opts.refreshToken
       ? { refreshToken: opts.refreshToken, refreshExpiresAt: 0 }
       : null,
-    currentRecord: null,
+    currentRecord: opts.currentRecord ?? null,
     autoAttemptedAddress: null,
     authenticatingAddress: null,
     hydratedAddress: null,
@@ -84,7 +107,7 @@ function buildController(opts: {
       persistJwt,
       client,
       storage: {
-        read: () => null,
+        read: () => opts.stored ?? null,
         write: () => {},
         remove: () => {
           storageRemoves += 1
@@ -179,16 +202,29 @@ describe('ctrlLogout', () => {
 describe('ctrlExpireSession', () => {
   const ADDRESS = '0x000000000000000000000000000000000000dEaD'
 
-  it('ends the session and drops the stored record and cached private-read token', () => {
+  it('ends the session and drops the ended stored record and cached private-read token', () => {
     const fixture = buildController({
       refreshToken: 'refresh-token',
       bearerToken: 'access-token',
       persistJwt: true,
+      stored: record({ siweTokenExpiresAt: Date.now() - 1 }),
     })
     ctrlExpireSession(fixture.ctrl)
     expect(fixture.clearBearerCalls).toBe(1)
     expect(fixture.storageRemoves).toBe(1)
     expect(fixture.cacheDeletes).toEqual([ADDRESS])
+  })
+
+  it('keeps a fresh sign-in another tab stored in the meantime', () => {
+    const fixture = buildController({
+      refreshToken: 'refresh-token',
+      bearerToken: 'access-token',
+      persistJwt: true,
+      stored: record({ siweTokenExpiresAt: Date.now() + 24 * 60 * 60 * 1000 }),
+    })
+    ctrlExpireSession(fixture.ctrl)
+    expect(fixture.storageRemoves).toBe(0)
+    expect(fixture.expiredFlags.at(-1)).toBe(true)
   })
 
   it('marks the session expired and keeps auto-login off for the wallet', () => {
@@ -204,5 +240,30 @@ describe('ctrlExpireSession', () => {
     const fixture = buildController({ refreshToken: null, bearerToken: 'access-token' })
     await ctrlLogout(fixture.ctrl)
     expect(fixture.expiredFlags.at(-1)).toBe(false)
+  })
+})
+
+describe('ctrlExpireIfCurrentToken', () => {
+  const current = record({ tokens: { ...record().tokens, siwe_token: '0xcurrent' } })
+
+  it('ends the session whose private-read token the server rejected', () => {
+    const fixture = buildController({
+      refreshToken: null,
+      bearerToken: null,
+      currentRecord: current,
+    })
+    ctrlExpireIfCurrentToken(fixture.ctrl, '0xcurrent')
+    expect(fixture.expiredFlags.at(-1)).toBe(true)
+  })
+
+  it('leaves a newer session alone when an older token is rejected', () => {
+    const fixture = buildController({
+      refreshToken: null,
+      bearerToken: null,
+      currentRecord: current,
+    })
+    ctrlExpireIfCurrentToken(fixture.ctrl, '0xold')
+    expect(fixture.events).toEqual([])
+    expect(fixture.expiredFlags).toEqual([])
   })
 })

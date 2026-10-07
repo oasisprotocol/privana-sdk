@@ -129,11 +129,11 @@ export function isPersistedSiweTokenActive(
   return record.siweTokenExpiresAt > now + AUTH_CLOCK_SKEW_MS
 }
 
-/** Validates a raw payload without touching storage. Used for cross-tab `storage` events. */
-export function parsePersistedSiweAuthRecord(
-  raw: string,
-  now = Date.now()
-): PersistedSiweAuthRecord | null {
+/**
+ * Validates a raw payload without touching storage. Expiry is not checked here: an ended record
+ * is kept so hydration can report the session as ended instead of signing in again.
+ */
+export function parsePersistedSiweAuthRecord(raw: string): PersistedSiweAuthRecord | null {
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
@@ -141,18 +141,16 @@ export function parsePersistedSiweAuthRecord(
     return null
   }
   if (!isPersistedSiweAuthRecord(parsed)) return null
-  if (!isPersistedSiweAuthRefreshActive(parsed, now)) return null
   return parsed
 }
 
 /**
- * Reads and validates the persisted record, removing malformed, unsupported, or expired entries.
- * Returns `null` (without writing) when storage access itself throws.
+ * Reads and validates the persisted record, removing malformed or unsupported entries; an expired
+ * one stays for hydration. Returns `null` (without writing) when storage access itself throws.
  */
 export function readPersistedSiweAuth(
   storage: StorageLike,
-  key: string,
-  now = Date.now()
+  key: string
 ): PersistedSiweAuthRecord | null {
   let raw: string | null
   try {
@@ -162,7 +160,7 @@ export function readPersistedSiweAuth(
   }
   if (raw == null) return null
 
-  const record = parsePersistedSiweAuthRecord(raw, now)
+  const record = parsePersistedSiweAuthRecord(raw)
   if (!record) removePersistedSiweAuth(storage, key)
   return record
 }
@@ -214,9 +212,12 @@ export function getSiweAuthLocalStorage(): Storage | null {
 export function isAdoptableRecord(
   record: PersistedSiweAuthRecord | null,
   currentAddress: string | null,
-  currentUpdatedAt: number | null
+  currentUpdatedAt: number | null,
+  now = Date.now()
 ): boolean {
   if (!record || !currentAddress) return false
+  // An ended session is never adopted, however recent its record.
+  if (!isPersistedSiweTokenActive(record, now)) return false
   if (record.tokens.address.toLowerCase() !== currentAddress.toLowerCase()) return false
   return record.updatedAt > (currentUpdatedAt ?? -1)
 }
@@ -261,8 +262,8 @@ export function resolveStorageEvent(
 ): StorageEventAction {
   if (!currentAddress) return { type: 'ignore' }
   if (newValue == null) return { type: 'logout' }
-  const record = parsePersistedSiweAuthRecord(newValue, now)
+  const record = parsePersistedSiweAuthRecord(newValue)
   if (!record) return { type: 'ignore' }
-  if (!isAdoptableRecord(record, currentAddress, currentUpdatedAt)) return { type: 'ignore' }
+  if (!isAdoptableRecord(record, currentAddress, currentUpdatedAt, now)) return { type: 'ignore' }
   return { type: 'adopt', record }
 }

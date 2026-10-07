@@ -19,6 +19,7 @@ import {
   createScopeKey,
   deleteCachedPrivateReadToken,
   getCachedPrivateReadToken,
+  reportPrivateReadTokenRejected,
   setCachedPrivateReadToken,
 } from '../utils/private-read-token-store'
 
@@ -118,6 +119,32 @@ export function requireSessionPrivateReadToken(scopeKey: string): string {
   return cached
 }
 
+/**
+ * A private read under SiweAuthProvider: it uses the session's token and never signs. A rejected
+ * token is reported so the session owner ends that session; a request that raced a new sign-in
+ * carries the old token, leaves the new session alone, and retries with the new token.
+ */
+export async function executeSessionPrivateReadRequest<T>({
+  client,
+  scopeKey,
+  request,
+}: {
+  client: Pick<PrivanaClient, 'withPrivateReadToken'>
+  scopeKey: string
+  request: (client: PrivanaClient) => Promise<T>
+}): Promise<T> {
+  const token = requireSessionPrivateReadToken(scopeKey)
+  try {
+    return await request(client.withPrivateReadToken(token))
+  } catch (error) {
+    if (!(error instanceof AccountingApiError) || error.statusCode !== 401) throw error
+    reportPrivateReadTokenRejected(token)
+    const current = getCachedPrivateReadToken(scopeKey)
+    if (current && current !== token) return request(client.withPrivateReadToken(current))
+    throw new PrivateReadAuthRequiredError()
+  }
+}
+
 function recordPrivateReadFailure(scopeKey: string): void {
   const previous = privateReadFailureCache.get(scopeKey)
   const backoffMs = Math.min(
@@ -195,14 +222,7 @@ export function usePrivateReadRequest(): {
       const apiUrl = networkConfig.apiUrl
       const scopeKey = createScopeKey(apiUrl, networkConfig.chainId, walletAddress)
 
-      if (hasSiweProvider) {
-        return executeSiwePrivateReadRequest({
-          client,
-          scopeKey,
-          getToken: async () => requireSessionPrivateReadToken(scopeKey),
-          request,
-        })
-      }
+      if (hasSiweProvider) return executeSessionPrivateReadRequest({ client, scopeKey, request })
 
       const getToken = async (forceRefresh: boolean): Promise<string> => {
         const inflight = privateReadInflight.get(scopeKey)

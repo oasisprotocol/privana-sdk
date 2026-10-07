@@ -20,6 +20,7 @@ import {
   type AuthLifecycleEvent,
 } from '../auth/auth-lifecycle'
 import {
+  ctrlExpireIfCurrentToken,
   ctrlExpireSession,
   ctrlHydrateViaRefresh,
   ctrlLogin,
@@ -33,6 +34,7 @@ import { AUTH_CLOCK_SKEW_MS } from '../auth/auth-clock-skew'
 import {
   createScopeKey,
   deleteCachedPrivateReadToken,
+  onPrivateReadTokenRejected,
   setCachedPrivateReadToken,
 } from '../utils/private-read-token-store'
 import { useSafeAccount } from './use-safe-account'
@@ -191,6 +193,12 @@ export function useSiweAuthLifecycle(deps: SiweAuthRuntimeDeps): SiweAuthLifecyc
     }, delay)
     return () => clearTimeout(timer)
   }, [accessTokenExpiresAt, refreshAccessToken])
+
+  // A private-read token the server rejected ends this session, if it is still this session's.
+  useEffect(
+    () => onPrivateReadTokenRejected((token) => ctrlExpireIfCurrentToken(ctrl, token)),
+    [ctrl]
+  )
 
   // Session end: the private-read token caps the session, JWT refreshes do not extend it. Timers
   // don't count time asleep, so the wall clock is re-checked whenever the tab is shown again.

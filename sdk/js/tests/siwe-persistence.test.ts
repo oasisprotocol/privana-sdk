@@ -2,7 +2,10 @@ import { describe, expect, it } from 'bun:test'
 import { AUTH_CLOCK_SKEW_MS } from '../src/sdk/auth/auth-clock-skew'
 import {
   PERSISTED_SIWE_AUTH_RECORD_VERSION,
+  isAdoptableRecord,
+  readPersistedSiweAuth,
   resolveHydrationAction,
+  resolveStorageEvent,
   type PersistedSiweAuthRecord,
 } from '../src/sdk/auth/siwe-persistence'
 
@@ -51,6 +54,37 @@ describe('resolveHydrationAction', () => {
       resolveHydrationAction(other, '0x000000000000000000000000000000000000bEEF', NOW)
     ).toEqual({
       type: 'remove',
+    })
+  })
+})
+
+describe('an ended session in storage', () => {
+  // Back after more than a week: the refresh token is gone too. Reading storage checks the real
+  // clock, so the expiries are relative to it.
+  const now = Date.now()
+  const ended = record({
+    accessTokenExpiresAt: now - 8 * 24 * HOUR,
+    refreshTokenExpiresAt: now - HOUR,
+    siweTokenExpiresAt: now - 7 * 24 * HOUR,
+  })
+
+  it('is kept on read, so hydration reports it ended instead of signing in again', () => {
+    const items = new Map([['key', JSON.stringify(ended)]])
+    const storage = {
+      getItem: (k: string) => items.get(k) ?? null,
+      setItem: (k: string, v: string) => void items.set(k, v),
+      removeItem: (k: string) => void items.delete(k),
+    }
+    const read = readPersistedSiweAuth(storage, 'key')
+    expect(items.has('key')).toBe(true)
+    expect(resolveHydrationAction(read, ADDRESS, now)).toEqual({ type: 'expired' })
+  })
+
+  it('is never adopted from another tab, however recent', () => {
+    const newer = { ...ended, updatedAt: now }
+    expect(isAdoptableRecord(newer, ADDRESS, now - HOUR, now)).toBe(false)
+    expect(resolveStorageEvent(JSON.stringify(newer), ADDRESS, now - HOUR, now)).toEqual({
+      type: 'ignore',
     })
   })
 })
