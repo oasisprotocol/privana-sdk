@@ -5,7 +5,11 @@ import { WagmiContext } from 'wagmi'
 import { getWalletClient } from 'wagmi/actions'
 import { isHostedAuthSessionActive } from '../auth'
 import { buildSiweLoginMessage } from '../auth/siwe'
-import { AccountingApiError, HostedAuthRequiredError } from '../client'
+import {
+  AccountingApiError,
+  HostedAuthRequiredError,
+  PrivateReadAuthRequiredError,
+} from '../client'
 import type { PrivanaClient } from '../client'
 import { usePrivanaContext } from '../context/privana-context'
 import { useSafeSiweAuth } from '../context/siwe-auth-provider'
@@ -15,6 +19,7 @@ import {
   createScopeKey,
   deleteCachedPrivateReadToken,
   getCachedPrivateReadToken,
+  reportPrivateReadTokenRejected,
   setCachedPrivateReadToken,
 } from '../utils/private-read-token-store'
 
@@ -108,6 +113,38 @@ export async function executeSiwePrivateReadRequest<T>({
   }
 }
 
+export function requireSessionPrivateReadToken(scopeKey: string): string {
+  const cached = getCachedPrivateReadToken(scopeKey)
+  if (!cached) throw new PrivateReadAuthRequiredError()
+  return cached
+}
+
+/**
+ * A private read under SiweAuthProvider: it uses the session's token and never signs. A rejected
+ * token is reported so the session owner ends that session; a request that raced a new sign-in
+ * carries the old token, leaves the new session alone, and retries with the new token.
+ */
+export async function executeSessionPrivateReadRequest<T>({
+  client,
+  scopeKey,
+  request,
+}: {
+  client: Pick<PrivanaClient, 'withPrivateReadToken'>
+  scopeKey: string
+  request: (client: PrivanaClient) => Promise<T>
+}): Promise<T> {
+  const token = requireSessionPrivateReadToken(scopeKey)
+  try {
+    return await request(client.withPrivateReadToken(token))
+  } catch (error) {
+    if (!(error instanceof AccountingApiError) || error.statusCode !== 401) throw error
+    reportPrivateReadTokenRejected(token)
+    const current = getCachedPrivateReadToken(scopeKey)
+    if (current && current !== token) return request(client.withPrivateReadToken(current))
+    throw new PrivateReadAuthRequiredError()
+  }
+}
+
 function recordPrivateReadFailure(scopeKey: string): void {
   const previous = privateReadFailureCache.get(scopeKey)
   const backoffMs = Math.min(
@@ -152,15 +189,17 @@ export function usePrivateReadRequest(): {
     usePrivanaContext()
   const { address: walletAddress } = useSafeAccount()
   const siwe = useSafeSiweAuth()
+  const hasSiweProvider = siwe !== null
   const privateReadAddress = hostedAuthConfig
     ? (hostedAuthSession?.address ?? null)
     : (walletAddress ?? null)
-  const privateReadReady = hostedAuthConfig ? !!hostedAuthSession : !!walletAddress
   const privateReadAuthorized = hostedAuthConfig
     ? !!hostedAuthSession
-    : siwe
+    : hasSiweProvider
       ? !!walletAddress && siwe.session?.address.toLowerCase() === walletAddress.toLowerCase()
       : !!walletAddress
+  // Under SiweAuthProvider private reads never sign in on their own, so they wait for the session.
+  const privateReadReady = privateReadAuthorized
 
   const executePrivateRead = useCallback(
     async <T>(request: (client: PrivanaClient) => Promise<T>): Promise<T> => {
@@ -182,6 +221,8 @@ export function usePrivateReadRequest(): {
 
       const apiUrl = networkConfig.apiUrl
       const scopeKey = createScopeKey(apiUrl, networkConfig.chainId, walletAddress)
+
+      if (hasSiweProvider) return executeSessionPrivateReadRequest({ client, scopeKey, request })
 
       const getToken = async (forceRefresh: boolean): Promise<string> => {
         const inflight = privateReadInflight.get(scopeKey)
@@ -241,6 +282,7 @@ export function usePrivateReadRequest(): {
     },
     [
       client,
+      hasSiweProvider,
       hostedAuthConfig,
       hostedAuthSession,
       networkConfig.apiUrl,

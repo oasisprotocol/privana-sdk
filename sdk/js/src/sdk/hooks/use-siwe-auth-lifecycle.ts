@@ -20,6 +20,8 @@ import {
   type AuthLifecycleEvent,
 } from '../auth/auth-lifecycle'
 import {
+  ctrlExpireIfCurrentToken,
+  ctrlExpireSession,
   ctrlHydrateViaRefresh,
   ctrlLogin,
   ctrlLogout,
@@ -32,6 +34,7 @@ import { AUTH_CLOCK_SKEW_MS } from '../auth/auth-clock-skew'
 import {
   createScopeKey,
   deleteCachedPrivateReadToken,
+  onPrivateReadTokenRejected,
   setCachedPrivateReadToken,
 } from '../utils/private-read-token-store'
 import { useSafeAccount } from './use-safe-account'
@@ -53,6 +56,7 @@ export interface SiweAuthLifecycleResult {
   isAuthenticated: boolean
   isLoading: boolean
   isHydrating: boolean
+  sessionExpired: boolean
   error: Error | null
   session: SiweAuthSession | null
   accessToken: string | undefined
@@ -72,6 +76,8 @@ export function useSiweAuthLifecycle(deps: SiweAuthRuntimeDeps): SiweAuthLifecyc
   const [isHydrating, setIsHydrating] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const [accessTokenExpiresAt, setAccessTokenExpiresAt] = useState<number | null>(null)
+  const [siweTokenExpiresAt, setSiweTokenExpiresAt] = useState<number | null>(null)
+  const [sessionExpired, setSessionExpired] = useState(false)
 
   const sessionRef = useRef<SiweAuthSession | null>(null)
   const prevPersistJwtRef = useRef<boolean | undefined>(undefined)
@@ -113,6 +119,8 @@ export function useSiweAuthLifecycle(deps: SiweAuthRuntimeDeps): SiweAuthLifecyc
         setSession,
         setTokens,
         setAccessTokenExpiresAt,
+        setSiweTokenExpiresAt,
+        setSessionExpired,
         setIsLoading,
         setIsHydrating,
         setError,
@@ -164,6 +172,7 @@ export function useSiweAuthLifecycle(deps: SiweAuthRuntimeDeps): SiweAuthLifecyc
   const login = useCallback(() => ctrlLogin(ctrl), [ctrl])
   const logout = useCallback(() => ctrlLogout(ctrl), [ctrl])
   const refreshAccessToken = useCallback(() => ctrlRefreshAccessToken(ctrl), [ctrl])
+  const expireSession = useCallback(() => ctrlExpireSession(ctrl), [ctrl])
   const resetSession = useCallback(() => ctrlReset(ctrl, false), [ctrl])
   const clearSession = useCallback(() => ctrlReset(ctrl, ctrl.config.persistJwt), [ctrl])
   const restoreSession = useCallback(
@@ -184,6 +193,28 @@ export function useSiweAuthLifecycle(deps: SiweAuthRuntimeDeps): SiweAuthLifecyc
     }, delay)
     return () => clearTimeout(timer)
   }, [accessTokenExpiresAt, refreshAccessToken])
+
+  // A private-read token the server rejected ends this session, if it is still this session's.
+  useEffect(
+    () => onPrivateReadTokenRejected((token) => ctrlExpireIfCurrentToken(ctrl, token)),
+    [ctrl]
+  )
+
+  // Session end: the private-read token caps the session, JWT refreshes do not extend it. Timers
+  // don't count time asleep, so the wall clock is re-checked whenever the tab is shown again.
+  useEffect(() => {
+    if (siweTokenExpiresAt == null) return
+    const endsAt = siweTokenExpiresAt - AUTH_CLOCK_SKEW_MS
+    const timer = setTimeout(expireSession, Math.max(endsAt - Date.now(), 0))
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && Date.now() >= endsAt) expireSession()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [siweTokenExpiresAt, expireSession])
 
   // Network scope (apiUrl/chainId/client) tracking + persisted-session hydration, combined so the
   // reset→hydrate ordering is structural rather than dependent on effect declaration order. The
@@ -217,6 +248,9 @@ export function useSiweAuthLifecycle(deps: SiweAuthRuntimeDeps): SiweAuthLifecyc
       case 'refresh':
         void hydrateViaRefresh(action.record, address)
         break
+      case 'expired':
+        expireSession()
+        break
       case 'remove':
         storageAdapter.remove()
         break
@@ -235,6 +269,7 @@ export function useSiweAuthLifecycle(deps: SiweAuthRuntimeDeps): SiweAuthLifecyc
     ctrl,
     restoreSession,
     hydrateViaRefresh,
+    expireSession,
   ])
 
   // Auto-login / disconnect / mismatch handling.
@@ -297,9 +332,9 @@ export function useSiweAuthLifecycle(deps: SiweAuthRuntimeDeps): SiweAuthLifecyc
       )
       switch (action.type) {
         case 'logout':
-          resetSession()
-          if (currentAddress)
-            ctrl.dispatch({ type: 'setAutoAttemptedAddress', address: currentAddress })
+          // Another tab ended the session (it expired there, or the user signed out there). End
+          // ours the same way, so this tab waits for the user to sign again instead of on its own.
+          expireSession()
           break
         case 'adopt':
           // A full restore, not a JWT-only apply: the other tab may have performed a fresh
@@ -312,7 +347,7 @@ export function useSiweAuthLifecycle(deps: SiweAuthRuntimeDeps): SiweAuthLifecyc
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
-  }, [persistJwt, storageKey, ctrl, restoreSession, resetSession])
+  }, [persistJwt, storageKey, ctrl, restoreSession, expireSession])
 
   // Only an observed runtime true->false transition removes storage. An initial `false` stays
   // dormant so a memory-only provider can never delete (and thus cross-tab log out) another tab's
@@ -335,6 +370,7 @@ export function useSiweAuthLifecycle(deps: SiweAuthRuntimeDeps): SiweAuthLifecyc
       isAuthenticated: !!session,
       isLoading: isLoading || isHydrating,
       isHydrating,
+      sessionExpired,
       error,
       session,
       accessToken: tokens?.jwt_access_token,
@@ -342,6 +378,6 @@ export function useSiweAuthLifecycle(deps: SiweAuthRuntimeDeps): SiweAuthLifecyc
       login,
       logout,
     }),
-    [session, isLoading, isHydrating, error, tokens, login, logout]
+    [session, isLoading, isHydrating, sessionExpired, error, tokens, login, logout]
   )
 }

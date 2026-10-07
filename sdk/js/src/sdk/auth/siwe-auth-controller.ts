@@ -6,6 +6,7 @@ import {
   buildPersistedSiweAuthRecordFromLogin,
   isAdoptableRecord,
   isPersistedSiweAuthAccessActive,
+  isPersistedSiweTokenActive,
   type PersistedSiweAuthRecord,
 } from './siwe-persistence'
 import { resolveActiveSessionAddress } from './siwe-auth-policy'
@@ -88,6 +89,22 @@ export function ctrlReset(ctrl: SiweAuthController, removeStorage: boolean): voi
   ctrl.dispatch({ type: 'reset' })
   clearSessionEffects(ctrl.ports)
   if (removeStorage) persistRecordIfEnabled(ctrl.ports, null)
+}
+
+export function ctrlExpireSession(ctrl: SiweAuthController): void {
+  const address = activeAddress(ctrl) ?? ctrl.config.address ?? null
+  ctrlReset(ctrl, false)
+  // The stored record goes only once it has ended too: another tab may have just stored a fresh
+  // sign-in, and removing that would sign it out.
+  const stored = ctrl.config.persistJwt ? ctrl.ports.storage.read() : null
+  if (stored && !isPersistedSiweTokenActive(stored)) ctrl.ports.storage.remove()
+  ctrl.dispatch({ type: 'setAutoAttemptedAddress', address })
+  ctrl.ports.react.setSessionExpired(true)
+}
+
+/** A private-read token the server rejected ends the session it belongs to, and no other. */
+export function ctrlExpireIfCurrentToken(ctrl: SiweAuthController, token: string): void {
+  if (ctrl.getState().currentRecord?.tokens.siwe_token === token) ctrlExpireSession(ctrl)
 }
 
 /** Make a record the live session: commit + private-read arming + session publish. */

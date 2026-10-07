@@ -40,6 +40,8 @@ export interface SiweLifecycleReact {
   setSession: NullableSetter<SiweAuthSession>
   setTokens: NullableSetter<SiweAuthTokens>
   setAccessTokenExpiresAt: NullableSetter<number>
+  setSiweTokenExpiresAt: NullableSetter<number>
+  setSessionExpired: (expired: boolean) => void
   setIsLoading: (b: boolean) => void
   setIsHydrating: (b: boolean) => void
   setError: (e: Error | null) => void
@@ -99,6 +101,8 @@ export function publishSession(ports: SiweLifecyclePorts, record: PersistedSiweA
     address: record.tokens.address as Address,
   })
   ports.react.setAccessTokenExpiresAt(record.accessTokenExpiresAt)
+  ports.react.setSiweTokenExpiresAt(record.siweTokenExpiresAt)
+  ports.react.setSessionExpired(false)
 }
 
 /** Persist the record to storage when `persistJwt` is on; pass `null` to remove. */
@@ -121,6 +125,8 @@ export function clearSessionEffects(ports: SiweLifecyclePorts): void {
   ports.react.setSession(null)
   ports.react.setTokens(null)
   ports.react.setAccessTokenExpiresAt(null)
+  ports.react.setSiweTokenExpiresAt(null)
+  ports.react.setSessionExpired(false)
   ports.react.setIsLoading(false)
   ports.react.setIsHydrating(false)
   ports.react.setError(null)

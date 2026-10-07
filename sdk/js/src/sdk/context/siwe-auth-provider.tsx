@@ -12,6 +12,11 @@ export type { SiweAuthSession, SiweAuthTokens }
 export interface SiweAuthContextValue {
   isAuthenticated: boolean
   isLoading: boolean
+  /**
+   * The session ended without a sign-out in this tab: it expired, or another tab ended it. No
+   * automatic sign-in follows; private reads wait until the user signs again.
+   */
+  sessionExpired: boolean
   error: Error | null
   session: SiweAuthSession | null
   accessToken: string | undefined
