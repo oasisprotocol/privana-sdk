@@ -18,6 +18,9 @@ export type {
   WithdrawInlineModalProps,
 } from './components/privana/withdraw-modal'
 
+export { InternalTransferModal } from './components/privana/internal-transfer-modal'
+export type { InternalTransferModalProps } from './components/privana/internal-transfer-modal'
+
 export { WalletModal, WalletInlineModal } from './components/privana/wallet-modal'
 export type {
   WalletModalProps,

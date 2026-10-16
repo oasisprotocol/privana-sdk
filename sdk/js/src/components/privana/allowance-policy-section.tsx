@@ -31,6 +31,48 @@ function PolicyTermRow({
   )
 }
 
+export function PolicyDetails({
+  permissions,
+  restrictions = [],
+}: {
+  permissions: AllowanceTerm[]
+  restrictions?: AllowanceTerm[]
+}) {
+  const [collapsed, setCollapsed] = useState(false)
+  if (permissions.length === 0 && restrictions.length === 0) return null
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setCollapsed((prev) => !prev)}
+        className="flex w-full cursor-pointer items-center gap-2"
+      >
+        <span className="bg-border h-px flex-1" />
+        <span className="text-muted-foreground text-[10px] leading-[14px] font-medium tracking-[0.2px] whitespace-nowrap uppercase">
+          {collapsed ? 'Show details' : 'Hide details'}
+        </span>
+        <ChevronDownIcon
+          direction={collapsed ? 'down' : 'up'}
+          className="text-foreground shrink-0"
+        />
+        <span className="bg-border h-px flex-1" />
+      </button>
+
+      {!collapsed && (
+        <div className="flex flex-col gap-4">
+          {permissions.map((term, i) => (
+            <PolicyTermRow key={`permission-${i}`} term={term} kind="permission" />
+          ))}
+          {restrictions.map((term, i) => (
+            <PolicyTermRow key={`restriction-${i}`} term={term} kind="restriction" />
+          ))}
+        </div>
+      )}
+    </>
+  )
+}
+
 export function AllowancePolicySection({
   allowance,
   serviceName,
@@ -40,11 +82,6 @@ export function AllowancePolicySection({
   serviceName: string
   serviceIcon?: ReactNode
 }) {
-  const [collapsed, setCollapsed] = useState(false)
-  const permissions = allowance.terms?.permissions ?? []
-  const restrictions = allowance.terms?.restrictions ?? []
-  const hasTerms = permissions.length > 0 || restrictions.length > 0
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-4">
@@ -60,36 +97,10 @@ export function AllowancePolicySection({
         <span className="text-muted-foreground">wants a policy on your Privana account.</span>
       </p>
 
-      {hasTerms && (
-        <>
-          <button
-            type="button"
-            onClick={() => setCollapsed((prev) => !prev)}
-            className="flex w-full cursor-pointer items-center gap-2"
-          >
-            <span className="bg-border h-px flex-1" />
-            <span className="text-muted-foreground text-[10px] leading-[14px] font-medium tracking-[0.2px] whitespace-nowrap uppercase">
-              {collapsed ? 'Show details' : 'Hide details'}
-            </span>
-            <ChevronDownIcon
-              direction={collapsed ? 'down' : 'up'}
-              className="text-foreground shrink-0"
-            />
-            <span className="bg-border h-px flex-1" />
-          </button>
-
-          {!collapsed && (
-            <div className="flex flex-col gap-4">
-              {permissions.map((term, i) => (
-                <PolicyTermRow key={`permission-${i}`} term={term} kind="permission" />
-              ))}
-              {restrictions.map((term, i) => (
-                <PolicyTermRow key={`restriction-${i}`} term={term} kind="restriction" />
-              ))}
-            </div>
-          )}
-        </>
-      )}
+      <PolicyDetails
+        permissions={allowance.terms?.permissions ?? []}
+        restrictions={allowance.terms?.restrictions ?? []}
+      />
     </div>
   )
 }
