@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { useAccount } from 'wagmi'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import type { TokenConfig } from '@/sdk/types/tokens'
+import type { SystemAddress } from '@/sdk/types'
 import type { AllowanceTerm } from '@/sdk/types/allowance'
 import { usePrivanaContext } from '@/sdk/context/privana-context'
 import { useBalance } from '@/sdk/hooks'
@@ -13,6 +15,11 @@ import { MODAL_CONTENT_CLASS } from './deposit-modal'
 import { PolicyDetails } from './allowance-policy-section'
 import { CloseIcon, ChevronLeftIcon } from './icons'
 import { formatTokenAmount, normalizeAmountInput } from '@/sdk/utils/amount-format'
+import {
+  transferAmountError,
+  transferRecipientError,
+  withBuiltInSystemAddresses,
+} from '@/sdk/utils/transfer'
 
 type InternalTransferModalView = 'form' | 'select-token'
 
@@ -29,6 +36,7 @@ function InternalTransferView({
   amount,
   onAmountChange,
   onSelectToken,
+  systemAddresses,
 }: {
   selectedToken: TokenConfig | undefined
   toAddress: string
@@ -36,17 +44,46 @@ function InternalTransferView({
   amount: string
   onAmountChange: (value: string) => void
   onSelectToken: () => void
+  systemAddresses?: SystemAddress[]
 }) {
-  const { chains, getChainById } = usePrivanaContext()
+  const { chains, getChainById, networkConfig } = usePrivanaContext()
+  const { isConnected, address } = useAccount()
   const tokenChain = selectedToken ? (getChainById(selectedToken.chainId) ?? chains[0]) : chains[0]
+  const [toTouched, setToTouched] = useState(false)
 
-  const { balanceWei, isLoading: isBalanceLoading } = useBalance({
+  const {
+    balanceWei,
+    isLoading: isBalanceLoading,
+    isError: isBalanceError,
+  } = useBalance({
     tokenId: selectedToken?.id,
     enabled: !!selectedToken,
   })
   const formattedBalance = selectedToken
     ? formatTokenAmount(balanceWei, selectedToken).display
     : '0.00'
+  const available =
+    selectedToken && !isBalanceLoading && !isBalanceError ? BigInt(balanceWei) : undefined
+
+  const to = toAddress.trim()
+  const recipientError = transferRecipientError(
+    toAddress,
+    address,
+    withBuiltInSystemAddresses(networkConfig.accountingContract, systemAddresses)
+  )
+  const showRecipientError = !!recipientError && (toTouched || to.length >= 42)
+  const amountError = selectedToken
+    ? transferAmountError(amount, selectedToken, available)
+    : undefined
+
+  const canSend =
+    isConnected &&
+    !!selectedToken &&
+    to !== '' &&
+    !recipientError &&
+    amount.trim() !== '' &&
+    !amountError &&
+    available !== undefined
 
   return (
     <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
@@ -71,9 +108,11 @@ function InternalTransferView({
             spellCheck={false}
             value={toAddress}
             onChange={(e) => onToAddressChange(e.target.value)}
+            onBlur={() => setToTouched(true)}
             className="text-foreground placeholder:text-muted-foreground/50 flex-1 bg-transparent text-sm outline-none"
           />
         </div>
+        {showRecipientError && <p className="text-destructive text-sm">{recipientError}</p>}
       </div>
 
       <div className="flex flex-col gap-3">
@@ -110,6 +149,7 @@ function InternalTransferView({
             MAX
           </button>
         </div>
+        {amountError && <p className="text-destructive text-sm">{amountError}</p>}
       </div>
 
       <div className="flex flex-col gap-4">
@@ -118,15 +158,22 @@ function InternalTransferView({
 
       <button
         type="button"
-        className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors"
+        disabled={!canSend}
+        className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
       >
-        Send
+        {!isConnected ? 'Connect Wallet' : 'Send'}
       </button>
     </div>
   )
 }
 
-export function InternalTransferModalContent({ onClose }: { onClose?: () => void }) {
+export function InternalTransferModalContent({
+  onClose,
+  systemAddresses,
+}: {
+  onClose?: () => void
+  systemAddresses?: SystemAddress[]
+}) {
   const { serviceName, enabledTokens, defaultToken } = usePrivanaContext()
   const appName = serviceName ?? 'Privana'
   const [view, setView] = useState<InternalTransferModalView>('form')
@@ -172,6 +219,7 @@ export function InternalTransferModalContent({ onClose }: { onClose?: () => void
           amount={amount}
           onAmountChange={setAmount}
           onSelectToken={() => setView('select-token')}
+          systemAddresses={systemAddresses}
         />
       )}
 
@@ -193,9 +241,14 @@ export function InternalTransferModalContent({ onClose }: { onClose?: () => void
 export interface InternalTransferModalProps {
   open: boolean
   onClose: () => void
+  systemAddresses?: SystemAddress[]
 }
 
-export function InternalTransferModal({ open, onClose }: InternalTransferModalProps) {
+export function InternalTransferModal({
+  open,
+  onClose,
+  systemAddresses,
+}: InternalTransferModalProps) {
   return (
     <Dialog
       open={open}
@@ -208,7 +261,7 @@ export function InternalTransferModal({ open, onClose }: InternalTransferModalPr
         <DialogDescription className="sr-only">
           Send funds from your Privana balance to another Privana address.
         </DialogDescription>
-        <InternalTransferModalContent onClose={onClose} />
+        <InternalTransferModalContent onClose={onClose} systemAddresses={systemAddresses} />
       </DialogContent>
     </Dialog>
   )
