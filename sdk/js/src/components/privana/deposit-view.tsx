@@ -14,8 +14,7 @@ import { usePrivanaContext } from '@/sdk/context/privana-context'
 import { useMoonpayLimits } from '@/sdk/hooks/use-moonpay-limits'
 import { cn } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getTokenIcon } from './token-icons'
-import { ChevronRightIcon } from './icons'
+import { TokenSelectField } from './token-select-field'
 import { lacksGasForErc20Deposit, maxNativeDeposit } from '@/sdk/utils/native-gas-reserve'
 import { AllowancePolicySection } from './allowance-policy-section'
 import { ConnectedWalletRow } from './connected-wallet-row'
@@ -215,36 +214,13 @@ export function DepositView({
         </div>
       )}
 
-      <div className="flex flex-col gap-3">
-        <label className="text-muted-foreground text-sm">Token</label>
-        <button
-          type="button"
-          onClick={onSelectToken}
-          // Frozen while signing: the policy signature captures the values at
-          // click time, so the form must not drift under the wallet prompt.
-          disabled={isSubmitting || (isCreditCard && onRamp.tokenSelectionLocked)}
-          className="border-border bg-input flex w-full cursor-pointer items-center gap-3 rounded-lg border p-3 text-left disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {selectedToken ? (
-            <>
-              <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full">
-                {getTokenIcon(selectedToken.symbol, 32)}
-              </div>
-              <div className="flex flex-1 flex-col items-start gap-1">
-                <span className="text-foreground text-sm font-medium">{selectedToken.symbol}</span>
-                <span className="text-muted-foreground text-xs">on {chain?.name ?? '—'}</span>
-              </div>
-            </>
-          ) : (
-            <span className="text-muted-foreground flex-1 text-sm">Select token</span>
-          )}
-          {(!isCreditCard || !onRamp.tokenSelectionLocked) && (
-            <div className="text-muted-foreground flex h-5 w-5 items-center justify-center">
-              <ChevronRightIcon />
-            </div>
-          )}
-        </button>
-      </div>
+      <TokenSelectField
+        token={selectedToken}
+        chainName={chain?.name}
+        onClick={onSelectToken}
+        disabled={isSubmitting || (isCreditCard && onRamp.tokenSelectionLocked)}
+        showChevron={!isCreditCard || !onRamp.tokenSelectionLocked}
+      />
 
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">

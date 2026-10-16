@@ -10,6 +10,14 @@ export class AccountingApiError extends Error {
   }
 }
 
+export class TransferRateLimitedError extends Error {
+  constructor(message = 'Too many transfers. Try again later.') {
+    super(message)
+    this.name = 'TransferRateLimitedError'
+    Object.setPrototypeOf(this, TransferRateLimitedError.prototype)
+  }
+}
+
 /** A private read was attempted without a SIWE session; ask the user to sign in. */
 export class PrivateReadAuthRequiredError extends Error {
   constructor(message = 'Sign in to Privana to read private data.') {

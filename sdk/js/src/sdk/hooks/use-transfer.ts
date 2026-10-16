@@ -1,11 +1,14 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAccount } from 'wagmi'
+import { PrivateReadAuthRequiredError } from '../client'
 import { usePrivanaContext } from '../context/privana-context'
 import { signTransferMessage, signTransferLockedMessage } from '../signatures'
 import type { Bytes32, Address, TransactionSubmissionResponse } from '../types'
+import { submitTransfer, TRANSFER_SIGN_IN_MESSAGE } from '../utils/transfer'
+import { usePrivateReadRequest } from './use-private-read-request'
 import { useSigningClient } from './use-signing-client'
 
 export interface UseTransferOptions {
@@ -25,12 +28,16 @@ export interface TransferLockedParams {
   amount: bigint
 }
 
+export type TransferStep = 'idle' | 'signing' | 'submitting' | 'done'
+
 export interface UseTransferResult {
   transfer: (params: TransferParams) => Promise<TransactionSubmissionResponse | undefined>
   transferLocked: (
     params: TransferLockedParams
   ) => Promise<TransactionSubmissionResponse | undefined>
   isPending: boolean
+  /** Progress of `transfer` (not `transferLocked`). */
+  step: TransferStep
   isSuccess: boolean
   error: Error | null
   reset: () => void
@@ -40,35 +47,49 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
   const { address } = useAccount()
   const walletClient = useSigningClient()
   const { client, networkConfig, serviceAddress } = usePrivanaContext()
+  const { executePrivateRead, privateReadAuthorized } = usePrivateReadRequest()
   const queryClient = useQueryClient()
+  const [step, setStep] = useState<TransferStep>('idle')
 
   const transferMutation = useMutation({
     mutationFn: async (params: TransferParams) => {
       if (!address || !walletClient) {
         throw new Error('Wallet not connected')
       }
+      if (!privateReadAuthorized) {
+        throw new PrivateReadAuthRequiredError(TRANSFER_SIGN_IN_MESSAGE)
+      }
 
-      const { nonce } = await client.getTransferNonce(address)
+      setStep('signing')
+      try {
+        const { nonce } = await client.getTransferNonce(address)
 
-      const signature = await signTransferMessage({
-        walletClient,
-        chainId: networkConfig.chainId,
-        verifyingContract: networkConfig.accountingContract,
-        message: {
-          toAddress: params.toAddress,
-          tokenId: params.tokenId,
-          amount: params.amount,
-          nonce: BigInt(nonce),
-        },
-      })
+        const signature = await signTransferMessage({
+          walletClient,
+          chainId: networkConfig.chainId,
+          verifyingContract: networkConfig.accountingContract,
+          message: {
+            toAddress: params.toAddress,
+            tokenId: params.tokenId,
+            amount: params.amount,
+            nonce: BigInt(nonce),
+          },
+        })
 
-      return client.transferFunds({
-        to_address: params.toAddress,
-        token_id: params.tokenId,
-        amount: params.amount.toString(),
-        nonce: String(nonce),
-        signature,
-      })
+        setStep('submitting')
+        const response = await submitTransfer(executePrivateRead, {
+          to_address: params.toAddress,
+          token_id: params.tokenId,
+          amount: params.amount.toString(),
+          nonce: String(nonce),
+          signature,
+        })
+        setStep('done')
+        return response
+      } catch (error) {
+        setStep('idle')
+        throw error
+      }
     },
     onSuccess: (data) => {
       options.onSuccess?.(data)
@@ -142,6 +163,7 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
   )
 
   const reset = useCallback(() => {
+    setStep('idle')
     transferMutation.reset()
     transferLockedMutation.reset()
   }, [transferMutation, transferLockedMutation])
@@ -150,6 +172,7 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
     transfer,
     transferLocked,
     isPending: transferMutation.isPending || transferLockedMutation.isPending,
+    step,
     isSuccess: transferMutation.isSuccess || transferLockedMutation.isSuccess,
     error: (transferMutation.error || transferLockedMutation.error) as Error | null,
     reset,

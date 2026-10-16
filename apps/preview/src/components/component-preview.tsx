@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import {
   DepositModal,
   WithdrawModal,
+  InternalTransferModal,
   WalletModal,
   WalletInlineModal,
   usePrivanaContext,
@@ -42,6 +43,7 @@ export function ComponentPreview() {
   const { openConnectModal } = useConnectModal()
   const [depositModalOpen, setDepositModalOpen] = useState(false)
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false)
+  const [internalTransferModalOpen, setInternalTransferModalOpen] = useState(false)
   const [walletModalOpen, setWalletModalOpen] = useState(false)
   const [sessionMode, setSessionMode] = useState<'none' | 'zero' | 'mixed'>('none')
   const [failEndSession, setFailEndSession] = useState(false)
@@ -96,6 +98,13 @@ export function ComponentPreview() {
             <button
               type="button"
               className="rounded border px-3 py-2 text-sm"
+              onClick={() => setInternalTransferModalOpen(true)}
+            >
+              Internal Transfer Modal
+            </button>
+            <button
+              type="button"
+              className="rounded border px-3 py-2 text-sm"
               onClick={() => setWalletModalOpen(true)}
             >
               Wallet Modal
@@ -131,6 +140,10 @@ export function ComponentPreview() {
             onDepositSuccess={() => setDepositModalOpen(false)}
           />
           <WithdrawModal open={withdrawModalOpen} onClose={() => setWithdrawModalOpen(false)} />
+          <InternalTransferModal
+            open={internalTransferModalOpen}
+            onClose={() => setInternalTransferModalOpen(false)}
+          />
           <WalletModal
             open={walletModalOpen}
             onClose={() => setWalletModalOpen(false)}

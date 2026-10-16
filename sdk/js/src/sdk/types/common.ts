@@ -10,6 +10,11 @@ export type HostedAuthResponseMode = 'web_message' | 'redirect'
 
 export type Network = keyof typeof config.networks
 
+export interface SystemAddress {
+  address: Address
+  name: string
+}
+
 export interface NetworkConfig {
   chainId: number
   name: string

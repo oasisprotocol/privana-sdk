@@ -229,7 +229,7 @@ Notes:
 | `useWithdraw`            | Withdraw tokens                                                                                                    |
 | `useLockFunds`           | Lock funds for a recipient                                                                                         |
 | `useUnlockFunds`         | Unlock expired locks                                                                                               |
-| `useTransfer`            | Transfer tokens                                                                                                    |
+| `useTransfer`            | Transfer tokens as the signed-in user; rate-limited per caller (`TransferRateLimitedError`)                        |
 | `useLockedFunds`         | Get list of locked funds                                                                                           |
 | `useTotalLockedBalance`  | Get total locked balance for one token                                                                             |
 | `useHistory`             | Get authenticated account activity                                                                                 |
