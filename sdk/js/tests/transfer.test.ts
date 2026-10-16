@@ -6,10 +6,11 @@ import {
   TransferRateLimitedError,
 } from '../src/sdk/client'
 import type { TransferFundsRequest } from '../src/sdk/types'
-import { getAddress } from 'viem'
+import { BaseError, getAddress, UserRejectedRequestError } from 'viem'
 import {
   submitTransfer,
   transferAmountError,
+  transferErrorMessage,
   transferRecipientError,
   TRANSFER_SIGN_IN_MESSAGE,
   withBuiltInSystemAddresses,
@@ -179,5 +180,44 @@ describe('transferAmountError', () => {
       'More than your Available balance of'
     )
     expect(transferAmountError('4.000001', USDC, undefined)).toBeUndefined()
+  })
+})
+
+describe('transferErrorMessage', () => {
+  const apiError = (status: number, detail?: unknown) =>
+    new AccountingApiError(`API request failed: ${status}`, status, detail as string | undefined)
+
+  it('recognises a rejected signature, also when wrapped', () => {
+    const rejected = new UserRejectedRequestError(new Error('User denied'))
+    expect(transferErrorMessage(rejected)).toBe('You rejected the signature request.')
+    expect(transferErrorMessage(new BaseError('Signing failed', { cause: rejected }))).toBe(
+      'You rejected the signature request.'
+    )
+  })
+
+  it('explains a nonce taken by another operation', () => {
+    const pending = 'Another operation was still pending. Check your activity, then try again.'
+    expect(
+      transferErrorMessage(apiError(422, 'Transaction reverted: InvalidNonce (module: evm)'))
+    ).toBe(pending)
+    expect(transferErrorMessage(apiError(400, 'Transfer nonce mismatch: got 3, expected 4.'))).toBe(
+      pending
+    )
+  })
+
+  it('explains a balance that dropped before execution', () => {
+    expect(
+      transferErrorMessage(apiError(422, 'Transaction reverted: InsufficientBalance (module: evm)'))
+    ).toBe('Your balance was too low when the transfer ran.')
+  })
+
+  it("shows the API's detail, or the error message without one", () => {
+    expect(transferErrorMessage(apiError(500, 'Relayer unavailable'))).toBe('Relayer unavailable')
+    expect(transferErrorMessage(apiError(422, [{ msg: 'field required' }]))).toBe(
+      'API request failed: 422'
+    )
+    expect(transferErrorMessage(new TransferRateLimitedError())).toBe(
+      'Too many transfers. Try again later.'
+    )
   })
 })

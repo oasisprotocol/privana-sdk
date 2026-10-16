@@ -1,22 +1,32 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { toast } from 'sonner'
+import { getAddress } from 'viem'
 import { useAccount } from 'wagmi'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import type { SystemAddress } from '@/sdk/types'
 import type { AllowanceTerm } from '@/sdk/types/allowance'
 import { usePrivanaContext } from '@/sdk/context/privana-context'
-import { useBalance } from '@/sdk/hooks'
+import { useBalance, useTransfer } from '@/sdk/hooks'
+import { cn, shortenAddress } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TokenSelectorView } from './token-selector-view'
 import { TokenSelectField } from './token-select-field'
 import { MODAL_CONTENT_CLASS } from './deposit-modal'
 import { PolicyDetails } from './allowance-policy-section'
 import { CloseIcon, ChevronLeftIcon } from './icons'
-import { formatTokenAmount, normalizeAmountInput } from '@/sdk/utils/amount-format'
+import { TransactionProgressView, TransactionSuccessView } from './transaction-steps'
+import {
+  formatTokenAmount,
+  maxAmount,
+  normalizeAmountInput,
+  parseAmountInput,
+} from '@/sdk/utils/amount-format'
 import {
   transferAmountError,
+  transferErrorMessage,
   transferRecipientError,
   withBuiltInSystemAddresses,
 } from '@/sdk/utils/transfer'
@@ -36,6 +46,8 @@ function InternalTransferView({
   amount,
   onAmountChange,
   onSelectToken,
+  onCloseBlockedChange,
+  onTransferSuccess,
   systemAddresses,
 }: {
   selectedToken: TokenConfig | undefined
@@ -44,6 +56,8 @@ function InternalTransferView({
   amount: string
   onAmountChange: (value: string) => void
   onSelectToken: () => void
+  onCloseBlockedChange?: (blocked: boolean) => void
+  onTransferSuccess?: () => void
   systemAddresses?: SystemAddress[]
 }) {
   const { chains, getChainById, networkConfig } = usePrivanaContext()
@@ -84,6 +98,76 @@ function InternalTransferView({
     amount.trim() !== '' &&
     !amountError &&
     available !== undefined
+
+  const [sending, setSending] = useState<{ amount: string; symbol: string; to: string } | null>(
+    null
+  )
+  const { transfer, step, reset } = useTransfer({
+    onError: (error) => {
+      const message = transferErrorMessage(error)
+      toast.error(message.length > 100 ? `${message.slice(0, 100)}...` : message)
+    },
+  })
+  const isSending = step === 'signing' || step === 'submitting'
+
+  useEffect(() => {
+    onCloseBlockedChange?.(isSending)
+  }, [isSending, onCloseBlockedChange])
+
+  const handleMax = () => {
+    if (!selectedToken) return
+    const wei = BigInt(balanceWei)
+    if (wei > 0n) onAmountChange(maxAmount(wei, selectedToken).input)
+  }
+
+  const finish = () => {
+    reset()
+    setSending(null)
+    setToTouched(false)
+    onToAddressChange('')
+    onAmountChange('')
+  }
+
+  const handleSend = async () => {
+    const parsed = selectedToken ? parseAmountInput(amount, selectedToken) : null
+    if (!canSend || !selectedToken || !parsed?.ok) return
+    setSending({ amount, symbol: selectedToken.symbol, to })
+    try {
+      await transfer({ toAddress: getAddress(to), tokenId: selectedToken.id, amount: parsed.raw })
+    } catch {
+      return
+    }
+    if (onTransferSuccess) {
+      finish()
+      onTransferSuccess()
+    }
+  }
+
+  if (step === 'done' && sending) {
+    return (
+      <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
+        <TransactionSuccessView
+          title="Transfer sent"
+          message={`${sending.amount} ${sending.symbol} is now in the Privana balance of ${shortenAddress(sending.to)}.`}
+          onDone={finish}
+        />
+      </div>
+    )
+  }
+
+  if (isSending) {
+    return (
+      <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
+        <TransactionProgressView
+          title="Sending..."
+          steps={[
+            { label: 'Sign in wallet', status: step === 'signing' ? 'active' : 'completed' },
+            { label: 'Sending transfer', status: step === 'submitting' ? 'active' : 'pending' },
+          ]}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
@@ -144,7 +228,9 @@ function InternalTransferView({
           />
           <button
             type="button"
-            className="bg-secondary text-foreground hover:bg-secondary/80 cursor-pointer rounded px-3 py-2.5 text-xs font-semibold transition-colors"
+            onClick={handleMax}
+            disabled={isBalanceLoading}
+            className="bg-secondary text-foreground hover:bg-secondary/80 cursor-pointer rounded px-3 py-2.5 text-xs font-semibold transition-colors disabled:cursor-default disabled:opacity-50"
           >
             MAX
           </button>
@@ -159,6 +245,7 @@ function InternalTransferView({
       <button
         type="button"
         disabled={!canSend}
+        onClick={handleSend}
         className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
       >
         {!isConnected ? 'Connect Wallet' : 'Send'}
@@ -169,9 +256,13 @@ function InternalTransferView({
 
 export function InternalTransferModalContent({
   onClose,
+  onCloseBlockedChange,
+  onTransferSuccess,
   systemAddresses,
 }: {
   onClose?: () => void
+  onCloseBlockedChange?: (blocked: boolean) => void
+  onTransferSuccess?: () => void
   systemAddresses?: SystemAddress[]
 }) {
   const { serviceName, enabledTokens, defaultToken } = usePrivanaContext()
@@ -180,8 +271,17 @@ export function InternalTransferModalContent({
   const [selectedTokenId, setSelectedTokenId] = useState(defaultToken?.id ?? '')
   const [toAddress, setToAddress] = useState('')
   const [amount, setAmount] = useState('')
+  const [closeBlocked, setCloseBlocked] = useState(false)
 
   const selectedToken = enabledTokens.find((t) => t.id === selectedTokenId) ?? defaultToken
+
+  const handleCloseBlockedChange = useCallback(
+    (blocked: boolean) => {
+      setCloseBlocked(blocked)
+      onCloseBlockedChange?.(blocked)
+    },
+    [onCloseBlockedChange]
+  )
 
   return (
     <>
@@ -189,8 +289,14 @@ export function InternalTransferModalContent({
         <button
           data-privana-close
           onClick={onClose}
+          disabled={closeBlocked}
           aria-label="Close"
-          className="text-muted-foreground hover:text-foreground absolute top-6 right-5 z-20 flex h-5 w-5 cursor-pointer items-center justify-center transition-colors"
+          className={cn(
+            'absolute top-6 right-5 z-20 flex h-5 w-5 items-center justify-center transition-colors',
+            closeBlocked
+              ? 'text-muted-foreground/40 cursor-not-allowed'
+              : 'text-muted-foreground hover:text-foreground cursor-pointer'
+          )}
         >
           <CloseIcon />
         </button>
@@ -219,6 +325,8 @@ export function InternalTransferModalContent({
           amount={amount}
           onAmountChange={setAmount}
           onSelectToken={() => setView('select-token')}
+          onCloseBlockedChange={handleCloseBlockedChange}
+          onTransferSuccess={onTransferSuccess}
           systemAddresses={systemAddresses}
         />
       )}
@@ -241,27 +349,46 @@ export function InternalTransferModalContent({
 export interface InternalTransferModalProps {
   open: boolean
   onClose: () => void
+  onTransferSuccess?: () => void
   systemAddresses?: SystemAddress[]
 }
 
 export function InternalTransferModal({
   open,
   onClose,
+  onTransferSuccess,
   systemAddresses,
 }: InternalTransferModalProps) {
+  const [isCloseBlocked, setIsCloseBlocked] = useState(false)
+
+  const handleClose = () => {
+    if (!isCloseBlocked) onClose()
+  }
+
   return (
     <Dialog
       open={open}
       onOpenChange={(isOpen) => {
-        if (!isOpen) onClose()
+        if (!isOpen) handleClose()
       }}
     >
-      <DialogContent data-privana showCloseButton={false} className={MODAL_CONTENT_CLASS}>
+      <DialogContent
+        data-privana
+        showCloseButton={false}
+        onInteractOutside={isCloseBlocked ? (e) => e.preventDefault() : undefined}
+        onEscapeKeyDown={isCloseBlocked ? (e) => e.preventDefault() : undefined}
+        className={MODAL_CONTENT_CLASS}
+      >
         <DialogTitle className="sr-only">New internal transfer</DialogTitle>
         <DialogDescription className="sr-only">
           Send funds from your Privana balance to another Privana address.
         </DialogDescription>
-        <InternalTransferModalContent onClose={onClose} systemAddresses={systemAddresses} />
+        <InternalTransferModalContent
+          onClose={handleClose}
+          onCloseBlockedChange={setIsCloseBlocked}
+          onTransferSuccess={onTransferSuccess}
+          systemAddresses={systemAddresses}
+        />
       </DialogContent>
     </Dialog>
   )

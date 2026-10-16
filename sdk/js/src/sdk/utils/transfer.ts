@@ -3,7 +3,7 @@ import {
   PrivateReadAuthRequiredError,
   TransferRateLimitedError,
 } from '../client'
-import { isAddress, zeroAddress } from 'viem'
+import { BaseError, isAddress, UserRejectedRequestError, zeroAddress } from 'viem'
 import type { PrivanaClient } from '../client'
 import type {
   Address,
@@ -97,4 +97,20 @@ export function transferAmountError(
     return `More than your Available balance of ${balance} ${token.symbol}.`
   }
   return undefined
+}
+
+export function transferErrorMessage(error: Error): string {
+  if (error instanceof BaseError && error.walk((e) => e instanceof UserRejectedRequestError)) {
+    return 'You rejected the signature request.'
+  }
+  if (error instanceof AccountingApiError && typeof error.detail === 'string' && error.detail) {
+    if (/InvalidNonce|nonce mismatch/i.test(error.detail)) {
+      return 'Another operation was still pending. Check your activity, then try again.'
+    }
+    if (/InsufficientBalance/.test(error.detail)) {
+      return 'Your balance was too low when the transfer ran.'
+    }
+    return error.detail
+  }
+  return error.message
 }
