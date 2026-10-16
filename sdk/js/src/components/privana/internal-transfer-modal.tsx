@@ -18,6 +18,7 @@ import { MODAL_CONTENT_CLASS } from './deposit-modal'
 import { PolicyDetails } from './allowance-policy-section'
 import { CloseIcon, ChevronLeftIcon } from './icons'
 import { TransactionProgressView, TransactionSuccessView } from './transaction-steps'
+import { InternalTransferReview } from './internal-transfer-review'
 import {
   formatTokenAmount,
   maxAmount,
@@ -89,6 +90,10 @@ function InternalTransferView({
   const amountError = selectedToken
     ? transferAmountError(amount, selectedToken, available)
     : undefined
+  const parsedAmount = selectedToken ? parseAmountInput(amount, selectedToken) : null
+  const amountRaw = parsedAmount?.ok ? parsedAmount.raw : null
+
+  const [reviewing, setReviewing] = useState(false)
 
   const canSend =
     isConnected &&
@@ -123,17 +128,21 @@ function InternalTransferView({
   const finish = () => {
     reset()
     setSending(null)
+    setReviewing(false)
     setToTouched(false)
     onToAddressChange('')
     onAmountChange('')
   }
 
   const handleSend = async () => {
-    const parsed = selectedToken ? parseAmountInput(amount, selectedToken) : null
-    if (!canSend || !selectedToken || !parsed?.ok) return
-    setSending({ amount, symbol: selectedToken.symbol, to })
+    if (!canSend || !selectedToken || amountRaw == null) return
+    setSending({
+      amount: formatTokenAmount(amountRaw, selectedToken).display,
+      symbol: selectedToken.symbol,
+      to,
+    })
     try {
-      await transfer({ toAddress: getAddress(to), tokenId: selectedToken.id, amount: parsed.raw })
+      await transfer({ toAddress: getAddress(to), tokenId: selectedToken.id, amount: amountRaw })
     } catch {
       return
     }
@@ -166,6 +175,21 @@ function InternalTransferView({
           ]}
         />
       </div>
+    )
+  }
+
+  if (reviewing && selectedToken && amountRaw != null && !recipientError) {
+    return (
+      <InternalTransferReview
+        token={selectedToken}
+        amount={amountRaw}
+        toAddress={getAddress(to)}
+        chainName={tokenChain?.name}
+        amountError={amountError}
+        confirmDisabled={!canSend}
+        onBack={() => setReviewing(false)}
+        onConfirm={handleSend}
+      />
     )
   }
 
@@ -245,7 +269,7 @@ function InternalTransferView({
       <button
         type="button"
         disabled={!canSend}
-        onClick={handleSend}
+        onClick={() => setReviewing(true)}
         className="bg-primary text-primary-foreground hover:bg-primary/90 flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
       >
         {!isConnected ? 'Connect Wallet' : 'Send'}
