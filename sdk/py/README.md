@@ -118,7 +118,7 @@ signature = sign_lock_message(
   - `get_locked_funds(service_address=None)` - Get locked funds for the authenticated user
   - `get_total_locked_balance(token_id)` - Get total locked balance for the authenticated user
   - `get_expired_locks()` - Get expired locks for the authenticated user
-  - `transfer_funds(request)` - Transfer tokens (requires nonce)
+  - `transfer_funds(request)` - Transfer tokens as the authenticated caller (requires nonce; rate-limited per caller)
   - `get_transfer_nonce(user_address)` - Get next transfer nonce
   - `transfer_locked_funds(request)` - Transfer locked tokens
   - `get_transfer_locked_nonce(service_address)` - Get next transfer-from-lock nonce
