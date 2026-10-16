@@ -3,9 +3,12 @@
 import { useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAccount } from 'wagmi'
+import { PrivateReadAuthRequiredError } from '../client'
 import { usePrivanaContext } from '../context/privana-context'
 import { signTransferMessage, signTransferLockedMessage } from '../signatures'
 import type { Bytes32, Address, TransactionSubmissionResponse } from '../types'
+import { submitTransfer, TRANSFER_SIGN_IN_MESSAGE } from '../utils/transfer'
+import { usePrivateReadRequest } from './use-private-read-request'
 import { useSigningClient } from './use-signing-client'
 
 export interface UseTransferOptions {
@@ -40,12 +43,16 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
   const { address } = useAccount()
   const walletClient = useSigningClient()
   const { client, networkConfig, serviceAddress } = usePrivanaContext()
+  const { executePrivateRead, privateReadAuthorized } = usePrivateReadRequest()
   const queryClient = useQueryClient()
 
   const transferMutation = useMutation({
     mutationFn: async (params: TransferParams) => {
       if (!address || !walletClient) {
         throw new Error('Wallet not connected')
+      }
+      if (!privateReadAuthorized) {
+        throw new PrivateReadAuthRequiredError(TRANSFER_SIGN_IN_MESSAGE)
       }
 
       const { nonce } = await client.getTransferNonce(address)
@@ -62,7 +69,7 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
         },
       })
 
-      return client.transferFunds({
+      return submitTransfer(executePrivateRead, {
         to_address: params.toAddress,
         token_id: params.tokenId,
         amount: params.amount.toString(),
