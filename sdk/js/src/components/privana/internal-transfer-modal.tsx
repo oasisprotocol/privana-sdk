@@ -7,11 +7,11 @@ import type { AllowanceTerm } from '@/sdk/types/allowance'
 import { usePrivanaContext } from '@/sdk/context/privana-context'
 import { useBalance } from '@/sdk/hooks'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getTokenIcon } from './token-icons'
 import { TokenSelectorView } from './token-selector-view'
+import { TokenSelectField } from './token-select-field'
 import { MODAL_CONTENT_CLASS } from './deposit-modal'
 import { PolicyDetails } from './allowance-policy-section'
-import { CloseIcon, ChevronLeftIcon, ChevronRightIcon } from './icons'
+import { CloseIcon, ChevronLeftIcon } from './icons'
 import { formatTokenAmount, normalizeAmountInput } from '@/sdk/utils/amount-format'
 
 type InternalTransferModalView = 'form' | 'select-token'
@@ -52,31 +52,11 @@ function InternalTransferView({
     <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
       <h2 className="text-foreground text-[28px] leading-8 font-medium">New internal transfer</h2>
 
-      <div className="flex flex-col gap-3">
-        <label className="text-muted-foreground text-sm">Token</label>
-        <button
-          type="button"
-          onClick={onSelectToken}
-          className="border-border bg-input flex w-full cursor-pointer items-center gap-3 rounded-lg border p-3 text-left"
-        >
-          {selectedToken ? (
-            <>
-              <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full">
-                {getTokenIcon(selectedToken.symbol, 32)}
-              </div>
-              <div className="flex flex-1 flex-col items-start gap-1">
-                <span className="text-foreground text-sm font-medium">{selectedToken.symbol}</span>
-                <span className="text-muted-foreground text-xs">on {tokenChain?.name ?? '—'}</span>
-              </div>
-            </>
-          ) : (
-            <span className="text-muted-foreground flex-1 text-sm">Select token</span>
-          )}
-          <div className="text-muted-foreground flex h-5 w-5 items-center justify-center">
-            <ChevronRightIcon />
-          </div>
-        </button>
-      </div>
+      <TokenSelectField
+        token={selectedToken}
+        chainName={tokenChain?.name}
+        onClick={onSelectToken}
+      />
 
       <div className="flex flex-col gap-3">
         <label htmlFor="privana-transfer-to" className="text-muted-foreground text-sm">

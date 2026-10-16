@@ -12,11 +12,11 @@ import type { WithdrawStep } from '@/sdk/hooks'
 import { loadPendingWithdrawal } from '@/sdk/utils/pending-withdrawal'
 import { cn, shortenAddress } from '@/lib/utils'
 import { Skeleton } from '@/components/ui/skeleton'
-import { getTokenIcon } from './token-icons'
 import { TokenSelectorView } from './token-selector-view'
+import { TokenSelectField } from './token-select-field'
 import { ConnectedWalletRow } from './connected-wallet-row'
 import { MethodOption, MODAL_CONTENT_CLASS } from './deposit-modal'
-import { CloseIcon, ChevronLeftIcon, ChevronRightIcon } from './icons'
+import { CloseIcon, ChevronLeftIcon } from './icons'
 import {
   TransactionProgressView,
   TransactionSuccessView,
@@ -233,31 +233,11 @@ function WithdrawView({
         Withdraw to Connected Wallet
       </h2>
 
-      <div className="flex flex-col gap-3">
-        <label className="text-muted-foreground text-sm">Token</label>
-        <button
-          type="button"
-          onClick={onSelectToken}
-          className="border-border bg-input flex w-full cursor-pointer items-center gap-3 rounded-lg border p-3 text-left"
-        >
-          {selectedToken ? (
-            <>
-              <div className="h-8 w-8 shrink-0 overflow-hidden rounded-full">
-                {getTokenIcon(selectedToken.symbol, 32)}
-              </div>
-              <div className="flex flex-1 flex-col items-start gap-1">
-                <span className="text-foreground text-sm font-medium">{selectedToken.symbol}</span>
-                <span className="text-muted-foreground text-xs">on {targetChain?.name ?? '—'}</span>
-              </div>
-            </>
-          ) : (
-            <span className="text-muted-foreground flex-1 text-sm">Select token</span>
-          )}
-          <div className="text-muted-foreground flex h-5 w-5 items-center justify-center">
-            <ChevronRightIcon />
-          </div>
-        </button>
-      </div>
+      <TokenSelectField
+        token={selectedToken}
+        chainName={targetChain?.name}
+        onClick={onSelectToken}
+      />
 
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
