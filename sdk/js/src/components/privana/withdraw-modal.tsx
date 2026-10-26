@@ -505,7 +505,6 @@ export interface WithdrawInlineModalProps {
   className?: string
   onWithdrawSuccess?: () => void
   hideTitle?: boolean
-  onBack?: () => void
   onCloseBlockedChange?: (blocked: boolean) => void
 }
 

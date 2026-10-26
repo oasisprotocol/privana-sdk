@@ -1006,7 +1006,6 @@ export function DepositModal({ open, onClose, ...handlers }: DepositModalProps) 
 export interface DepositInlineModalProps extends DepositMethodHandlers {
   className?: string
   hideTitle?: boolean
-  onExit?: () => void
   onCloseBlockedChange?: (blocked: boolean) => void
 }
 
