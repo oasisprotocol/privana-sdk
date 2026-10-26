@@ -319,12 +319,14 @@ export function WithdrawModalContent({
   onCloseBlockedChange,
   onBack,
   onWithdrawSuccess,
+  hideTitle,
 }: {
   onClose?: () => void
   onCloseBlockedChange?: (blocked: boolean) => void
   /** Renders a back chevron on the form view (for embedding, e.g. WalletModal). */
   onBack?: () => void
   onWithdrawSuccess?: () => void
+  hideTitle?: boolean
 }) {
   const { serviceName, enabledTokens, defaultToken, hostedAuthConfig } = usePrivanaContext()
   const { address } = useAccount()
@@ -405,9 +407,11 @@ export function WithdrawModalContent({
           {appName}
         </button>
       ) : (
-        <div className="flex items-center px-5 py-4">
-          <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
-        </div>
+        !hideTitle && (
+          <div className="flex items-center px-5 py-4">
+            <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
+          </div>
+        )
       )}
 
       {view === 'select-destination' && (
@@ -500,9 +504,12 @@ export function WithdrawModal({ open, onClose, onWithdrawSuccess }: WithdrawModa
 export interface WithdrawInlineModalProps {
   className?: string
   onWithdrawSuccess?: () => void
+  hideTitle?: boolean
+  onBack?: () => void
+  onCloseBlockedChange?: (blocked: boolean) => void
 }
 
-export function WithdrawInlineModal({ className, onWithdrawSuccess }: WithdrawInlineModalProps) {
+export function WithdrawInlineModal({ className, ...props }: WithdrawInlineModalProps) {
   return (
     <div
       data-privana
@@ -511,7 +518,7 @@ export function WithdrawInlineModal({ className, onWithdrawSuccess }: WithdrawIn
         className
       )}
     >
-      <WithdrawModalContent onWithdrawSuccess={onWithdrawSuccess} />
+      <WithdrawModalContent {...props} />
     </div>
   )
 }
