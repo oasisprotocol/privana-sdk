@@ -380,7 +380,13 @@ function ambiguousSubmissionError(error: PostDepositLockError): PostDepositLockE
 
 function isDefinitiveSubmissionFailure(error: PostDepositLockError): boolean {
   const cause = error.cause
-  return cause instanceof AccountingApiError && cause.statusCode !== 408 && cause.statusCode < 500
+  // A 409 means Privana submitted the lock and saw no outcome, so it can still land.
+  return (
+    cause instanceof AccountingApiError &&
+    cause.statusCode !== 408 &&
+    cause.statusCode !== 409 &&
+    cause.statusCode < 500
+  )
 }
 
 function submissionLockName(session: ExternalDepositLockSessionRecord): string {

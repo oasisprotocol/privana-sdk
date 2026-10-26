@@ -651,13 +651,31 @@ describe('external deposit lock settlement', () => {
         saveExternalDepositLockSession(session)
         const client = {
           lockFunds: async () => {
-            throw new AccountingApiError('nonce rejected', 409, 'createLock nonce mismatch')
+            throw new AccountingApiError('nonce rejected', 400, 'createLock nonce mismatch')
           },
         }
 
         const error = await submitExternalDepositLock(client as never, session).catch((err) => err)
         expect(error).toBeInstanceOf(PostDepositLockError)
         expect(loadExternalDepositLockSession(OWNER)?.payload).toBeUndefined()
+      })
+    })
+  })
+
+  it('retains the payload when Privana reports an unknown outcome', async () => {
+    await withWebLocks(async () => {
+      await withBrowserStorage(async () => {
+        const session = makeSession({ creditedAmount: '1000' })
+        saveExternalDepositLockSession(session)
+        const client = {
+          lockFunds: async () => {
+            throw new AccountingApiError('outcome unknown', 409, 'createLock outcome is unknown')
+          },
+        }
+
+        const error = await submitExternalDepositLock(client as never, session).catch((err) => err)
+        expect((error as PostDepositLockError).submissionMayHaveSucceeded).toBe(true)
+        expect(loadExternalDepositLockSession(OWNER)?.payload).toEqual(session.payload)
       })
     })
   })
@@ -680,7 +698,7 @@ describe('external deposit lock settlement', () => {
       await submitExternalDepositLock(
         {
           lockFunds: async () => {
-            throw new AccountingApiError('nonce rejected', 409, 'createLock nonce mismatch')
+            throw new AccountingApiError('nonce rejected', 400, 'createLock nonce mismatch')
           },
         } as never,
         ambiguous!
@@ -741,7 +759,7 @@ describe('external deposit lock settlement', () => {
           lockFunds: async () => {
             calls++
             if (calls === 1) throw new Error('connection closed')
-            throw new AccountingApiError('nonce rejected', 409, 'createLock nonce mismatch')
+            throw new AccountingApiError('nonce rejected', 400, 'createLock nonce mismatch')
           },
         }
 
