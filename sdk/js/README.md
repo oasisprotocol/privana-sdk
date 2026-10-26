@@ -254,6 +254,17 @@ useDeposit({
 })
 ```
 
+### Deposit and withdraw in a page
+
+`DepositInlineModal` and `WithdrawInlineModal` render the same flows as the modals, without a dialog.
+Pass `hideTitle` when the page shows its own heading, and `onCloseBlockedChange` to keep the user
+on the page while a deposit or withdrawal can't be interrupted:
+
+```tsx
+<DepositInlineModal hideTitle className="w-full shadow-none" onCloseBlockedChange={setLeaveBlocked} />
+<WithdrawInlineModal hideTitle className="w-full shadow-none" onCloseBlockedChange={setLeaveBlocked} />
+```
+
 ## Fiat On-Ramp
 
 The fiat on-ramp lets users buy tokens with a card and have them credited to

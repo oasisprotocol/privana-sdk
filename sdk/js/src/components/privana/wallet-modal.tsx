@@ -451,16 +451,9 @@ function WalletModalContent({
     onCloseBlockedChange?.(closeBlocked)
   }, [closeBlocked, onCloseBlockedChange])
 
-  const exitDeposit = () => {
-    // The embedded content unmounts, so its onCloseBlockedChange(false) never fires.
-    setDepositBlocked(false)
-    setView('balance')
-  }
+  const exitDeposit = () => setView('balance')
 
-  const exitWithdraw = () => {
-    setWithdrawBlocked(false)
-    setView('balance')
-  }
+  const exitWithdraw = () => setView('balance')
 
   const startEndSession = () => {
     if (!onEndSession) return

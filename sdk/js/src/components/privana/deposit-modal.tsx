@@ -194,11 +194,13 @@ export function DepositModalContent({
   onClose,
   onCloseBlockedChange,
   onExit,
+  hideTitle,
 }: DepositMethodHandlers & {
   onClose?: () => void
   onCloseBlockedChange?: (blocked: boolean) => void
   /** Renders a back chevron on the root method view (for embedding, e.g. WalletModal). */
   onExit?: () => void
+  hideTitle?: boolean
 }) {
   const {
     serviceName,
@@ -444,6 +446,9 @@ export function DepositModalContent({
     cardUnsafeToClose
   useEffect(() => {
     onCloseBlockedChange?.(isUnsafeToClose)
+    return () => {
+      if (isUnsafeToClose) onCloseBlockedChange?.(false)
+    }
   }, [isUnsafeToClose, onCloseBlockedChange])
 
   useEffect(() => {
@@ -731,9 +736,11 @@ export function DepositModalContent({
       )}
 
       {flowView || (activeView === 'method' && !onExit) ? (
-        <div className="flex items-center px-5 py-4">
-          <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
-        </div>
+        !hideTitle && (
+          <div className="flex items-center px-5 py-4">
+            <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
+          </div>
+        )
       ) : (
         <button
           type="button"
@@ -1001,9 +1008,11 @@ export function DepositModal({ open, onClose, ...handlers }: DepositModalProps) 
 
 export interface DepositInlineModalProps extends DepositMethodHandlers {
   className?: string
+  hideTitle?: boolean
+  onCloseBlockedChange?: (blocked: boolean) => void
 }
 
-export function DepositInlineModal({ className, ...handlers }: DepositInlineModalProps) {
+export function DepositInlineModal({ className, ...props }: DepositInlineModalProps) {
   return (
     <div
       data-privana
@@ -1012,7 +1021,7 @@ export function DepositInlineModal({ className, ...handlers }: DepositInlineModa
         className
       )}
     >
-      <DepositModalContent {...handlers} />
+      <DepositModalContent {...props} />
     </div>
   )
 }
