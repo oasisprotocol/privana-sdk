@@ -337,11 +337,12 @@ export function WithdrawModalContent({
   const [amount, setAmount] = useState('')
   const [isPending, setIsPending] = useState(false)
   const [closeBlocked, setCloseBlocked] = useState(false)
-
-  const handleCloseBlockedChange = (blocked: boolean) => {
-    setCloseBlocked(blocked)
-    onCloseBlockedChange?.(blocked)
-  }
+  useEffect(() => {
+    onCloseBlockedChange?.(closeBlocked)
+    return () => {
+      if (closeBlocked) onCloseBlockedChange?.(false)
+    }
+  }, [closeBlocked, onCloseBlockedChange])
 
   const selectedToken = enabledTokens.find((t) => t.id === selectedTokenId) ?? defaultToken
 
@@ -356,9 +357,8 @@ export function WithdrawModalContent({
       setSelectedTokenId('')
       setIsPending(false)
       setCloseBlocked(false)
-      onCloseBlockedChange?.(false)
     }
-  }, [address, hostedAuthConfig, onCloseBlockedChange])
+  }, [address, hostedAuthConfig])
 
   return (
     <>
@@ -442,7 +442,7 @@ export function WithdrawModalContent({
           onAmountChange={setAmount}
           onSelectToken={() => setView('select-token')}
           onPendingChange={setIsPending}
-          onCloseBlockedChange={handleCloseBlockedChange}
+          onCloseBlockedChange={setCloseBlocked}
           onWithdrawSuccess={onWithdrawSuccess}
         />
       )}

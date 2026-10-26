@@ -446,6 +446,9 @@ export function DepositModalContent({
     cardUnsafeToClose
   useEffect(() => {
     onCloseBlockedChange?.(isUnsafeToClose)
+    return () => {
+      if (isUnsafeToClose) onCloseBlockedChange?.(false)
+    }
   }, [isUnsafeToClose, onCloseBlockedChange])
 
   useEffect(() => {
