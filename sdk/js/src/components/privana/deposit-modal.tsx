@@ -1025,21 +1025,14 @@ export function DepositModal({ open, onClose, ...handlers }: DepositModalProps) 
 
 export interface DepositInlineModalProps extends DepositMethodHandlers {
   className?: string
-  embedded?: boolean
   onBackChange?: (back?: () => void) => void
   onCloseBlockedChange?: (blocked: boolean) => void
 }
 
 export function DepositInlineModal({ className, ...props }: DepositInlineModalProps) {
   return (
-    <div
-      data-privana
-      className={cn(
-        'bg-card relative flex w-[560px] max-w-full flex-col gap-2 overflow-hidden rounded-2xl p-2 shadow-lg',
-        className
-      )}
-    >
-      <DepositModalContent {...props} />
+    <div data-privana className={cn('relative flex flex-col gap-2', className)}>
+      <DepositModalContent {...props} embedded />
     </div>
   )
 }

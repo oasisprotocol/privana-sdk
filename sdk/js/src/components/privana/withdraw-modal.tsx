@@ -527,20 +527,14 @@ export function WithdrawModal({ open, onClose, onWithdrawSuccess }: WithdrawModa
 export interface WithdrawInlineModalProps {
   className?: string
   onWithdrawSuccess?: () => void
-  embedded?: boolean
+  onBackChange?: (back?: () => void) => void
   onCloseBlockedChange?: (blocked: boolean) => void
 }
 
 export function WithdrawInlineModal({ className, ...props }: WithdrawInlineModalProps) {
   return (
-    <div
-      data-privana
-      className={cn(
-        'bg-card relative flex w-[560px] max-w-full flex-col gap-2 overflow-hidden rounded-2xl p-2 shadow-lg',
-        className
-      )}
-    >
-      <WithdrawModalContent {...props} />
+    <div data-privana className={cn('relative flex flex-col gap-2', className)}>
+      <WithdrawModalContent {...props} embedded />
     </div>
   )
 }
