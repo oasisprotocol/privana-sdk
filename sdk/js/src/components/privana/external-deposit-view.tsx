@@ -9,7 +9,8 @@ import { useDepositVerification, usePendingDeposits, type VerificationContext } 
 import type { UseDepositAddressResult } from '@/sdk/hooks/use-deposit-address'
 import { isExternalDepositBlockInSession } from '@/sdk/utils/external-deposit-lock'
 import type { UseExternalDepositLockResult } from '@/sdk/hooks/use-external-deposit-lock'
-import { formatCountdown, shortenAddress } from '@/lib/utils'
+import { cn, formatCountdown, shortenAddress } from '@/lib/utils'
+import { FLOW_PANEL_CLASS, useEmbedded } from './embedded-context'
 import { CopyIcon } from './icons'
 import {
   Spinner,
@@ -107,6 +108,7 @@ export function ExternalDepositView({
     | 'session'
   >
 }) {
+  const embedded = useEmbedded()
   const { getChainById, getTokenById, serviceName } = usePrivanaContext()
   const appName = serviceName ?? 'Privana'
   const { depositAddress, isReady, isLoading } = depositAddressState
@@ -263,15 +265,17 @@ export function ExternalDepositView({
   }
 
   return (
-    <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
-      <div className="flex flex-col gap-2">
-        <h2 className="text-foreground text-[28px] leading-8 font-medium">
-          Deposit from an External Wallet
-        </h2>
-        <p className="text-muted-foreground text-sm">
-          Transfer crypto from external wallet or exchange.
-        </p>
-      </div>
+    <div className={cn('flex flex-col gap-6', !embedded && FLOW_PANEL_CLASS)}>
+      {!embedded && (
+        <div className="flex flex-col gap-2">
+          <h2 className="text-foreground text-[28px] leading-8 font-medium">
+            Deposit from an External Wallet
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            Transfer crypto from external wallet or exchange.
+          </p>
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         <SummaryRow value={chain?.name ?? '—'} label="Chain" />

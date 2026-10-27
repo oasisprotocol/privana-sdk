@@ -23,6 +23,7 @@ import {
   type ProductOnRampFlowSnapshot,
 } from '@/sdk/on-ramp/product-config'
 import { cn, shortenAddress } from '@/lib/utils'
+import { EmbeddedContext, FLOW_PANEL_CLASS } from './embedded-context'
 import { parseAmountInput } from '@/sdk/utils/amount-format'
 import { TokenSelectorView } from './token-selector-view'
 import { CreditCardWidgetView } from './credit-card-widget-view'
@@ -194,13 +195,13 @@ export function DepositModalContent({
   onClose,
   onCloseBlockedChange,
   onExit,
-  hideTitle,
+  embedded,
 }: DepositMethodHandlers & {
   onClose?: () => void
   onCloseBlockedChange?: (blocked: boolean) => void
   /** Renders a back chevron on the root method view (for embedding, e.g. WalletModal). */
   onExit?: () => void
-  hideTitle?: boolean
+  embedded?: boolean
 }) {
   const {
     serviceName,
@@ -717,7 +718,7 @@ export function DepositModalContent({
   }
 
   return (
-    <>
+    <EmbeddedContext.Provider value={!!embedded}>
       {onClose && (
         <button
           data-privana-close
@@ -736,7 +737,7 @@ export function DepositModalContent({
       )}
 
       {flowView || (activeView === 'method' && !onExit) ? (
-        !hideTitle && (
+        !embedded && (
           <div className="flex items-center px-5 py-4">
             <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
           </div>
@@ -753,7 +754,7 @@ export function DepositModalContent({
       )}
 
       {flowView && (
-        <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
+        <div className={cn('flex flex-col gap-6', !embedded && FLOW_PANEL_CLASS)}>
           {activeView === 'deposit-success' && (
             <TransactionSuccessView
               title="Deposit Successful"
@@ -831,17 +832,19 @@ export function DepositModalContent({
       )}
 
       {activeView === 'method' && (
-        <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
-          <div className="flex flex-col gap-2">
-            <h2 className="text-foreground text-[28px] leading-8 font-medium">
-              {activeTab === 'crypto' ? 'Choose the deposit method' : 'Buy with card and deposit'}
-            </h2>
-            <p className="text-muted-foreground text-sm">
-              {activeTab === 'crypto'
-                ? 'Choose the deposit method.'
-                : 'Buy crypto by card and deposit it into your account.'}
-            </p>
-          </div>
+        <div className={cn('flex flex-col gap-6', !embedded && FLOW_PANEL_CLASS)}>
+          {!embedded && (
+            <div className="flex flex-col gap-2">
+              <h2 className="text-foreground text-[28px] leading-8 font-medium">
+                {activeTab === 'crypto' ? 'Choose the deposit method' : 'Buy with card and deposit'}
+              </h2>
+              <p className="text-muted-foreground text-sm">
+                {activeTab === 'crypto'
+                  ? 'Choose the deposit method.'
+                  : 'Buy crypto by card and deposit it into your account.'}
+              </p>
+            </div>
+          )}
 
           <MethodTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
@@ -964,7 +967,7 @@ export function DepositModalContent({
           />
         </MoonPayGate>
       )}
-    </>
+    </EmbeddedContext.Provider>
   )
 }
 
@@ -1008,7 +1011,7 @@ export function DepositModal({ open, onClose, ...handlers }: DepositModalProps) 
 
 export interface DepositInlineModalProps extends DepositMethodHandlers {
   className?: string
-  hideTitle?: boolean
+  embedded?: boolean
   onCloseBlockedChange?: (blocked: boolean) => void
 }
 

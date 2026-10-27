@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import type { Allowance } from '@/sdk/types/allowance'
 import type { PostDepositLockError } from '@/sdk/utils/pending-lock'
+import { cn } from '@/lib/utils'
+import { FLOW_PANEL_CLASS, useEmbedded } from './embedded-context'
 import type { ProductOnRampSelection } from '@/sdk/on-ramp/product-config'
 import type { Address } from '@/sdk/types'
 import { FiatOnRampForm } from './fiat-on-ramp-form'
@@ -34,9 +36,10 @@ export function CreditCardWidgetView({
   onUnsafeToCloseChange?: (unsafe: boolean) => void
   onActiveFlowChange?: (active: boolean) => void
 }) {
+  const embedded = useEmbedded()
   if (onRamp.unavailableReason || !token || !onRamp.provider || !onRamp.providerAssetCode) {
     return (
-      <div className="bg-muted flex flex-col gap-2 rounded-[10px] p-5">
+      <div className={cn('flex flex-col gap-2', !embedded && FLOW_PANEL_CLASS)}>
         <h2 className="text-foreground text-[28px] leading-8 font-medium">
           Card purchases unavailable
         </h2>
@@ -104,6 +107,7 @@ function MoonPayCardWidgetView({
   onUnsafeToCloseChange?: (unsafe: boolean) => void
   onActiveFlowChange?: (active: boolean) => void
 }) {
+  const embedded = useEmbedded()
   const moonpayCurrencyCode = token.moonpayCurrencyCode
   const containerRef = useRef<HTMLDivElement>(null)
   const [widgetTheme, setWidgetTheme] = useState<'light' | 'dark'>()
@@ -112,8 +116,12 @@ function MoonPayCardWidgetView({
   }, [])
 
   return (
-    <div ref={containerRef} className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
-      <h2 className="text-foreground text-[28px] leading-8 font-medium">Complete your purchase</h2>
+    <div ref={containerRef} className={cn('flex flex-col gap-6', !embedded && FLOW_PANEL_CLASS)}>
+      {!embedded && (
+        <h2 className="text-foreground text-[28px] leading-8 font-medium">
+          Complete your purchase
+        </h2>
+      )}
       {moonpayCurrencyCode ? (
         <FiatOnRampForm
           tokenId={token.id}
