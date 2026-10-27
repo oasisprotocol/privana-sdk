@@ -257,12 +257,22 @@ useDeposit({
 ### Deposit and withdraw in a page
 
 `DepositInlineModal` and `WithdrawInlineModal` render the same flows as the modals, without a dialog.
-Pass `hideTitle` when the page shows its own heading, and `onCloseBlockedChange` to keep the user
-on the page while a deposit or withdrawal can't be interrupted:
+Pass `embedded` when the page brings its own header and background: the flow then drops its title,
+step headings, panel background and back row. `onBackChange` hands the step-back action to your
+header (`undefined` on the first step and while a deposit or withdrawal is running), and
+`onCloseBlockedChange` tells you when leaving the page would interrupt one:
 
 ```tsx
-<DepositInlineModal hideTitle className="w-full shadow-none" onCloseBlockedChange={setLeaveBlocked} />
-<WithdrawInlineModal hideTitle className="w-full shadow-none" onCloseBlockedChange={setLeaveBlocked} />
+const [stepBack, setStepBack] = useState<() => void>()
+const [leaveBlocked, setLeaveBlocked] = useState(false)
+
+<PageHeader onBack={stepBack ?? leavePage} disabled={leaveBlocked} />
+<WithdrawInlineModal
+  embedded
+  className="w-full bg-transparent p-0 shadow-none"
+  onBackChange={back => setStepBack(() => back)}
+  onCloseBlockedChange={setLeaveBlocked}
+/>
 ```
 
 ## Fiat On-Ramp
