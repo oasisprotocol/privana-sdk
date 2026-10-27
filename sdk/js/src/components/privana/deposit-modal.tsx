@@ -196,12 +196,14 @@ export function DepositModalContent({
   onCloseBlockedChange,
   onExit,
   embedded,
+  onBackChange,
 }: DepositMethodHandlers & {
   onClose?: () => void
   onCloseBlockedChange?: (blocked: boolean) => void
   /** Renders a back chevron on the root method view (for embedding, e.g. WalletModal). */
   onExit?: () => void
   embedded?: boolean
+  onBackChange?: (back?: () => void) => void
 }) {
   const {
     serviceName,
@@ -717,6 +719,19 @@ export function DepositModalContent({
     setView(back.to)
   }
 
+  // Reports the current step-back action (none on the first view or mid-flow) to a host header.
+  const canGoBack = !flowView && activeView !== 'method'
+  const goBackRef = useRef(goBack)
+  const onBackChangeRef = useRef(onBackChange)
+  useEffect(() => {
+    goBackRef.current = goBack
+    onBackChangeRef.current = onBackChange
+  })
+  useEffect(() => {
+    onBackChangeRef.current?.(canGoBack ? () => goBackRef.current() : undefined)
+  }, [canGoBack])
+  useEffect(() => () => onBackChangeRef.current?.(undefined), [])
+
   return (
     <EmbeddedContext.Provider value={!!embedded}>
       {onClose && (
@@ -736,22 +751,21 @@ export function DepositModalContent({
         </button>
       )}
 
-      {flowView || (activeView === 'method' && !onExit) ? (
-        !embedded && (
+      {!embedded &&
+        (flowView || (activeView === 'method' && !onExit) ? (
           <div className="flex items-center px-5 py-4">
             <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
           </div>
-        )
-      ) : (
-        <button
-          type="button"
-          onClick={activeView === 'method' ? onExit : goBack}
-          className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
-        >
-          <ChevronLeftIcon />
-          {activeView === 'method' ? appName : back.label}
-        </button>
-      )}
+        ) : (
+          <button
+            type="button"
+            onClick={activeView === 'method' ? onExit : goBack}
+            className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
+          >
+            <ChevronLeftIcon />
+            {activeView === 'method' ? appName : back.label}
+          </button>
+        ))}
 
       {flowView && (
         <div className={cn('flex flex-col gap-6', !embedded && FLOW_PANEL_CLASS)}>
@@ -1012,6 +1026,7 @@ export function DepositModal({ open, onClose, ...handlers }: DepositModalProps) 
 export interface DepositInlineModalProps extends DepositMethodHandlers {
   className?: string
   embedded?: boolean
+  onBackChange?: (back?: () => void) => void
   onCloseBlockedChange?: (blocked: boolean) => void
 }
 

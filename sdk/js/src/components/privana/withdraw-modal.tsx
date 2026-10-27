@@ -324,6 +324,7 @@ export function WithdrawModalContent({
   onBack,
   onWithdrawSuccess,
   embedded,
+  onBackChange,
 }: {
   onClose?: () => void
   onCloseBlockedChange?: (blocked: boolean) => void
@@ -331,6 +332,7 @@ export function WithdrawModalContent({
   onBack?: () => void
   onWithdrawSuccess?: () => void
   embedded?: boolean
+  onBackChange?: (back?: () => void) => void
 }) {
   const { serviceName, enabledTokens, defaultToken, hostedAuthConfig } = usePrivanaContext()
   const { address } = useAccount()
@@ -364,6 +366,22 @@ export function WithdrawModalContent({
     }
   }, [address, hostedAuthConfig])
 
+  // Reports the current step-back action (none on the first view or mid-flow) to a host header.
+  const backTo =
+    view === 'select-token'
+      ? 'form'
+      : view === 'form' && !isPending
+        ? 'select-destination'
+        : undefined
+  const onBackChangeRef = useRef(onBackChange)
+  useEffect(() => {
+    onBackChangeRef.current = onBackChange
+  })
+  useEffect(() => {
+    onBackChangeRef.current?.(backTo ? () => setView(backTo) : undefined)
+  }, [backTo])
+  useEffect(() => () => onBackChangeRef.current?.(undefined), [])
+
   return (
     <EmbeddedContext.Provider value={!!embedded}>
       {onClose && (
@@ -383,40 +401,39 @@ export function WithdrawModalContent({
         </button>
       )}
 
-      {view === 'select-token' ? (
-        <button
-          type="button"
-          onClick={() => setView('form')}
-          className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
-        >
-          <ChevronLeftIcon />
-          Withdraw
-        </button>
-      ) : view === 'form' && !isPending ? (
-        <button
-          type="button"
-          onClick={() => setView('select-destination')}
-          className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
-        >
-          <ChevronLeftIcon />
-          Withdraw
-        </button>
-      ) : onBack && !isPending ? (
-        <button
-          type="button"
-          onClick={onBack}
-          className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
-        >
-          <ChevronLeftIcon />
-          {appName}
-        </button>
-      ) : (
-        !embedded && (
+      {!embedded &&
+        (view === 'select-token' ? (
+          <button
+            type="button"
+            onClick={() => setView('form')}
+            className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
+          >
+            <ChevronLeftIcon />
+            Withdraw
+          </button>
+        ) : view === 'form' && !isPending ? (
+          <button
+            type="button"
+            onClick={() => setView('select-destination')}
+            className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
+          >
+            <ChevronLeftIcon />
+            Withdraw
+          </button>
+        ) : onBack && !isPending ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
+          >
+            <ChevronLeftIcon />
+            {appName}
+          </button>
+        ) : (
           <div className="flex items-center px-5 py-4">
             <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
           </div>
-        )
-      )}
+        ))}
 
       {view === 'select-destination' && (
         <div className={cn('flex flex-col gap-6', !embedded && FLOW_PANEL_CLASS)}>
