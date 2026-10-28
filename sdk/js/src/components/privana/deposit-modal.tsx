@@ -200,7 +200,7 @@ export function DepositModalContent({
 }: DepositMethodHandlers & {
   onClose?: () => void
   onCloseBlockedChange?: (blocked: boolean) => void
-  /** Renders a back chevron on the root method view (for embedding, e.g. WalletModal). */
+  /** Renders a back chevron on the root method view (when nested in WalletModal). */
   onExit?: () => void
   embedded?: boolean
   onBackChange?: (back?: () => void) => void

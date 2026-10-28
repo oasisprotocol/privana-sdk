@@ -328,7 +328,7 @@ export function WithdrawModalContent({
 }: {
   onClose?: () => void
   onCloseBlockedChange?: (blocked: boolean) => void
-  /** Renders a back chevron on the form view (for embedding, e.g. WalletModal). */
+  /** Renders a back chevron on the form view (when nested in WalletModal). */
   onBack?: () => void
   onWithdrawSuccess?: () => void
   embedded?: boolean
