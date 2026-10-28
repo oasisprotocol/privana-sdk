@@ -378,9 +378,10 @@ export function WithdrawModalContent({
     onBackChangeRef.current = onBackChange
   })
   useEffect(() => {
-    onBackChangeRef.current?.(backTo ? () => setView(backTo) : undefined)
+    if (!backTo) return
+    onBackChangeRef.current?.(() => setView(backTo))
+    return () => onBackChangeRef.current?.(undefined)
   }, [backTo])
-  useEffect(() => () => onBackChangeRef.current?.(undefined), [])
 
   return (
     <EmbeddedContext.Provider value={!!embedded}>

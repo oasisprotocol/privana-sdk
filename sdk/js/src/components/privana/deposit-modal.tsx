@@ -728,9 +728,10 @@ export function DepositModalContent({
     onBackChangeRef.current = onBackChange
   })
   useEffect(() => {
-    onBackChangeRef.current?.(canGoBack ? () => goBackRef.current() : undefined)
+    if (!canGoBack) return
+    onBackChangeRef.current?.(() => goBackRef.current())
+    return () => onBackChangeRef.current?.(undefined)
   }, [canGoBack])
-  useEffect(() => () => onBackChangeRef.current?.(undefined), [])
 
   return (
     <EmbeddedContext.Provider value={!!embedded}>
