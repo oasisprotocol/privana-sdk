@@ -259,8 +259,9 @@ useDeposit({
 `DepositInlineModal` and `WithdrawInlineModal` render the same flows as the modals, inside your page:
 no dialog, title, step headings, panel background or back row, so the page brings its own header.
 `onBackChange` hands the step-back action to that header (`undefined` on the first step and while a
-deposit or withdrawal is running), and `onCloseBlockedChange` tells you when leaving the page would
-interrupt one:
+deposit or withdrawal is in progress; on an active external or card deposit going back shows an error
+instead, and without it there is no in-flow back navigation), and `onCloseBlockedChange` tells you when
+leaving the page would interrupt one:
 
 ```tsx
 const [stepBack, setStepBack] = useState<() => void>()
