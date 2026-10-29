@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useAccount } from 'wagmi'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
@@ -373,15 +373,12 @@ export function WithdrawModalContent({
       : view === 'form' && !isPending
         ? 'select-destination'
         : undefined
-  const onBackChangeRef = useRef(onBackChange)
+  const stepBack = useMemo(() => (backTo ? () => setView(backTo) : undefined), [backTo])
   useEffect(() => {
-    onBackChangeRef.current = onBackChange
-  })
-  useEffect(() => {
-    if (!backTo) return
-    onBackChangeRef.current?.(() => setView(backTo))
-    return () => onBackChangeRef.current?.(undefined)
-  }, [backTo])
+    if (!stepBack || !onBackChange) return
+    onBackChange(stepBack)
+    return () => onBackChange(undefined)
+  }, [stepBack, onBackChange])
 
   return (
     <EmbeddedContext.Provider value={!!embedded}>

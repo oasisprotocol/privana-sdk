@@ -722,16 +722,15 @@ export function DepositModalContent({
   // Reports the current step-back action (none on the first view or mid-flow) to a host header.
   const canGoBack = !flowView && activeView !== 'method'
   const goBackRef = useRef(goBack)
-  const onBackChangeRef = useRef(onBackChange)
   useEffect(() => {
     goBackRef.current = goBack
-    onBackChangeRef.current = onBackChange
   })
+  const stepBack = useMemo(() => (canGoBack ? () => goBackRef.current() : undefined), [canGoBack])
   useEffect(() => {
-    if (!canGoBack) return
-    onBackChangeRef.current?.(() => goBackRef.current())
-    return () => onBackChangeRef.current?.(undefined)
-  }, [canGoBack])
+    if (!stepBack || !onBackChange) return
+    onBackChange(stepBack)
+    return () => onBackChange(undefined)
+  }, [stepBack, onBackChange])
 
   return (
     <EmbeddedContext.Provider value={!!embedded}>
