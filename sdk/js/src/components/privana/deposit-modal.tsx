@@ -34,7 +34,8 @@ import {
   TransactionErrorView,
   type Step,
 } from './transaction-steps'
-import { CloseIcon, ChevronRightIcon, ChevronLeftIcon } from './icons'
+import { ChevronRightIcon } from './icons'
+import { ModalCloseButton, ModalHeader } from './modal-header'
 import { DepositView } from './deposit-view'
 import { ExternalDepositView } from './external-deposit-view'
 
@@ -734,38 +735,14 @@ export function DepositModalContent({
 
   return (
     <EmbeddedContext.Provider value={!!embedded}>
-      {onClose && (
-        <button
-          data-privana-close
-          onClick={onClose}
-          disabled={isUnsafeToClose}
-          aria-label="Close"
-          className={cn(
-            'absolute top-6 right-5 z-20 flex h-5 w-5 items-center justify-center transition-colors',
-            isUnsafeToClose
-              ? 'text-muted-foreground/40 cursor-not-allowed'
-              : 'text-muted-foreground hover:text-foreground cursor-pointer'
-          )}
-        >
-          <CloseIcon />
-        </button>
-      )}
+      {onClose && <ModalCloseButton onClick={onClose} disabled={isUnsafeToClose} />}
 
-      {!embedded &&
-        (flowView || (activeView === 'method' && !onExit) ? (
-          <div className="flex items-center px-5 py-4">
-            <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={activeView === 'method' ? onExit : goBack}
-            className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
-          >
-            <ChevronLeftIcon />
-            {activeView === 'method' ? appName : back.label}
-          </button>
-        ))}
+      {!embedded && (
+        <ModalHeader
+          label={stepBack ? back.label : appName}
+          onBack={stepBack ?? (activeView === 'method' ? onExit : undefined)}
+        />
+      )}
 
       {flowView && (
         <div className={cn('flex flex-col gap-6', !embedded && FLOW_PANEL_CLASS)}>

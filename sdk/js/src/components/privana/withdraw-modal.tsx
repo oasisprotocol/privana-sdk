@@ -17,7 +17,8 @@ import { getTokenIcon } from './token-icons'
 import { TokenSelectorView } from './token-selector-view'
 import { ConnectedWalletRow } from './connected-wallet-row'
 import { MethodOption, MODAL_CONTENT_CLASS } from './deposit-modal'
-import { CloseIcon, ChevronLeftIcon, ChevronRightIcon } from './icons'
+import { ChevronRightIcon } from './icons'
+import { ModalCloseButton, ModalHeader } from './modal-header'
 import {
   TransactionProgressView,
   TransactionSuccessView,
@@ -382,56 +383,14 @@ export function WithdrawModalContent({
 
   return (
     <EmbeddedContext.Provider value={!!embedded}>
-      {onClose && (
-        <button
-          data-privana-close
-          onClick={onClose}
-          disabled={closeBlocked}
-          aria-label="Close"
-          className={cn(
-            'absolute top-6 right-5 z-20 flex h-5 w-5 items-center justify-center transition-colors',
-            closeBlocked
-              ? 'text-muted-foreground/40 cursor-not-allowed'
-              : 'text-muted-foreground hover:text-foreground cursor-pointer'
-          )}
-        >
-          <CloseIcon />
-        </button>
-      )}
+      {onClose && <ModalCloseButton onClick={onClose} disabled={closeBlocked} />}
 
-      {!embedded &&
-        (view === 'select-token' ? (
-          <button
-            type="button"
-            onClick={() => setView('form')}
-            className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
-          >
-            <ChevronLeftIcon />
-            Withdraw
-          </button>
-        ) : view === 'form' && !isPending ? (
-          <button
-            type="button"
-            onClick={() => setView('select-destination')}
-            className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
-          >
-            <ChevronLeftIcon />
-            Withdraw
-          </button>
-        ) : onBack && !isPending ? (
-          <button
-            type="button"
-            onClick={onBack}
-            className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
-          >
-            <ChevronLeftIcon />
-            {appName}
-          </button>
-        ) : (
-          <div className="flex items-center px-5 py-4">
-            <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
-          </div>
-        ))}
+      {!embedded && (
+        <ModalHeader
+          label={stepBack ? 'Withdraw' : appName}
+          onBack={stepBack ?? (isPending ? undefined : onBack)}
+        />
+      )}
 
       {view === 'select-destination' && (
         <div className={cn('flex flex-col gap-6', !embedded && FLOW_PANEL_CLASS)}>
