@@ -4,6 +4,8 @@ import { useMemo } from 'react'
 import { usePrivanaContext } from '@/sdk/context/privana-context'
 import { useBatchBalances } from '@/sdk/hooks/use-batch-balances'
 import { useWalletTokenBalances } from '@/sdk/hooks/use-wallet-token-balances'
+import { cn } from '@/lib/utils'
+import { useEmbedded } from './embedded-context'
 import { TokenSelectList, type TokenSelectListItem } from './token-select-list'
 
 interface TokenSelectorViewProps {
@@ -21,6 +23,7 @@ export function TokenSelectorView({
   onSelect,
   balanceSource,
 }: TokenSelectorViewProps) {
+  const embedded = useEmbedded()
   const { enabledTokens, getChainById, tokensStatus } = usePrivanaContext()
 
   const tokenIds = useMemo(() => enabledTokens.map((token) => token.id), [enabledTokens])
@@ -61,7 +64,7 @@ export function TokenSelectorView({
     (balanceSource === 'wallet' ? wallet.isLoading : accounting.isLoading)
 
   return (
-    <div className="bg-muted flex min-h-0 flex-col rounded-[10px] p-3">
+    <div className={cn('flex min-h-0 flex-col', !embedded && 'bg-muted rounded-[10px] p-3')}>
       <TokenSelectList
         items={items}
         balances={balances}

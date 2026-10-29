@@ -13,6 +13,7 @@ import { isMoonPayProductOnRamp, type ProductOnRampSelection } from '@/sdk/on-ra
 import { usePrivanaContext } from '@/sdk/context/privana-context'
 import { useMoonpayLimits } from '@/sdk/hooks/use-moonpay-limits'
 import { cn } from '@/lib/utils'
+import { FLOW_PANEL_CLASS, useEmbedded } from './embedded-context'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getTokenIcon } from './token-icons'
 import { ChevronRightIcon } from './icons'
@@ -57,6 +58,7 @@ export function DepositView({
   onSubmit: (args: { source: DepositSource; tokenId: string; amount: string }) => void
   isSubmitting?: boolean
 }) {
+  const embedded = useEmbedded()
   const { getChainById, serviceName, serviceIcon, networkConfig, hostedAuthConfig } =
     usePrivanaContext()
   const { isConnected, address } = useAccount()
@@ -190,30 +192,31 @@ export function DepositView({
   }
 
   return (
-    <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
-      {isCreditCard ? (
-        <div className="flex flex-col gap-2">
-          <h2 className="text-foreground text-[28px] leading-8 font-medium">
-            Buy with card and deposit
-          </h2>
-          <p className="text-muted-foreground text-sm">
-            {isTransakCard
-              ? 'Enter your target deposit amount and continue.'
-              : 'Enter your deposit amount and proceed to sign a policy.'}
-          </p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2">
-          <h2 className="text-foreground text-[28px] leading-8 font-medium">
-            Deposit from {sourceLabel}
-          </h2>
-          {allowance && (
+    <div className={cn('flex flex-col gap-6', !embedded && FLOW_PANEL_CLASS)}>
+      {!embedded &&
+        (isCreditCard ? (
+          <div className="flex flex-col gap-2">
+            <h2 className="text-foreground text-[28px] leading-8 font-medium">
+              Buy with card and deposit
+            </h2>
             <p className="text-muted-foreground text-sm">
-              Enter your deposit amount and proceed to sign a policy.
+              {isTransakCard
+                ? 'Enter your target deposit amount and continue.'
+                : 'Enter your deposit amount and proceed to sign a policy.'}
             </p>
-          )}
-        </div>
-      )}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <h2 className="text-foreground text-[28px] leading-8 font-medium">
+              Deposit from {sourceLabel}
+            </h2>
+            {allowance && (
+              <p className="text-muted-foreground text-sm">
+                Enter your deposit amount and proceed to sign a policy.
+              </p>
+            )}
+          </div>
+        ))}
 
       <div className="flex flex-col gap-3">
         <label className="text-muted-foreground text-sm">Token</label>

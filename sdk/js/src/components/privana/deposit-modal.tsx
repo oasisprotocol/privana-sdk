@@ -23,6 +23,7 @@ import {
   type ProductOnRampFlowSnapshot,
 } from '@/sdk/on-ramp/product-config'
 import { cn, shortenAddress } from '@/lib/utils'
+import { EmbeddedContext, FLOW_PANEL_CLASS } from './embedded-context'
 import { parseAmountInput } from '@/sdk/utils/amount-format'
 import { TokenSelectorView } from './token-selector-view'
 import { CreditCardWidgetView } from './credit-card-widget-view'
@@ -194,13 +195,15 @@ export function DepositModalContent({
   onClose,
   onCloseBlockedChange,
   onExit,
-  hideTitle,
+  embedded,
+  onBackChange,
 }: DepositMethodHandlers & {
   onClose?: () => void
   onCloseBlockedChange?: (blocked: boolean) => void
-  /** Renders a back chevron on the root method view (for embedding, e.g. WalletModal). */
+  /** Renders a back chevron on the root method view (when nested in WalletModal). */
   onExit?: () => void
-  hideTitle?: boolean
+  embedded?: boolean
+  onBackChange?: (back?: () => void) => void
 }) {
   const {
     serviceName,
@@ -716,8 +719,21 @@ export function DepositModalContent({
     setView(back.to)
   }
 
+  // Reports the current step-back action (none on the first view or mid-flow) to a host header.
+  const canGoBack = !flowView && activeView !== 'method'
+  const goBackRef = useRef(goBack)
+  useEffect(() => {
+    goBackRef.current = goBack
+  })
+  const stepBack = useMemo(() => (canGoBack ? () => goBackRef.current() : undefined), [canGoBack])
+  useEffect(() => {
+    if (!stepBack || !onBackChange) return
+    onBackChange(stepBack)
+    return () => onBackChange(undefined)
+  }, [stepBack, onBackChange])
+
   return (
-    <>
+    <EmbeddedContext.Provider value={!!embedded}>
       {onClose && (
         <button
           data-privana-close
@@ -735,25 +751,24 @@ export function DepositModalContent({
         </button>
       )}
 
-      {flowView || (activeView === 'method' && !onExit) ? (
-        !hideTitle && (
+      {!embedded &&
+        (flowView || (activeView === 'method' && !onExit) ? (
           <div className="flex items-center px-5 py-4">
             <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
           </div>
-        )
-      ) : (
-        <button
-          type="button"
-          onClick={activeView === 'method' ? onExit : goBack}
-          className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
-        >
-          <ChevronLeftIcon />
-          {activeView === 'method' ? appName : back.label}
-        </button>
-      )}
+        ) : (
+          <button
+            type="button"
+            onClick={activeView === 'method' ? onExit : goBack}
+            className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
+          >
+            <ChevronLeftIcon />
+            {activeView === 'method' ? appName : back.label}
+          </button>
+        ))}
 
       {flowView && (
-        <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
+        <div className={cn('flex flex-col gap-6', !embedded && FLOW_PANEL_CLASS)}>
           {activeView === 'deposit-success' && (
             <TransactionSuccessView
               title="Deposit Successful"
@@ -831,17 +846,19 @@ export function DepositModalContent({
       )}
 
       {activeView === 'method' && (
-        <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
-          <div className="flex flex-col gap-2">
-            <h2 className="text-foreground text-[28px] leading-8 font-medium">
-              {activeTab === 'crypto' ? 'Choose the deposit method' : 'Buy with card and deposit'}
-            </h2>
-            <p className="text-muted-foreground text-sm">
-              {activeTab === 'crypto'
-                ? 'Choose the deposit method.'
-                : 'Buy crypto by card and deposit it into your account.'}
-            </p>
-          </div>
+        <div className={cn('flex flex-col gap-6', !embedded && FLOW_PANEL_CLASS)}>
+          {!embedded && (
+            <div className="flex flex-col gap-2">
+              <h2 className="text-foreground text-[28px] leading-8 font-medium">
+                {activeTab === 'crypto' ? 'Choose the deposit method' : 'Buy with card and deposit'}
+              </h2>
+              <p className="text-muted-foreground text-sm">
+                {activeTab === 'crypto'
+                  ? 'Choose the deposit method.'
+                  : 'Buy crypto by card and deposit it into your account.'}
+              </p>
+            </div>
+          )}
 
           <MethodTabs activeTab={activeTab} onTabChange={setActiveTab} />
 
@@ -964,7 +981,7 @@ export function DepositModalContent({
           />
         </MoonPayGate>
       )}
-    </>
+    </EmbeddedContext.Provider>
   )
 }
 
@@ -1008,20 +1025,14 @@ export function DepositModal({ open, onClose, ...handlers }: DepositModalProps) 
 
 export interface DepositInlineModalProps extends DepositMethodHandlers {
   className?: string
-  hideTitle?: boolean
+  onBackChange?: (back?: () => void) => void
   onCloseBlockedChange?: (blocked: boolean) => void
 }
 
 export function DepositInlineModal({ className, ...props }: DepositInlineModalProps) {
   return (
-    <div
-      data-privana
-      className={cn(
-        'bg-card relative flex w-[560px] max-w-full flex-col gap-2 overflow-hidden rounded-2xl p-2 shadow-lg',
-        className
-      )}
-    >
-      <DepositModalContent {...props} />
+    <div data-privana className={cn('relative flex flex-col gap-2', className)}>
+      <DepositModalContent {...props} embedded />
     </div>
   )
 }

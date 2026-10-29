@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useAccount } from 'wagmi'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
@@ -11,6 +11,7 @@ import { useBalance, useWithdraw } from '@/sdk/hooks'
 import type { WithdrawStep } from '@/sdk/hooks'
 import { loadPendingWithdrawal } from '@/sdk/utils/pending-withdrawal'
 import { cn, shortenAddress } from '@/lib/utils'
+import { EmbeddedContext, FLOW_PANEL_CLASS, useEmbedded } from './embedded-context'
 import { Skeleton } from '@/components/ui/skeleton'
 import { getTokenIcon } from './token-icons'
 import { TokenSelectorView } from './token-selector-view'
@@ -50,6 +51,7 @@ function WithdrawView({
   onCloseBlockedChange?: (blocked: boolean) => void
   onWithdrawSuccess?: () => void
 }) {
+  const embedded = useEmbedded()
   const { chains, getChainById } = usePrivanaContext()
   const { isConnected, address } = useAccount()
   const [showSuccess, setShowSuccess] = useState(false)
@@ -189,7 +191,7 @@ function WithdrawView({
 
   if (showSuccess && selectedToken) {
     return (
-      <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
+      <div className={cn('flex flex-col gap-6', !embedded && FLOW_PANEL_CLASS)}>
         <TransactionSuccessView
           title="Withdrawal Complete"
           message={`Your ${selectedToken.symbol} withdrawal has been processed. Funds should appear in your wallet shortly.`}
@@ -203,7 +205,7 @@ function WithdrawView({
 
   if (showTimeout) {
     return (
-      <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
+      <div className={cn('flex flex-col gap-6', !embedded && FLOW_PANEL_CLASS)}>
         <TransactionWarningView
           title="Withdrawal Processing"
           message="Your withdrawal is still being processed. Please check your balance — it should update shortly."
@@ -217,7 +219,7 @@ function WithdrawView({
     const canCancel =
       currentStep === 'idle' || currentStep === 'preparing' || currentStep === 'signing'
     return (
-      <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
+      <div className={cn('flex flex-col gap-6', !embedded && FLOW_PANEL_CLASS)}>
         <TransactionProgressView
           title="Withdrawing..."
           steps={withdrawSteps}
@@ -228,10 +230,12 @@ function WithdrawView({
   }
 
   return (
-    <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
-      <h2 className="text-foreground text-[28px] leading-8 font-medium">
-        Withdraw to Connected Wallet
-      </h2>
+    <div className={cn('flex flex-col gap-6', !embedded && FLOW_PANEL_CLASS)}>
+      {!embedded && (
+        <h2 className="text-foreground text-[28px] leading-8 font-medium">
+          Withdraw to Connected Wallet
+        </h2>
+      )}
 
       <div className="flex flex-col gap-3">
         <label className="text-muted-foreground text-sm">Token</label>
@@ -319,14 +323,16 @@ export function WithdrawModalContent({
   onCloseBlockedChange,
   onBack,
   onWithdrawSuccess,
-  hideTitle,
+  embedded,
+  onBackChange,
 }: {
   onClose?: () => void
   onCloseBlockedChange?: (blocked: boolean) => void
-  /** Renders a back chevron on the form view (for embedding, e.g. WalletModal). */
+  /** Renders a back chevron on the form view (when nested in WalletModal). */
   onBack?: () => void
   onWithdrawSuccess?: () => void
-  hideTitle?: boolean
+  embedded?: boolean
+  onBackChange?: (back?: () => void) => void
 }) {
   const { serviceName, enabledTokens, defaultToken, hostedAuthConfig } = usePrivanaContext()
   const { address } = useAccount()
@@ -360,8 +366,22 @@ export function WithdrawModalContent({
     }
   }, [address, hostedAuthConfig])
 
+  // Reports the current step-back action (none on the first view or mid-flow) to a host header.
+  const backTo =
+    view === 'select-token'
+      ? 'form'
+      : view === 'form' && !isPending
+        ? 'select-destination'
+        : undefined
+  const stepBack = useMemo(() => (backTo ? () => setView(backTo) : undefined), [backTo])
+  useEffect(() => {
+    if (!stepBack || !onBackChange) return
+    onBackChange(stepBack)
+    return () => onBackChange(undefined)
+  }, [stepBack, onBackChange])
+
   return (
-    <>
+    <EmbeddedContext.Provider value={!!embedded}>
       {onClose && (
         <button
           data-privana-close
@@ -379,47 +399,48 @@ export function WithdrawModalContent({
         </button>
       )}
 
-      {view === 'select-token' ? (
-        <button
-          type="button"
-          onClick={() => setView('form')}
-          className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
-        >
-          <ChevronLeftIcon />
-          Withdraw
-        </button>
-      ) : view === 'form' && !isPending ? (
-        <button
-          type="button"
-          onClick={() => setView('select-destination')}
-          className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
-        >
-          <ChevronLeftIcon />
-          Withdraw
-        </button>
-      ) : onBack && !isPending ? (
-        <button
-          type="button"
-          onClick={onBack}
-          className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
-        >
-          <ChevronLeftIcon />
-          {appName}
-        </button>
-      ) : (
-        !hideTitle && (
+      {!embedded &&
+        (view === 'select-token' ? (
+          <button
+            type="button"
+            onClick={() => setView('form')}
+            className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
+          >
+            <ChevronLeftIcon />
+            Withdraw
+          </button>
+        ) : view === 'form' && !isPending ? (
+          <button
+            type="button"
+            onClick={() => setView('select-destination')}
+            className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
+          >
+            <ChevronLeftIcon />
+            Withdraw
+          </button>
+        ) : onBack && !isPending ? (
+          <button
+            type="button"
+            onClick={onBack}
+            className="text-foreground flex w-fit cursor-pointer items-center gap-2 px-5 py-4 text-sm font-medium transition-opacity hover:opacity-70"
+          >
+            <ChevronLeftIcon />
+            {appName}
+          </button>
+        ) : (
           <div className="flex items-center px-5 py-4">
             <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
           </div>
-        )
-      )}
+        ))}
 
       {view === 'select-destination' && (
-        <div className="bg-muted flex flex-col gap-6 rounded-[10px] p-5">
-          <div className="flex flex-col gap-2">
-            <h2 className="text-foreground text-[28px] leading-8 font-medium">Withdraw</h2>
-            <p className="text-muted-foreground text-sm">Choose where to receive your funds.</p>
-          </div>
+        <div className={cn('flex flex-col gap-6', !embedded && FLOW_PANEL_CLASS)}>
+          {!embedded && (
+            <div className="flex flex-col gap-2">
+              <h2 className="text-foreground text-[28px] leading-8 font-medium">Withdraw</h2>
+              <p className="text-muted-foreground text-sm">Choose where to receive your funds.</p>
+            </div>
+          )}
           <div className="flex flex-col gap-3">
             <MethodOption
               title="Connected wallet"
@@ -458,7 +479,7 @@ export function WithdrawModalContent({
           }}
         />
       )}
-    </>
+    </EmbeddedContext.Provider>
   )
 }
 
@@ -504,20 +525,14 @@ export function WithdrawModal({ open, onClose, onWithdrawSuccess }: WithdrawModa
 export interface WithdrawInlineModalProps {
   className?: string
   onWithdrawSuccess?: () => void
-  hideTitle?: boolean
+  onBackChange?: (back?: () => void) => void
   onCloseBlockedChange?: (blocked: boolean) => void
 }
 
 export function WithdrawInlineModal({ className, ...props }: WithdrawInlineModalProps) {
   return (
-    <div
-      data-privana
-      className={cn(
-        'bg-card relative flex w-[560px] max-w-full flex-col gap-2 overflow-hidden rounded-2xl p-2 shadow-lg',
-        className
-      )}
-    >
-      <WithdrawModalContent {...props} />
+    <div data-privana className={cn('relative flex flex-col gap-2', className)}>
+      <WithdrawModalContent {...props} embedded />
     </div>
   )
 }

@@ -14,6 +14,8 @@ import type { Allowance } from '@/sdk/types/allowance'
 import type { Address, OnRampRecord } from '@/sdk/types'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import type { PostDepositLockError } from '@/sdk/utils/pending-lock'
+import { cn } from '@/lib/utils'
+import { FLOW_PANEL_CLASS, useEmbedded } from './embedded-context'
 
 type UseTransakOnRampHook = typeof useTransakOnRamp
 
@@ -69,6 +71,7 @@ export function TransakCardWidgetView({
   onActiveFlowChange,
   useOnRamp = useTransakOnRamp,
 }: TransakCardWidgetViewProps) {
+  const embedded = useEmbedded()
   const [actionError, setActionError] = useState<Error | null>(null)
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null)
   const [lockSettled, setLockSettled] = useState(false)
@@ -247,15 +250,17 @@ export function TransakCardWidgetView({
   }, [onActiveFlowChange, onLeave])
 
   return (
-    <div className="bg-muted flex flex-col gap-4 rounded-[10px] p-5">
-      <div>
-        <h2 className="text-foreground text-[28px] leading-8 font-medium">
-          Complete your purchase
-        </h2>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Buy {token.symbol} and deposit it directly into your Privana balance.
-        </p>
-      </div>
+    <div className={cn('flex flex-col gap-4', !embedded && FLOW_PANEL_CLASS)}>
+      {!embedded && (
+        <div>
+          <h2 className="text-foreground text-[28px] leading-8 font-medium">
+            Complete your purchase
+          </h2>
+          <p className="text-muted-foreground mt-1 text-sm">
+            Buy {token.symbol} and deposit it directly into your Privana balance.
+          </p>
+        </div>
+      )}
 
       <div className="border-border bg-card rounded-lg border p-3 text-sm">
         <p className="text-foreground font-medium">
