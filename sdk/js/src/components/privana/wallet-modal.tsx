@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { usePrivanaContext } from '@/sdk/context/privana-context'
 import { useBalance } from '@/sdk/hooks'
 import { cn, formatTimeRemaining } from '@/lib/utils'
-import { CloseIcon } from './icons'
+import { ModalCloseButton, ModalHeader } from './modal-header'
 import { AllowancePolicySection } from './allowance-policy-section'
 import {
   DepositModalContent,
@@ -517,32 +517,13 @@ function WalletModalContent({
 
   return (
     <>
-      {onClose && (
-        <button
-          data-privana-close
-          onClick={onClose}
-          disabled={closeBlocked}
-          aria-label="Close"
-          className={cn(
-            'absolute top-6 right-5 z-20 flex h-5 w-5 items-center justify-center transition-colors',
-            closeBlocked
-              ? 'text-muted-foreground/40 cursor-not-allowed'
-              : 'text-muted-foreground hover:text-foreground cursor-pointer'
-          )}
-        >
-          <CloseIcon />
-        </button>
-      )}
+      {onClose && <ModalCloseButton onClick={onClose} disabled={closeBlocked} />}
 
       {(view === 'balance' ||
         view === 'funding-session' ||
         view === 'fund-session-error' ||
         view === 'ending-session' ||
-        view === 'end-session-error') && (
-        <div className="flex items-center px-5 py-4">
-          <span className="text-foreground text-xl leading-5 font-medium">{appName}</span>
-        </div>
-      )}
+        view === 'end-session-error') && <ModalHeader label={appName} />}
 
       {view === 'balance' && (
         <WalletBalanceView
