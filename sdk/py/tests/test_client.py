@@ -210,6 +210,7 @@ class TestGetDepositAddress:
 
 
 DEPOSIT_ID_HEX = "0x" + "ab" * 32
+TOKEN_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
 
 
 class TestCheckDeposit:
@@ -220,32 +221,42 @@ class TestCheckDeposit:
             assert body == {
                 "chain_type": "evm",
                 "chain_id": 84532,
-                "tx_hash": "0xabc123",
-                "amount": "1000000",
-                "log_index": 0,
+                "token_address": TOKEN_ADDRESS.lower(),
                 "version": 0,
             }
             return httpx.Response(
-                200,
+                202,
                 json={
-                    "status": "credited",
+                    "status": "pending",
                     "deposit_id": DEPOSIT_ID_HEX,
                     "amount": "1000000",
-                    "token_address": "0xtoken",
+                    "token_address": TOKEN_ADDRESS,
                 },
             )
 
         respx.post(f"{BASE_URL}/v1/accounting/deposits/check").mock(side_effect=handler)
 
         result = await client.check_deposit(
-            DepositCheckRequest(
-                chain_id=84532,
-                tx_hash="0xabc123",
-                amount=1000000,
+            DepositCheckRequest(chain_id=84532, token_address=TOKEN_ADDRESS)
+        )
+        assert result.status == "pending"
+        assert result.deposit_id == DEPOSIT_ID_HEX
+
+    @respx.mock
+    async def test_check_deposit_with_nothing_to_claim(self, client):
+        respx.post(f"{BASE_URL}/v1/accounting/deposits/check").mock(
+            return_value=httpx.Response(
+                200,
+                json={"status": "none", "deposit_id": None, "detail": "Below minimum deposit"},
             )
         )
-        assert result.status == "credited"
-        assert result.deposit_id == DEPOSIT_ID_HEX
+
+        result = await client.check_deposit(
+            DepositCheckRequest(chain_id=84532, token_address=TOKEN_ADDRESS)
+        )
+        assert result.status == "none"
+        assert result.deposit_id is None
+        assert result.detail == "Below minimum deposit"
 
 
 class TestGetDepositStatus:

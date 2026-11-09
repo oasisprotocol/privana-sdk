@@ -20,12 +20,12 @@ async def main():
         addr = await client.get_deposit_address()
         print(f"Deposit to: {addr.deposit_address}")
 
-        # After sending tokens to the deposit address, verify the deposit
+        # After sending tokens to the deposit address, claim them. The zero address claims the
+        # native asset. "none" means nothing is finalized or claimable yet.
         result = await client.check_deposit(
             DepositCheckRequest(
                 chain_id=84532,
-                tx_hash="0xYourTxHash",
-                amount=1000000,
+                token_address="0xYourTokenAddress",
             )
         )
         print(f"Deposit status: {result.status}")
@@ -104,7 +104,7 @@ signature = sign_lock_message(
 
 - `PrivanaClient(base_url, timeout=30.0, headers=None)` - Main API client
   - `get_deposit_address(request=None)` - Get per-user deposit address
-  - `check_deposit(request)` - Verify a deposit and trigger credit
+  - `check_deposit(request)` - Claim an asset's finalized balance at the deposit address
   - `get_balance(token_id)` - Get token balance for the authenticated user
   - `get_batch_balances(request)` - Get multiple token balances
   - `get_history(offset=-1, limit=50)` - Get one authenticated history page

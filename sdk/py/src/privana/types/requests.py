@@ -17,10 +17,8 @@ class DepositAddressRequest:
 @dataclass
 class DepositCheckRequest:
     chain_id: int
-    tx_hash: HexString
-    amount: int | str
+    token_address: Address
     chain_type: str = "evm"
-    log_index: int = 0
     version: int = 0
 
 

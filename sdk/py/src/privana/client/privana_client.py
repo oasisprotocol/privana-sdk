@@ -188,9 +188,7 @@ class PrivanaClient:
             {
                 "chain_type": request.chain_type,
                 "chain_id": request.chain_id,
-                "tx_hash": normalize_hex(request.tx_hash),
-                "amount": str(request.amount),
-                "log_index": request.log_index,
+                "token_address": normalize_address(request.token_address),
                 "version": request.version,
             },
         )
