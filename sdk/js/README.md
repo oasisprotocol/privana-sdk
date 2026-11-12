@@ -54,6 +54,11 @@ function App() {
 `accountingContract` must be the deployed Privana accounting contract address for the same
 environment as `apiUrl`.
 
+List every network your users' wallets may be on (for example `mainnet` and `sepolia`) in your
+wagmi config's `chains`. The SDK only works on configured networks. While the wallet is on any
+other network, deposits, withdrawals, transfers and locks fail with "Switch your wallet to a
+supported network".
+
 ### 2. Or build custom UI with hooks
 
 ```tsx
