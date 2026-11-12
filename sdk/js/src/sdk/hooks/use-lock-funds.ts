@@ -35,8 +35,11 @@ export function useLockFunds(options: UseLockFundsOptions = {}): UseLockFundsRes
 
   const mutation = useMutation({
     mutationFn: async (params: LockFundsParams) => {
-      if (!address || !walletClient) {
+      if (!address) {
         throw new Error('Wallet not connected')
+      }
+      if (!walletClient) {
+        throw new Error('Switch your wallet to a supported network')
       }
       if (!serviceAddress) {
         throw new Error('Service address not configured')
