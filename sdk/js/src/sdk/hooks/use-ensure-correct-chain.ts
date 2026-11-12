@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback } from 'react'
-import { getAccount } from '@wagmi/core'
+import { getAccount, getChainId } from '@wagmi/core'
 import { useChainId, useConfig, useSwitchChain } from 'wagmi'
 
 export function useEnsureCorrectChain() {
@@ -13,7 +13,7 @@ export function useEnsureCorrectChain() {
     async (expectedChainId: number, timeoutMs: number, pollIntervalMs = 250) => {
       const startedAt = Date.now()
       while (Date.now() - startedAt < timeoutMs) {
-        const currentChainId = getAccount(config).chainId
+        const currentChainId = getAccount(config).chainId ?? getChainId(config)
         if (currentChainId === expectedChainId) return true
         await new Promise((resolve) => setTimeout(resolve, pollIntervalMs))
       }
@@ -26,7 +26,7 @@ export function useEnsureCorrectChain() {
     async (targetChainId: number) => {
       // The wagmi chain stays on the last configured chain while the wallet
       // sits on one outside the config, so ask the connection instead.
-      const currentChainId = getAccount(config).chainId
+      const currentChainId = getAccount(config).chainId ?? getChainId(config)
       if (currentChainId === targetChainId) return false
 
       let switchErrorMessage: string | undefined
