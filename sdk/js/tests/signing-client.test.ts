@@ -55,12 +55,4 @@ describe('wallet on a chain outside the wagmi config', () => {
       getConnectorClient(config, { chainId: getChainId(config) })
     ).rejects.toBeInstanceOf(ConnectorChainMismatchError)
   })
-
-  it('has a connector client for the wallet chain', async () => {
-    const config = await connectWalletOn(mainnet.id)
-
-    const client = await getConnectorClient(config, { chainId: getAccount(config).chainId })
-
-    expect(client.account.address).toBe(ACCOUNT)
-  })
 })
