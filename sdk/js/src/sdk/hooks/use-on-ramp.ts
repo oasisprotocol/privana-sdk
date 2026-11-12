@@ -736,7 +736,8 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
         if (postDepositLock) {
           // Fail before the intent exists: a purchase without a submittable
           // signed lock would defeat the deposit-and-lock guarantee.
-          if (!address || !walletClient) throw new Error('Wallet not connected')
+          if (!address) throw new Error('Wallet not connected')
+          if (!walletClient) throw new Error('Switch your wallet to a supported network')
           lockOwner = requireDepositLockOwner(address, privateReadAddress)
           if (!quoteCurrencyAmount) {
             throw new Error(

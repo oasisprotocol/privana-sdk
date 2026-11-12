@@ -243,7 +243,8 @@ export function useWithdraw(options: UseWithdrawOptions = {}): UseWithdrawResult
       let submittedNonce: bigint | null = null
 
       try {
-        if (!address || !walletClient) throw new Error('Wallet not connected')
+        if (!address) throw new Error('Wallet not connected')
+        if (!walletClient) throw new Error('Switch your wallet to a supported network')
 
         setCurrentStep('preparing')
 

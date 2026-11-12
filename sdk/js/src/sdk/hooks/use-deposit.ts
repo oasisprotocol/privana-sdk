@@ -549,7 +549,8 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
       const isStale = () => generation !== generationRef.current
 
       try {
-        if (!address || !walletClient) throw new Error('No wallet connected')
+        if (!address) throw new Error('No wallet connected')
+        if (!walletClient) throw new Error('Switch your wallet to a supported network')
 
         // Resolve token and source chain before anything else
         const token = enabledTokens.find((t) => t.id.toLowerCase() === params.tokenId.toLowerCase())

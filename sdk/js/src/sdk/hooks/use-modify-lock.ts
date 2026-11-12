@@ -35,8 +35,11 @@ export function useModifyLock(options: UseModifyLockOptions = {}): UseModifyLock
 
   const mutation = useMutation({
     mutationFn: async (params: ModifyLockParams) => {
-      if (!address || !walletClient) {
+      if (!address) {
         throw new Error('Wallet not connected')
+      }
+      if (!walletClient) {
+        throw new Error('Switch your wallet to a supported network')
       }
 
       const { nonce } = await client.getModifyLockNonce(address)

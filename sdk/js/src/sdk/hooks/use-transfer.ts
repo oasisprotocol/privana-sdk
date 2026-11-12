@@ -44,8 +44,11 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
 
   const transferMutation = useMutation({
     mutationFn: async (params: TransferParams) => {
-      if (!address || !walletClient) {
+      if (!address) {
         throw new Error('Wallet not connected')
+      }
+      if (!walletClient) {
+        throw new Error('Switch your wallet to a supported network')
       }
 
       const { nonce } = await client.getTransferNonce(address)
@@ -82,8 +85,11 @@ export function useTransfer(options: UseTransferOptions = {}): UseTransferResult
 
   const transferLockedMutation = useMutation({
     mutationFn: async (params: TransferLockedParams) => {
-      if (!address || !walletClient) {
+      if (!address) {
         throw new Error('Wallet not connected')
+      }
+      if (!walletClient) {
+        throw new Error('Switch your wallet to a supported network')
       }
       if (!serviceAddress) {
         throw new Error('Service address not configured')
