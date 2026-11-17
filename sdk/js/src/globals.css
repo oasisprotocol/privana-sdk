@@ -160,3 +160,15 @@ html[data-privana-vt-dir='back']::view-transition-new(privana-modal) {
 [data-privana-footer]:focus-visible {
   opacity: 1;
 }
+
+@utility scrollbar-visible {
+  &::-webkit-scrollbar {
+    width: 8px;
+    background: var(--privana-muted);
+  }
+  &::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 9999px;
+    background: color-mix(in oklab, var(--privana-muted-foreground) 50%, transparent) padding-box;
+  }
+}

@@ -216,7 +216,12 @@ export function TokenSelectList({
         </div>
       )}
 
-      <div className={cn('flex max-h-[332px] flex-col gap-1 overflow-y-auto', listClassName)}>
+      <div
+        className={cn(
+          'scrollbar-visible flex max-h-[332px] flex-col gap-1 overflow-y-auto',
+          listClassName
+        )}
+      >
         {frozen.order === null &&
           (items.length > 0 ? items.map((item) => item.id) : SKELETON_ROW_KEYS).map((key) => (
             <TokenRowSkeleton key={key} />
