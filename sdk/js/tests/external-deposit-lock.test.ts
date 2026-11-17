@@ -6,7 +6,6 @@ import {
   externalDepositRetryAmount,
   externalDepositSessionId,
   isCurrentExternalDepositVerification,
-  isExternalDepositBlockInSession,
   loadExternalDepositLockSession,
   saveExternalDepositLockSession,
   subscribeExternalDepositLockSession,
@@ -191,12 +190,11 @@ function makeSession(
 ): ExternalDepositLockSessionRecord {
   const payload = overrides.payload === undefined ? makePayload() : overrides.payload
   return {
-    version: 1,
+    version: 2,
     owner: OWNER,
     serviceAddress: SERVICE,
     chainId: CHAIN_ID,
     tokenId: TOKEN_ID,
-    startBlock: 100,
     depositAmount: '1000',
     maxLockAmount: '1000',
     lockDuration: 3600,
@@ -300,12 +298,7 @@ describe('external deposit minimum', () => {
 })
 
 describe('external deposit verification authority', () => {
-  const verification = {
-    hash: '0xabc' as const,
-    chainId: CHAIN_ID,
-    amount: '1000',
-    logIndex: 0,
-  }
+  const verification = { depositId: '0xabc', amount: '1000' }
 
   it('accepts only the current uncredited verification callback', () => {
     expect(isCurrentExternalDepositVerification(makeSession({ verification }), '0xAbC')).toBe(true)
@@ -348,18 +341,13 @@ describe('external deposit session persistence', () => {
     })
   })
 
-  it('persists the discovered transfer before verification and rehydrates it', async () => {
+  it('persists the claimed deposit before verification and rehydrates it', async () => {
     await withBrowserStorage(async () => {
       const session = makeSession()
       saveExternalDepositLockSession(session)
       const verifying = {
         ...session,
-        verification: {
-          hash: '0xabc' as const,
-          chainId: CHAIN_ID,
-          amount: '1000',
-          logIndex: 2,
-        },
+        verification: { depositId: '0xabc', amount: '1000' },
       }
 
       saveExternalDepositLockSession(verifying, session)
@@ -379,12 +367,7 @@ describe('external deposit session persistence', () => {
       }
       const verifying = {
         ...session,
-        verification: {
-          hash: '0xabc' as const,
-          chainId: CHAIN_ID,
-          amount: '1000',
-          logIndex: 2,
-        },
+        verification: { depositId: '0xabc', amount: '1000' },
       }
 
       saveExternalDepositLockSession(verifying, session)
@@ -395,19 +378,13 @@ describe('external deposit session persistence', () => {
   it('clears only the rejected verification candidate', async () => {
     await withBrowserStorage(async () => {
       const session = makeSession({
-        verification: {
-          hash: '0xabc',
-          chainId: CHAIN_ID,
-          amount: '1000',
-          logIndex: 2,
-        },
+        verification: { depositId: '0xabc', amount: '1000' },
       })
       saveExternalDepositLockSession(session)
 
       const cleared = clearExternalDepositVerification(session)
       expect(cleared?.verification).toBeUndefined()
       expect(cleared?.payload).toEqual(session.payload)
-      expect(cleared?.startBlock).toBe(session.startBlock)
       expect(loadExternalDepositLockSession(OWNER)).toEqual(cleared)
     })
   })
@@ -415,17 +392,12 @@ describe('external deposit session persistence', () => {
   it('does not clear a verification candidate replaced in another tab', async () => {
     await withBrowserStorage(async () => {
       const session = makeSession({
-        verification: {
-          hash: '0xabc',
-          chainId: CHAIN_ID,
-          amount: '1000',
-          logIndex: 2,
-        },
+        verification: { depositId: '0xabc', amount: '1000' },
       })
       saveExternalDepositLockSession(session)
       const replacement = {
         ...session,
-        verification: { ...session.verification!, hash: '0xdef' as const },
+        verification: { ...session.verification!, depositId: '0xdef' },
       }
       saveExternalDepositLockSession(replacement, session)
 
@@ -440,12 +412,7 @@ describe('external deposit session persistence', () => {
       saveExternalDepositLockSession(session)
       const verifying = {
         ...session,
-        verification: {
-          hash: '0xabc' as const,
-          chainId: CHAIN_ID,
-          amount: '1000',
-          logIndex: 2,
-        },
+        verification: { depositId: '0xabc', amount: '1000' },
       }
       saveExternalDepositLockSession(verifying, session)
 
@@ -460,22 +427,12 @@ describe('external deposit session persistence', () => {
       saveExternalDepositLockSession(session)
       const verifying = {
         ...session,
-        verification: {
-          hash: '0xabc' as const,
-          chainId: CHAIN_ID,
-          amount: '1000',
-          logIndex: 2,
-        },
+        verification: { depositId: '0xabc', amount: '1000' },
       }
       saveExternalDepositLockSession(verifying, session)
       const staleCandidate = {
         ...session,
-        verification: {
-          hash: '0xdef' as const,
-          chainId: CHAIN_ID,
-          amount: '1000',
-          logIndex: 3,
-        },
+        verification: { depositId: '0xdef', amount: '1000' },
       }
 
       expect(() => saveExternalDepositLockSession(staleCandidate, session)).toThrow(
@@ -559,14 +516,6 @@ describe('external deposit session persistence', () => {
       dispatchStorage(activeKey)
       expect(visibleSession).toBeUndefined()
     })
-  })
-})
-
-describe('external deposit session boundary', () => {
-  it('accepts only source-chain blocks mined after the policy was signed', () => {
-    const session = makeSession({ startBlock: 100 })
-    expect(isExternalDepositBlockInSession(session, 100)).toBe(false)
-    expect(isExternalDepositBlockInSession(session, 101)).toBe(true)
   })
 })
 

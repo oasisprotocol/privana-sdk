@@ -3,13 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAccount, useConfig } from 'wagmi'
-import { getBlockNumber } from '@wagmi/core'
 import { zeroAddress } from 'viem'
 import { usePrivanaContext } from '../context/privana-context'
 import type { Bytes32, TransactionSubmissionResponse } from '../types'
 import type { Allowance } from '../types/allowance'
 import { usePrivateReadRequest } from './use-private-read-request'
-import type { VerificationContext } from './use-deposit-verification'
 import { canUseSharedBrowserStorage } from '../utils/browser-storage'
 import {
   clampLockAmount,
@@ -47,13 +45,18 @@ export interface SignExternalDepositLockParams {
   amount: bigint
 }
 
+export interface ClaimedExternalDeposit {
+  depositId: string
+  amount: bigint
+}
+
 export interface UseExternalDepositLockResult {
   isSigning: boolean
   isSubmittingLock: boolean
   session: ExternalDepositLockSessionRecord | null
   signAndPersist: (params: SignExternalDepositLockParams) => Promise<void>
-  recordVerification: (context: VerificationContext) => void
-  settleAfterCredit: (txHash: string, creditedAmount: bigint) => Promise<void>
+  recordVerification: (deposit: ClaimedExternalDeposit) => void
+  settleAfterCredit: (depositId: string, creditedAmount: bigint) => Promise<void>
   retryAfterCredit: () => Promise<void>
   clearVerification: () => boolean
   discardSession: () => boolean
@@ -320,20 +323,15 @@ export function useExternalDepositLock({
           amount: clampLockAmount(amount, BigInt(allowance.value)),
           lockDuration,
         })
-        const startBlock = await getBlockNumber(config, { chainId: token.chainId })
-        if (startBlock > BigInt(Number.MAX_SAFE_INTEGER)) {
-          throw new Error('Source-chain block number exceeds the supported range')
-        }
         if (beneficiaryRef.current?.toLowerCase() !== owner.toLowerCase()) {
           throw new Error('Authenticated deposit account changed while signing')
         }
         const next: ExternalDepositLockSessionRecord = {
-          version: 1,
+          version: 2,
           owner,
           serviceAddress: targetService,
           chainId: token.chainId,
           tokenId: token.id as Bytes32,
-          startBlock: Number(startBlock),
           depositAmount: amount.toString(),
           maxLockAmount: String(payload.amount),
           lockDuration,
@@ -361,11 +359,11 @@ export function useExternalDepositLock({
   )
 
   const settleAfterCredit = useCallback(
-    async (txHash: string, creditedAmount: bigint) => {
+    async (depositId: string, creditedAmount: bigint) => {
       const active = sessionRef.current
       if (!active || settlingRef.current) return
-      if (!isCurrentExternalDepositVerification(active, txHash)) {
-        // Another tab may have advanced or replaced the candidate while this
+      if (!isCurrentExternalDepositVerification(active, depositId)) {
+        // Another tab may have advanced or replaced the deposit while this
         // verification was in flight. Its durable state is authoritative.
         return
       }
@@ -409,22 +407,17 @@ export function useExternalDepositLock({
   )
 
   const recordVerification = useCallback(
-    (context: VerificationContext) => {
+    ({ depositId, amount }: ClaimedExternalDeposit) => {
       const active = sessionRef.current
       if (!active || active.creditedAmount) {
         throw new Error('No external deposit session is awaiting verification')
       }
       if (active.verification) {
-        const sameTransfer =
-          active.verification.hash.toLowerCase() === context.hash.toLowerCase() &&
-          active.verification.chainId === context.chainId &&
-          active.verification.amount === context.amount.toString() &&
-          (active.verification.logIndex ?? 0) === (context.logIndex ?? 0)
-        if (sameTransfer) return
-        throw new Error('Another transfer is already being verified for this deposit session')
+        if (active.verification.depositId.toLowerCase() === depositId.toLowerCase()) return
+        throw new Error('Another deposit is already being verified for this deposit session')
       }
-      if (context.chainId !== active.chainId || context.amount <= 0n) {
-        throw new Error('Discovered transfer does not match the signed deposit session')
+      if (amount <= 0n) {
+        throw new Error('Claimed deposit does not match the signed deposit session')
       }
       const current = loadExternalDepositLockSession(active.owner)
       if (!current || current.generation !== active.generation) {
@@ -432,12 +425,7 @@ export function useExternalDepositLock({
       }
       const next: ExternalDepositLockSessionRecord = {
         ...active,
-        verification: {
-          hash: context.hash,
-          chainId: context.chainId,
-          amount: context.amount.toString(),
-          logIndex: context.logIndex,
-        },
+        verification: { depositId, amount: amount.toString() },
       }
       saveExternalDepositLockSession(next, active)
       installSession(next)

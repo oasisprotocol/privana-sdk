@@ -2,34 +2,30 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { AccountingApiError } from '../client/errors'
 import { claimDepositWithRetry } from '../utils/deposit-claim'
 import { usePrivateReadRequest } from './use-private-read-request'
 import type { Bytes32, DepositCheckResponse } from '../types'
 
 export interface VerificationContext {
   /** On-chain transfer that funded the user's Privana deposit address. */
-  hash: `0x${string}`
+  hash?: `0x${string}`
+  depositId?: string
   tokenId?: Bytes32
-  /** Chain the transfer was mined on. */
-  chainId: number
   /** Transferred amount in base units (matches the deposit's token decimals). */
   amount: bigint
-  /** Log index of the exact Transfer event within the tx (default: 0). */
-  logIndex?: number
 }
 
 export interface UseDepositVerificationOptions {
   /** Fired when the deposit is credited inside the Privana accounting module. */
-  onCredited?: (txHash: string, response: DepositCheckResponse, creditedAmount: bigint) => void
+  onCredited?: (key: string, response: DepositCheckResponse, creditedAmount: bigint) => void
   /**
-   * Fired when `checkDeposit` accepts the transfer for processing, with the
-   * deposit id status polling follows. The deposit can still credit after a
-   * polling timeout; the id is what identifies it in history.
+   * Fired when `checkDeposit` returns the deposit status polling follows. The
+   * deposit can still credit after a polling timeout; the id is what
+   * identifies it in history.
    */
-  onCheckAccepted?: (txHash: string, depositId: string) => void
+  onCheckAccepted?: (key: string, depositId: string) => void
   /** Fired when polling exceeds `pollTimeout` (the deposit may still be processing). */
-  onCheckTimeout?: (txHash: string) => void
+  onCheckTimeout?: (key: string) => void
   onError?: (error: Error) => void
   /**
    * Fired each time the claim finds nothing for the token yet and the hook is
@@ -55,8 +51,6 @@ export interface UseDepositVerificationResult {
    * without re-sending the transfer.
    */
   verificationFailed: boolean
-  /** True only when this transfer was definitively rejected and another candidate is safe to try. */
-  canCheckAnotherTransfer: boolean
   error: Error | null
   /** Current transfer hash being verified, if any. */
   txHash: `0x${string}` | undefined
@@ -91,7 +85,6 @@ export function useDepositVerification(
   const [isVerifying, setIsVerifying] = useState(false)
   const [didTimeout, setDidTimeout] = useState(false)
   const [verificationFailed, setVerificationFailed] = useState(false)
-  const [canCheckAnotherTransfer, setCanCheckAnotherTransfer] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>()
 
@@ -141,21 +134,21 @@ export function useDepositVerification(
   const runVerification = useCallback(
     async (ctx: VerificationContext, generation: number): Promise<void> => {
       const isStale = () => generation !== generationRef.current
-      const { hash, tokenId, amount } = ctx
+      const { hash, depositId: claimedId, tokenId, amount } = ctx
+      const key = hash ?? claimedId
+      if (!key) throw new Error('Nothing to verify: pass a transfer hash or a deposit id')
 
       setVerificationFailed(false)
-      setCanCheckAnotherTransfer(false)
       setError(null)
       setDidTimeout(false)
       setIsVerifying(true)
 
       const pollStartTime = Date.now()
 
-      const markVerificationFailed = (err: Error, canCheckAnother = false) => {
+      const markVerificationFailed = (err: Error) => {
         setIsVerifying(false)
         setError(err)
         setVerificationFailed(true)
-        setCanCheckAnotherTransfer(canCheckAnother)
         onErrorRef.current?.(err)
       }
 
@@ -163,7 +156,7 @@ export function useDepositVerification(
         stopPolling()
         setIsVerifying(false)
         setDidTimeout(true)
-        onCheckTimeoutRef.current?.(hash)
+        onCheckTimeoutRef.current?.(key)
         queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
       }
 
@@ -171,22 +164,25 @@ export function useDepositVerification(
         // Phase 1: claim the token, which starts a sweep of the deposit address.
         // Until the transfer shows up there the claim comes back empty; retry
         // on a slower cadence instead of failing, until pollTimeout.
-        const claim = await claimDepositWithRetry({
-          claim: () =>
-            executePrivateRead((readClient) => readClient.checkDeposit({ token_id: tokenId })),
-          tokenId,
-          isStale,
-          onRetry: (message) => onCheckRetryRef.current?.(message),
-          timeoutMs: pollTimeout,
-          retryIntervalMs: finalityRetryInterval,
-          startedAt: pollStartTime,
-        })
-        if (claim.kind === 'stale') return
-        if (claim.kind === 'timeout') {
-          markVerificationTimedOut()
-          return
+        let triggerResult: DepositCheckResponse = { status: 'pending', deposit_id: claimedId }
+        if (!claimedId) {
+          const claim = await claimDepositWithRetry({
+            claim: () =>
+              executePrivateRead((readClient) => readClient.checkDeposit({ token_id: tokenId })),
+            tokenId,
+            isStale,
+            onRetry: (message) => onCheckRetryRef.current?.(message),
+            timeoutMs: pollTimeout,
+            retryIntervalMs: finalityRetryInterval,
+            startedAt: pollStartTime,
+          })
+          if (claim.kind === 'stale') return
+          if (claim.kind === 'timeout') {
+            markVerificationTimedOut()
+            return
+          }
+          triggerResult = claim.deposit
         }
-        const triggerResult = claim.deposit
         if (isStale()) return
 
         if (triggerResult.status === 'credited') {
@@ -195,7 +191,7 @@ export function useDepositVerification(
           verificationContextRef.current = null
           queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
           queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
-          onCreditedRef.current?.(hash, triggerResult, creditedAmount)
+          onCreditedRef.current?.(key, triggerResult, creditedAmount)
           return
         }
 
@@ -209,7 +205,7 @@ export function useDepositVerification(
           markVerificationFailed(new Error('Deposit check did not return a deposit id'))
           return
         }
-        onCheckAcceptedRef.current?.(hash, depositId)
+        onCheckAcceptedRef.current?.(key, depositId)
 
         // Phase 2: poll status
         let consecutiveFailures = 0
@@ -236,8 +232,7 @@ export function useDepositVerification(
               } catch (err) {
                 stopPolling()
                 markVerificationFailed(
-                  err instanceof Error ? err : new Error('Deposit credited amount is invalid'),
-                  false
+                  err instanceof Error ? err : new Error('Deposit credited amount is invalid')
                 )
                 return true
               }
@@ -246,7 +241,7 @@ export function useDepositVerification(
               verificationContextRef.current = null
               queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
               queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
-              onCreditedRef.current?.(hash, result, creditedAmount)
+              onCreditedRef.current?.(key, result, creditedAmount)
               return true
             }
 
@@ -280,8 +275,9 @@ export function useDepositVerification(
       } catch (err) {
         if (isStale()) return
         stopPolling()
-        const error = err instanceof Error ? err : new Error('Deposit verification failed')
-        markVerificationFailed(error, isDefinitiveCandidateFailure(error))
+        markVerificationFailed(
+          err instanceof Error ? err : new Error('Deposit verification failed')
+        )
       }
     },
     [executePrivateRead, finalityRetryInterval, pollInterval, pollTimeout, queryClient, stopPolling]
@@ -318,7 +314,6 @@ export function useDepositVerification(
     setIsVerifying(false)
     setDidTimeout(false)
     setVerificationFailed(false)
-    setCanCheckAnotherTransfer(false)
     setError(null)
   }, [stopPolling])
 
@@ -326,7 +321,6 @@ export function useDepositVerification(
     isVerifying,
     didTimeout,
     verificationFailed,
-    canCheckAnotherTransfer,
     error,
     txHash,
     verify,
@@ -347,11 +341,4 @@ function creditedAmountFromResponse(
   } catch (err) {
     throw new Error('Deposit API returned an invalid credited amount', { cause: err })
   }
-}
-
-function isDefinitiveCandidateFailure(error: Error): boolean {
-  // The deposit API uses 400 for candidate-specific validation failures. A
-  // status response of "error" or an accounting 422 can still succeed when
-  // the same transfer is retried, so neither is safe to skip.
-  return error instanceof AccountingApiError && error.statusCode === 400
 }

@@ -473,7 +473,6 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
     pendingLockRef.current = persisted.signedLock ?? null
     const ctx: VerificationContext = {
       hash,
-      chainId: persisted.chainId,
       tokenId: persisted.tokenId,
       amount: BigInt(persisted.amount),
     }
@@ -674,7 +673,6 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
         // rather than appearing terminal.
         const ctx: VerificationContext = {
           hash,
-          chainId: sourceChain.id,
           tokenId: token.id,
           amount: params.amount,
         }

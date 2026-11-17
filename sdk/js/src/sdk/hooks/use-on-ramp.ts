@@ -1091,10 +1091,8 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
         })
         await verify({
           hash: record.on_chain_tx_hash,
-          chainId: record.chain_id,
           tokenId: token.id,
           amount: delivered.amount,
-          logIndex: delivered.logIndex,
         })
       } catch (err) {
         if (flowSessionRef.current !== flowSession) return
