@@ -1,9 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { WagmiContext } from 'wagmi'
 import { AccountingApiError } from '../client/errors'
 import { claimDepositWithRetry, findClaimedDeposit } from '../utils/deposit-claim'
+import { finalityDurationMs, type DepositFinality } from '../utils/finality'
 import { usePrivateReadRequest } from './use-private-read-request'
 import type { Bytes32, DepositCheckResponse } from '../types'
 
@@ -14,6 +16,7 @@ export interface VerificationContext {
   tokenId?: Bytes32
   /** Transferred amount in base units (matches the deposit's token decimals). */
   amount: bigint
+  finality?: DepositFinality
 }
 
 export interface UseDepositVerificationOptions {
@@ -37,7 +40,7 @@ export interface UseDepositVerificationOptions {
   pollInterval?: number
   /** Retry interval in ms while the claim finds nothing yet (default: pollInterval). */
   finalityRetryInterval?: number
-  /** Max time to wait for credit confirmation in ms (default: 180000). */
+  /** Max time to wait for credit confirmation in ms, plus the chain's finality time when known (default: 180000). */
   pollTimeout?: number
 }
 
@@ -77,6 +80,7 @@ export function useDepositVerification(
   options: UseDepositVerificationOptions = {}
 ): UseDepositVerificationResult {
   const queryClient = useQueryClient()
+  const wagmiConfig = useContext(WagmiContext)
   const { executePrivateRead } = usePrivateReadRequest()
 
   const pollInterval = options.pollInterval ?? 5000
@@ -145,6 +149,12 @@ export function useDepositVerification(
       setIsVerifying(true)
 
       const pollStartTime = Date.now()
+      let timeoutMs = pollTimeout
+      if (ctx.finality && wagmiConfig) {
+        // The backend credits only once its sweep is final.
+        timeoutMs += await finalityDurationMs(wagmiConfig, ctx.finality).catch(() => 0)
+        if (isStale()) return
+      }
 
       const markVerificationFailed = (err: Error) => {
         setIsVerifying(false)
@@ -173,7 +183,7 @@ export function useDepositVerification(
             tokenId,
             isStale,
             onRetry: (message) => onCheckRetryRef.current?.(message),
-            timeoutMs: pollTimeout,
+            timeoutMs,
             retryIntervalMs: finalityRetryInterval,
             startedAt: pollStartTime,
           })
@@ -231,7 +241,7 @@ export function useDepositVerification(
         const checkStatus = async (): Promise<boolean> => {
           if (isStale()) return true
 
-          if (Date.now() - pollStartTime > pollTimeout) {
+          if (Date.now() - pollStartTime > timeoutMs) {
             markVerificationTimedOut()
             return true
           }
@@ -318,7 +328,15 @@ export function useDepositVerification(
         )
       }
     },
-    [executePrivateRead, finalityRetryInterval, pollInterval, pollTimeout, queryClient, stopPolling]
+    [
+      executePrivateRead,
+      finalityRetryInterval,
+      pollInterval,
+      pollTimeout,
+      queryClient,
+      stopPolling,
+      wagmiConfig,
+    ]
   )
 
   const verify = useCallback(

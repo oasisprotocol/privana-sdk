@@ -8,6 +8,7 @@ import { usePrivanaContext } from '@/sdk/context/privana-context'
 import { useDepositClaim, useDepositVerification } from '@/sdk/hooks'
 import type { UseDepositAddressResult } from '@/sdk/hooks/use-deposit-address'
 import type { UseExternalDepositLockResult } from '@/sdk/hooks/use-external-deposit-lock'
+import { depositFinality } from '@/sdk/utils/finality'
 import { cn, formatCountdown } from '@/lib/utils'
 import { FLOW_PANEL_CLASS, useEmbedded } from './embedded-context'
 import { CopyIcon } from './icons'
@@ -110,7 +111,12 @@ export function ExternalDepositView({
   const embedded = useEmbedded()
   const { getChainById, getTokenById, serviceName } = usePrivanaContext()
   const appName = serviceName ?? 'Privana'
-  const { depositAddress, isReady, isLoading } = depositAddressState
+  const {
+    depositAddress,
+    isReady,
+    isLoading,
+    response: depositAddressResponse,
+  } = depositAddressState
   const minimumLabel =
     token && typeof externalMinimum === 'bigint'
       ? `${formatUnits(externalMinimum, token.decimals)} ${token.symbol}`
@@ -185,8 +191,12 @@ export function ExternalDepositView({
     if (verificationRunRef.current === key) return
     verificationRunRef.current = key
     processedRef.current.add(stored.depositId)
-    void verify({ depositId: stored.depositId, amount: BigInt(stored.amount) })
-  }, [didTimeout, isVerifying, lockSession, verificationFailed, verify])
+    void verify({
+      depositId: stored.depositId,
+      amount: BigInt(stored.amount),
+      finality: depositFinality(depositAddressResponse, lockSession.chainId),
+    })
+  }, [depositAddressResponse, didTimeout, isVerifying, lockSession, verificationFailed, verify])
 
   useEffect(() => {
     if (scanPaused) return
@@ -195,7 +205,11 @@ export function ExternalDepositView({
         deposit.deposit_id && deposit.amount && !processedRef.current.has(deposit.deposit_id)
     )
     if (!next?.deposit_id || !next.amount) return
-    const claimed = { depositId: next.deposit_id, amount: BigInt(next.amount) }
+    const claimed = {
+      depositId: next.deposit_id,
+      amount: BigInt(next.amount),
+      finality: depositFinality(depositAddressResponse, discoveryToken?.chainId),
+    }
     if (recordVerification) {
       try {
         recordVerification(claimed)
@@ -206,7 +220,7 @@ export function ExternalDepositView({
     }
     processedRef.current.add(claimed.depositId)
     if (!recordVerification) void verify(claimed)
-  }, [deposits, recordVerification, scanPaused, verify])
+  }, [deposits, depositAddressResponse, discoveryToken, recordVerification, scanPaused, verify])
 
   const nothingFoundTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => () => clearTimeout(nothingFoundTimerRef.current), [])
