@@ -6,11 +6,7 @@ export interface DepositAddressRequest {
 }
 
 export interface DepositCheckRequest {
-  chain_type?: string
-  chain_id: number
-  tx_hash: HexString
-  amount: IntegerLike
-  log_index?: number
+  token_id?: Bytes32
   version?: number
 }
 

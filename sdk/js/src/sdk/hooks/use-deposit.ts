@@ -474,6 +474,7 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
     const ctx: VerificationContext = {
       hash,
       chainId: persisted.chainId,
+      tokenId: persisted.tokenId,
       amount: BigInt(persisted.amount),
     }
     verificationContextRef.current = ctx
@@ -674,6 +675,7 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
         const ctx: VerificationContext = {
           hash,
           chainId: sourceChain.id,
+          tokenId: token.id,
           amount: params.amount,
         }
         verificationContextRef.current = ctx
