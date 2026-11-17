@@ -126,6 +126,18 @@ function isSessionRecord(value: unknown): value is ExternalDepositLockSessionRec
   return BigInt(record.payload.amount) <= BigInt(record.maxLockAmount)
 }
 
+// Sessions saved before deposits were claimed by balance (version 1) keep their
+// signed lock; a recorded transfer is dropped, as claiming finds its funds again.
+function migrateSessionRecord(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || (value as { version?: unknown }).version !== 1) {
+    return value
+  }
+  const migrated: Record<string, unknown> = { ...value, version: 2 }
+  delete migrated.startBlock
+  delete migrated.verification
+  return migrated
+}
+
 function writeSessionRecord(session: ExternalDepositLockSessionRecord): boolean {
   const id = externalDepositSessionId(session.chainId, session.tokenId)
   return setSharedBrowserStorageItem(sessionKey(session.owner, id), JSON.stringify(session))
@@ -167,7 +179,7 @@ export function loadExternalDepositLockSession(
   const key = sessionKey(owner, id)
   try {
     const raw = getSharedBrowserStorageItem(key)
-    const parsed: unknown = raw ? JSON.parse(raw) : undefined
+    const parsed: unknown = raw ? migrateSessionRecord(JSON.parse(raw)) : undefined
     if (
       !isSessionRecord(parsed) ||
       parsed.owner.toLowerCase() !== owner.toLowerCase() ||

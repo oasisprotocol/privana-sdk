@@ -323,6 +323,26 @@ describe('external deposit session persistence', () => {
     })
   })
 
+  it('migrates a session saved by an older SDK, keeping its signed lock', async () => {
+    await withBrowserStorage(async () => {
+      const session = makeSession()
+      const id = externalDepositSessionId(CHAIN_ID, TOKEN_ID)
+      const owner = OWNER.toLowerCase()
+      setSharedBrowserStorageItem(`privana:external-deposit-lock:active:${owner}`, id)
+      setSharedBrowserStorageItem(
+        `privana:external-deposit-lock:session:${owner}:${id}`,
+        JSON.stringify({
+          ...session,
+          version: 1,
+          startBlock: 100,
+          verification: { hash: '0xabc', chainId: CHAIN_ID, amount: '1000', logIndex: 2 },
+        })
+      )
+
+      expect(loadExternalDepositLockSession(OWNER)).toEqual(session)
+    })
+  })
+
   it('refuses to replace an unresolved active session', async () => {
     await withBrowserStorage(async () => {
       const first = makeSession()
