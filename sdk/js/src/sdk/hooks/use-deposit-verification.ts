@@ -282,7 +282,13 @@ export function useDepositVerification(
                 // A sweep already running when we claimed may not include this transfer.
                 const next = await claimNext().catch(() => undefined)
                 if (isStale()) return true
-                if (next && follow(next, next.amount ? BigInt(next.amount) : 0n)) return false
+                if (
+                  next &&
+                  next.deposit_id !== depositId &&
+                  follow(next, next.amount ? BigInt(next.amount) : 0n)
+                ) {
+                  return false
+                }
               }
               stopPolling()
               setIsVerifying(false)

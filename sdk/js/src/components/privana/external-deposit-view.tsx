@@ -202,7 +202,10 @@ export function ExternalDepositView({
     if (scanPaused) return
     const next = deposits.find(
       (deposit) =>
-        deposit.deposit_id && deposit.amount && !processedRef.current.has(deposit.deposit_id)
+        deposit.status === 'pending' &&
+        deposit.deposit_id &&
+        deposit.amount &&
+        !processedRef.current.has(deposit.deposit_id)
     )
     if (!next?.deposit_id || !next.amount) return
     const claimed = {
