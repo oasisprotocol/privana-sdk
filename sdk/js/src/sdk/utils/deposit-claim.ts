@@ -32,15 +32,20 @@ export async function claimDepositWithRetry({
     if (isStale()) return { kind: 'stale' }
     const deposits = await claim()
     if (isStale()) return { kind: 'stale' }
-    const deposit = deposits.find(
-      (d) => !tokenId || d.token_id?.toLowerCase() === tokenId.toLowerCase()
-    )
+    const deposit = findClaimedDeposit(deposits, tokenId)
     if (deposit) return { kind: 'claimed', deposit }
     onRetry(NOTHING_TO_CLAIM_MESSAGE)
 
     if (now() - startedAt > timeoutMs) return { kind: 'timeout' }
     await sleep(retryIntervalMs)
   }
+}
+
+export function findClaimedDeposit(
+  deposits: DepositCheckResponse[],
+  tokenId?: Bytes32
+): DepositCheckResponse | undefined {
+  return deposits.find((d) => !tokenId || d.token_id?.toLowerCase() === tokenId.toLowerCase())
 }
 
 function defaultSleep(milliseconds: number): Promise<void> {

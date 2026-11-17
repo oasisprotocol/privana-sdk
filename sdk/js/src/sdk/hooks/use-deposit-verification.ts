@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { claimDepositWithRetry } from '../utils/deposit-claim'
+import { AccountingApiError } from '../client/errors'
+import { claimDepositWithRetry, findClaimedDeposit } from '../utils/deposit-claim'
 import { usePrivateReadRequest } from './use-private-read-request'
 import type { Bytes32, DepositCheckResponse } from '../types'
 
@@ -200,15 +201,32 @@ export function useDepositVerification(
           return
         }
 
-        const depositId = triggerResult.deposit_id
-        if (!depositId) {
+        const firstId = triggerResult.deposit_id
+        if (!firstId) {
           markVerificationFailed(new Error('Deposit check did not return a deposit id'))
           return
         }
+        let depositId = firstId
         onCheckAcceptedRef.current?.(key, depositId)
 
         // Phase 2: poll status
         let consecutiveFailures = 0
+        let followedAmount = amount
+        let creditedTotal = 0n
+
+        const claimNext = async () => {
+          const deposits = await executePrivateRead((readClient) =>
+            readClient.checkDeposit({ token_id: tokenId })
+          )
+          return findClaimedDeposit(deposits, tokenId)
+        }
+        const follow = (next: DepositCheckResponse, nextAmount: bigint) => {
+          if (!next.deposit_id) return false
+          depositId = next.deposit_id
+          followedAmount = nextAmount
+          onCheckAcceptedRef.current?.(key, depositId)
+          return true
+        }
 
         const checkStatus = async (): Promise<boolean> => {
           if (isStale()) return true
@@ -219,16 +237,29 @@ export function useDepositVerification(
           }
 
           try {
-            const result = await executePrivateRead((readClient) =>
-              readClient.getDepositStatus(depositId)
-            )
+            let result: DepositCheckResponse
+            try {
+              result = await executePrivateRead((readClient) =>
+                readClient.getDepositStatus(depositId)
+              )
+            } catch (err) {
+              if (claimedId || !(err instanceof AccountingApiError && err.statusCode === 404)) {
+                throw err
+              }
+              // The sweep was dropped and its funds are still at the address: claim them again.
+              const next = await claimNext()
+              if (isStale()) return true
+              consecutiveFailures = 0
+              if (next) follow(next, next.amount ? BigInt(next.amount) : followedAmount)
+              return false
+            }
             if (isStale()) return true
             consecutiveFailures = 0
 
             if (result.status === 'credited') {
               let creditedAmount: bigint
               try {
-                creditedAmount = creditedAmountFromResponse(result, amount)
+                creditedAmount = creditedAmountFromResponse(result, followedAmount)
               } catch (err) {
                 stopPolling()
                 markVerificationFailed(
@@ -236,12 +267,19 @@ export function useDepositVerification(
                 )
                 return true
               }
+              creditedTotal += creditedAmount
+              if (!claimedId) {
+                // A sweep already running when we claimed may not include this transfer.
+                const next = await claimNext().catch(() => undefined)
+                if (isStale()) return true
+                if (next && follow(next, next.amount ? BigInt(next.amount) : 0n)) return false
+              }
               stopPolling()
               setIsVerifying(false)
               verificationContextRef.current = null
               queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
               queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
-              onCreditedRef.current?.(key, result, creditedAmount)
+              onCreditedRef.current?.(key, result, creditedTotal)
               return true
             }
 
