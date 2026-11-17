@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AccountingApiError } from '../client/errors'
-import { checkDepositWithFinalityRetry } from '../utils/deposit-finality'
+import { claimDepositWithRetry } from '../utils/deposit-claim'
 import { usePrivateReadRequest } from './use-private-read-request'
-import type { DepositCheckResponse } from '../types'
+import type { Bytes32, DepositCheckResponse } from '../types'
 
 export interface VerificationContext {
   /** On-chain transfer that funded the user's Privana deposit address. */
   hash: `0x${string}`
+  tokenId?: Bytes32
   /** Chain the transfer was mined on. */
   chainId: number
   /** Transferred amount in base units (matches the deposit's token decimals). */
@@ -31,15 +32,13 @@ export interface UseDepositVerificationOptions {
   onCheckTimeout?: (txHash: string) => void
   onError?: (error: Error) => void
   /**
-   * Fired each time `checkDeposit` returns "Insufficient finality" and the hook
-   * is about to sleep + retry. Non-terminal — does not stop the retry loop.
-   * Use this to surface confirmation-progress messages (e.g. "4/32 confirmations")
-   * to the user while phase 1 is still waiting on chain finality.
+   * Fired each time the claim finds nothing for the token yet and the hook is
+   * about to sleep + retry. Non-terminal — does not stop the retry loop.
    */
   onCheckRetry?: (message: string) => void
   /** Polling interval in ms (default: 5000). */
   pollInterval?: number
-  /** Retry interval in ms while the source-chain tx is waiting finality (default: pollInterval). */
+  /** Retry interval in ms while the claim finds nothing yet (default: pollInterval). */
   finalityRetryInterval?: number
   /** Max time to wait for credit confirmation in ms (default: 180000). */
   pollTimeout?: number
@@ -70,7 +69,7 @@ export interface UseDepositVerificationResult {
 }
 
 /**
- * Phase 1 (POST /deposits/check) + Phase 2 (poll /deposits/status) of the
+ * Phase 1 (POST /deposits/check, claiming the token) + Phase 2 (poll /deposits/status) of the
  * Privana deposit flow, decoupled from the wallet-signing half. Use this
  * directly when the on-chain transfer to the deposit address came from
  * somewhere other than the connected wallet — e.g. a fiat on-ramp that
@@ -142,7 +141,7 @@ export function useDepositVerification(
   const runVerification = useCallback(
     async (ctx: VerificationContext, generation: number): Promise<void> => {
       const isStale = () => generation !== generationRef.current
-      const { hash, chainId, amount, logIndex } = ctx
+      const { hash, tokenId, amount } = ctx
 
       setVerificationFailed(false)
       setCanCheckAnotherTransfer(false)
@@ -169,31 +168,25 @@ export function useDepositVerification(
       }
 
       try {
-        // Phase 1: trigger sweep. The backend rejects with "Insufficient finality"
-        // when the source-chain tx isn't deep enough yet; retry on a slower
-        // cadence instead of failing, until pollTimeout.
-        const finality = await checkDepositWithFinalityRetry({
-          checkDeposit: () =>
-            executePrivateRead((readClient) =>
-              readClient.checkDeposit({
-                chain_id: chainId,
-                tx_hash: hash,
-                amount: amount.toString(),
-                log_index: logIndex,
-              })
-            ),
+        // Phase 1: claim the token, which starts a sweep of the deposit address.
+        // Until the transfer shows up there the claim comes back empty; retry
+        // on a slower cadence instead of failing, until pollTimeout.
+        const claim = await claimDepositWithRetry({
+          claim: () =>
+            executePrivateRead((readClient) => readClient.checkDeposit({ token_id: tokenId })),
+          tokenId,
           isStale,
           onRetry: (message) => onCheckRetryRef.current?.(message),
           timeoutMs: pollTimeout,
           retryIntervalMs: finalityRetryInterval,
           startedAt: pollStartTime,
         })
-        if (finality.kind === 'stale') return
-        if (finality.kind === 'timeout') {
+        if (claim.kind === 'stale') return
+        if (claim.kind === 'timeout') {
           markVerificationTimedOut()
           return
         }
-        const triggerResult = finality.response
+        const triggerResult = claim.deposit
         if (isStale()) return
 
         if (triggerResult.status === 'credited') {

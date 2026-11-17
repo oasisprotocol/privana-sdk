@@ -6,7 +6,7 @@ import {
   type Address as ViemAddress,
 } from 'viem'
 import { AccountingApiError, PrivanaClient } from '../src/sdk/client'
-import { checkDepositWithFinalityRetry } from '../src/sdk/utils/deposit-finality'
+import { claimDepositWithRetry, NOTHING_TO_CLAIM_MESSAGE } from '../src/sdk/utils/deposit-claim'
 import { bindOnRampFlowSession } from '../src/sdk/hooks/use-on-ramp'
 import { clearPendingLock, loadPendingLock, savePendingLock } from '../src/sdk/utils/pending-lock'
 import {
@@ -757,22 +757,29 @@ describe('pending verification sequencing', () => {
   })
 })
 
-describe('deposit finality retry', () => {
-  it('retries backend-reported insufficient finality without hardcoding confirmation depth', async () => {
+describe('deposit claim retry', () => {
+  const OTHER_TOKEN = `0x${'bb'.repeat(32)}` as Bytes32
+
+  it('retries until the claim reports a deposit for the token', async () => {
     const retries: string[] = []
     const sleeps: number[] = []
     let attempt = 0
-    const result = await checkDepositWithFinalityRetry({
-      checkDeposit: async () => {
+    const result = await claimDepositWithRetry({
+      claim: async () => {
         attempt++
-        if (attempt < 3) {
-          return {
-            status: 'error',
-            detail: `Insufficient finality: ${attempt}/32 confirmations`,
-          }
-        }
-        return { status: 'pending', deposit_id: 'deposit-1' }
+        if (attempt === 1) return []
+        if (attempt === 2)
+          return [{ status: 'pending', deposit_id: 'other', token_id: OTHER_TOKEN }]
+        return [
+          { status: 'pending', deposit_id: 'other', token_id: OTHER_TOKEN },
+          {
+            status: 'pending',
+            deposit_id: 'deposit-1',
+            token_id: TOKEN_ID.toUpperCase() as Bytes32,
+          },
+        ]
       },
+      tokenId: TOKEN_ID,
       isStale: () => false,
       onRetry: (message) => retries.push(message),
       timeoutMs: 60_000,
@@ -782,50 +789,35 @@ describe('deposit finality retry', () => {
     })
 
     expect(result).toEqual({
-      kind: 'response',
-      response: { status: 'pending', deposit_id: 'deposit-1' },
+      kind: 'claimed',
+      deposit: { status: 'pending', deposit_id: 'deposit-1', token_id: TOKEN_ID.toUpperCase() },
     })
-    expect(retries).toEqual([
-      'Insufficient finality: 1/32 confirmations',
-      'Insufficient finality: 2/32 confirmations',
-    ])
+    expect(retries).toEqual([NOTHING_TO_CLAIM_MESSAGE, NOTHING_TO_CLAIM_MESSAGE])
     expect(sleeps).toEqual([15_000, 15_000])
   })
 
-  it('also retries an insufficient-finality API error, then returns credited', async () => {
-    let attempt = 0
-    const result = await checkDepositWithFinalityRetry({
-      checkDeposit: async () => {
-        attempt++
-        if (attempt === 1) {
-          throw new AccountingApiError(
-            'Bad request',
-            400,
-            'Insufficient finality: 4/12 confirmations'
-          )
-        }
-        return { status: 'credited', amount: '1000' }
-      },
+  it('takes any deposit when no token is named', async () => {
+    const result = await claimDepositWithRetry({
+      claim: async () => [{ status: 'pending', deposit_id: 'deposit-1', token_id: OTHER_TOKEN }],
       isStale: () => false,
       onRetry: () => undefined,
       timeoutMs: 60_000,
       retryIntervalMs: 1,
-      now: () => 1,
-      sleep: async () => undefined,
     })
     expect(result).toEqual({
-      kind: 'response',
-      response: { status: 'credited', amount: '1000' },
+      kind: 'claimed',
+      deposit: { status: 'pending', deposit_id: 'deposit-1', token_id: OTHER_TOKEN },
     })
   })
 
-  it('stops before another backend check when the candidate becomes stale', async () => {
-    let checks = 0
-    const result = await checkDepositWithFinalityRetry({
-      checkDeposit: async () => {
-        checks++
-        return { status: 'pending', deposit_id: 'deposit-1' }
+  it('stops before another claim when the deposit becomes stale', async () => {
+    let claims = 0
+    const result = await claimDepositWithRetry({
+      claim: async () => {
+        claims++
+        return []
       },
+      tokenId: TOKEN_ID,
       isStale: () => true,
       onRetry: () => undefined,
       timeoutMs: 60_000,
@@ -833,16 +825,14 @@ describe('deposit finality retry', () => {
     })
 
     expect(result).toEqual({ kind: 'stale' })
-    expect(checks).toBe(0)
+    expect(claims).toBe(0)
   })
 
-  it('returns a timeout after backend-reported insufficient finality exceeds the deadline', async () => {
+  it('returns a timeout once an empty claim exceeds the deadline', async () => {
     let sleeps = 0
-    const result = await checkDepositWithFinalityRetry({
-      checkDeposit: async () => ({
-        status: 'error',
-        detail: 'Insufficient finality: 1/32 confirmations',
-      }),
+    const result = await claimDepositWithRetry({
+      claim: async () => [],
+      tokenId: TOKEN_ID,
       isStale: () => false,
       onRetry: () => undefined,
       timeoutMs: 1,
@@ -856,6 +846,22 @@ describe('deposit finality retry', () => {
 
     expect(result).toEqual({ kind: 'timeout' })
     expect(sleeps).toBe(0)
+  })
+
+  it('surfaces a failed claim', async () => {
+    const error = new AccountingApiError('Bad request', 400, 'Unknown token')
+    await expect(
+      claimDepositWithRetry({
+        claim: async () => {
+          throw error
+        },
+        tokenId: TOKEN_ID,
+        isStale: () => false,
+        onRetry: () => undefined,
+        timeoutMs: 60_000,
+        retryIntervalMs: 1,
+      })
+    ).rejects.toBe(error)
   })
 })
 
@@ -926,29 +932,18 @@ describe('on-chain credit authority', () => {
 })
 
 describe('on-ramp client wire format', () => {
-  it('preserves the exact receipt log index in the deposit-check request', async () => {
+  it('claims one token, or every token without one', async () => {
     const originalFetch = globalThis.fetch
-    let requestBody: Record<string, unknown> | undefined
+    const requestBodies: Record<string, unknown>[] = []
     globalThis.fetch = async (_input, init) => {
-      requestBody = JSON.parse(String(init?.body))
-      return Response.json({ status: 'credited', amount: '287010000000000000000' })
+      requestBodies.push(JSON.parse(String(init?.body)))
+      return Response.json([], { status: 200 })
     }
     try {
       const client = new PrivanaClient({ baseUrl: BASE_URL })
-      await client.checkDeposit({
-        chain_id: CHAIN_ID,
-        tx_hash: TX_HASH,
-        amount: '287010000000000000000',
-        log_index: 11,
-      })
-      expect(requestBody).toEqual({
-        chain_type: 'evm',
-        chain_id: CHAIN_ID,
-        tx_hash: TX_HASH,
-        amount: '287010000000000000000',
-        log_index: 11,
-        version: 0,
-      })
+      expect(await client.checkDeposit({ token_id: TOKEN_ID })).toEqual([])
+      await client.checkDeposit()
+      expect(requestBodies).toEqual([{ token_id: TOKEN_ID, version: 0 }, { version: 0 }])
     } finally {
       globalThis.fetch = originalFetch
     }

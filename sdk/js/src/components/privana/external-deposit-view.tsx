@@ -193,6 +193,7 @@ export function ExternalDepositView({
     void verify({
       hash: stored.hash,
       chainId: stored.chainId,
+      tokenId: lockSession.tokenId,
       amount: BigInt(stored.amount),
       logIndex: stored.logIndex,
     })
@@ -211,6 +212,7 @@ export function ExternalDepositView({
     const context: VerificationContext = {
       hash: next.tx_hash,
       chainId: next.chain_id,
+      tokenId: next.token_id,
       amount: BigInt(next.amount),
       logIndex: next.log_index,
     }

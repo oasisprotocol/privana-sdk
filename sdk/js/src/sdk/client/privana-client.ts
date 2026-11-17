@@ -83,13 +83,9 @@ export class PrivanaClient {
     })
   }
 
-  async checkDeposit(request: DepositCheckRequest): Promise<DepositCheckResponse> {
-    return this.http.post<DepositCheckResponse>('/v1/accounting/deposits/check', {
-      chain_type: request.chain_type ?? 'evm',
-      chain_id: request.chain_id,
-      tx_hash: normalizeHex(request.tx_hash),
-      amount: String(request.amount),
-      log_index: request.log_index ?? 0,
+  async checkDeposit(request: DepositCheckRequest = {}): Promise<DepositCheckResponse[]> {
+    return this.http.post<DepositCheckResponse[]>('/v1/accounting/deposits/check', {
+      ...(request.token_id ? { token_id: normalizeHex(request.token_id) } : {}),
       version: request.version ?? 0,
     })
   }
