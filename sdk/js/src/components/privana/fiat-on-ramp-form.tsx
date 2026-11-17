@@ -140,7 +140,6 @@ export function FiatOnRampForm({
     pending,
     activeVerificationId,
     error,
-    finalityProgress,
     depositAddress,
     minDepositBaseUnits,
     selectedToken,
@@ -437,7 +436,6 @@ export function FiatOnRampForm({
         <div className="flex flex-col gap-2">
           <p className="text-foreground text-sm font-medium">Validating purchases</p>
           {pending.map((record) => {
-            const progress = parseFinalityProgress(finalityProgress[record.transaction_id])
             const isActivelyVerifying = record.transaction_id === activeVerificationId
             const showRetry = canRetryOnRampVerification(record, activeVerificationId)
             return (
@@ -449,7 +447,9 @@ export function FiatOnRampForm({
                   <p className="text-muted-foreground flex items-center gap-1 text-xs">
                     <Loader2 className="size-3 animate-spin" aria-hidden />
                     {record.on_chain_tx_hash
-                      ? (progress ?? (isActivelyVerifying ? 'Verifying…' : 'Ready to verify'))
+                      ? isActivelyVerifying
+                        ? 'Verifying…'
+                        : 'Ready to verify'
                       : 'Waiting for provider delivery…'}
                   </p>
                   <p className="text-muted-foreground text-xs">
@@ -573,10 +573,4 @@ export function FiatOnRampForm({
       )}
     </div>
   )
-}
-
-function parseFinalityProgress(message: string | undefined): string | null {
-  if (!message) return null
-  const match = message.match(/(\d+\/\d+)\s+confirmations/i)
-  return match ? `${match[1]} confirmations` : null
 }
