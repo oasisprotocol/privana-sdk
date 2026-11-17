@@ -10,13 +10,6 @@ export interface DepositCheckRequest {
   version?: number
 }
 
-export interface PendingDepositsRequest {
-  chain_id: number
-  version?: number
-  token_address?: Address
-  lookback_blocks?: number
-}
-
 export interface LockFundsRequest {
   service_address: Address
   token_id: Bytes32

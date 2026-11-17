@@ -12,20 +12,16 @@ const ACTIVE_SESSION_PREFIX = 'privana:external-deposit-lock:active:'
 const SESSION_PREFIX = 'privana:external-deposit-lock:session:'
 
 export interface ExternalDepositVerificationRecord {
-  hash: `0x${string}`
-  chainId: number
+  depositId: string
   amount: string
-  logIndex?: number
 }
 
 export interface ExternalDepositLockSessionRecord {
-  version: 1
+  version: 2
   owner: Address
   serviceAddress: Address
   chainId: number
   tokenId: Bytes32
-  /** Latest source block observed after signing; older candidates cannot consume this policy. */
-  startBlock: number
   depositAmount: string
   maxLockAmount: string
   lockDuration: number
@@ -49,21 +45,14 @@ export function externalDepositSessionId(chainId: number, tokenId: string): stri
   return `${chainId}:${tokenId.toLowerCase()}`
 }
 
-export function isExternalDepositBlockInSession(
-  session: ExternalDepositLockSessionRecord,
-  blockNumber: number
-): boolean {
-  return Number.isSafeInteger(blockNumber) && blockNumber > session.startBlock
-}
-
-/** True only while a verification callback still owns the active, uncredited candidate. */
+/** True only while a verification callback still owns the active, uncredited deposit. */
 export function isCurrentExternalDepositVerification(
   session: ExternalDepositLockSessionRecord,
-  txHash: string
+  depositId: string
 ): boolean {
   return (
     session.creditedAmount === undefined &&
-    session.verification?.hash.toLowerCase() === txHash.toLowerCase()
+    session.verification?.depositId.toLowerCase() === depositId.toLowerCase()
   )
 }
 
@@ -93,14 +82,12 @@ function isSessionRecord(value: unknown): value is ExternalDepositLockSessionRec
   if (!value || typeof value !== 'object') return false
   const record = value as Partial<ExternalDepositLockSessionRecord>
   if (
-    record.version !== 1 ||
+    record.version !== 2 ||
     typeof record.owner !== 'string' ||
     typeof record.serviceAddress !== 'string' ||
     !Number.isInteger(record.chainId) ||
     (record.chainId ?? 0) <= 0 ||
     typeof record.tokenId !== 'string' ||
-    !Number.isSafeInteger(record.startBlock) ||
-    (record.startBlock ?? -1) < 0 ||
     !isPositiveIntegerString(record.depositAmount) ||
     !isPositiveIntegerString(record.maxLockAmount) ||
     !Number.isInteger(record.lockDuration) ||
@@ -114,11 +101,9 @@ function isSessionRecord(value: unknown): value is ExternalDepositLockSessionRec
   }
   if (
     record.verification &&
-    (typeof record.verification.hash !== 'string' ||
-      record.verification.chainId !== record.chainId ||
-      !isPositiveIntegerString(record.verification.amount) ||
-      (record.verification.logIndex !== undefined &&
-        (!Number.isInteger(record.verification.logIndex) || record.verification.logIndex < 0)))
+    (typeof record.verification.depositId !== 'string' ||
+      !record.verification.depositId ||
+      !isPositiveIntegerString(record.verification.amount))
   ) {
     return false
   }
@@ -252,10 +237,7 @@ function isSameVerification(
 ): boolean {
   if (!left || !right) return left === right
   return (
-    left.hash.toLowerCase() === right.hash.toLowerCase() &&
-    left.chainId === right.chainId &&
-    left.amount === right.amount &&
-    (left.logIndex ?? 0) === (right.logIndex ?? 0)
+    left.depositId.toLowerCase() === right.depositId.toLowerCase() && left.amount === right.amount
   )
 }
 
@@ -281,7 +263,6 @@ function isSameSessionSnapshot(
     left.serviceAddress.toLowerCase() === right.serviceAddress.toLowerCase() &&
     left.chainId === right.chainId &&
     left.tokenId.toLowerCase() === right.tokenId.toLowerCase() &&
-    left.startBlock === right.startBlock &&
     left.depositAmount === right.depositAmount &&
     left.maxLockAmount === right.maxLockAmount &&
     left.lockDuration === right.lockDuration &&
@@ -301,8 +282,8 @@ export function isSameExternalDepositLockSession(
 }
 
 /**
- * Clears only the exact failed verification candidate. The signed policy and
- * source-chain boundary stay intact so discovery can continue safely.
+ * Clears only the exact failed verification. The signed policy stays intact so
+ * the deposit can be claimed again.
  */
 export function clearExternalDepositVerification(
   session: ExternalDepositLockSessionRecord
