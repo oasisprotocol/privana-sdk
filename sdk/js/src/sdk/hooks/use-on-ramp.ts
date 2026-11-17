@@ -157,12 +157,6 @@ export interface UseOnRampResult {
    */
   activeVerificationId: string | null
   error: Error | null
-  /**
-   * Per-row finality progress messages (e.g. "Insufficient finality: 4/32 confirmations
-   * on chain 11155111"), keyed by `transaction_id`. Updated each time `checkDeposit`
-   * sees the row isn't deep enough yet — non-terminal; cleared on credit.
-   */
-  finalityProgress: Record<string, string>
   /** Per-user Privana deposit address. */
   depositAddress: `0x${string}` | undefined
   /**
@@ -275,7 +269,6 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
   >()
   const [activeIntentId, setActiveIntentId] = useState<string | null>(null)
   const [activeVerificationId, setActiveVerificationId] = useState<string | null>(null)
-  const [finalityProgress, setFinalityProgress] = useState<Record<string, string>>({})
 
   const onCreditedRef = useRef(onCredited)
   const onLockSubmittedRef = useRef(onLockSubmitted)
@@ -558,7 +551,6 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
         message,
         record: summariseOnRampRecord(record),
       })
-      setFinalityProgress((prev) => ({ ...prev, [record.transaction_id]: message }))
     },
     onCredited: (depositTxHash, _response, creditedAmount) => {
       const record = activeVerificationRecordRef.current
@@ -586,12 +578,6 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
             emitDebug('verification:credit-recovery-storage-unavailable')
           }
         }
-        setFinalityProgress((prev) => {
-          if (!(record.transaction_id in prev)) return prev
-          const next = { ...prev }
-          delete next[record.transaction_id]
-          return next
-        })
         // Prefer the address that signed the lock: the wallet may have
         // disconnected or switched accounts during the minutes-long delivery
         // window, and the stored payload is keyed by the signer.
@@ -703,7 +689,6 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
     triggeredVerificationKeysRef.current.clear()
     creditedVerificationKeysRef.current.clear()
     setPending([])
-    setFinalityProgress({})
     statusRef.current = 'idle'
     setStatus('idle')
     setError(null)
@@ -1018,12 +1003,6 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
           activeIntentIdRef.current && matchesOnRampTransaction(record, activeIntentIdRef.current)
         )
       setActiveVerificationId(record.transaction_id)
-      setFinalityProgress((prev) => {
-        if (!(record.transaction_id in prev)) return prev
-        const next = { ...prev }
-        delete next[record.transaction_id]
-        return next
-      })
 
       emitDebug('verification:start', {
         record: summariseOnRampRecord(record),
@@ -1328,7 +1307,6 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
     pending,
     activeVerificationId,
     error,
-    finalityProgress,
     depositAddress: scopedDepositAddress,
     minDepositBaseUnits: scopedMinDepositBaseUnits,
     selectedToken,

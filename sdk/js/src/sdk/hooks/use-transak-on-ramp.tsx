@@ -599,7 +599,6 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
     pending: core.pending,
     activeVerificationId: core.activeVerificationId,
     error: core.error,
-    finalityProgress: core.finalityProgress,
     depositAddress: core.depositAddress,
     minDepositBaseUnits: core.minDepositBaseUnits,
     selectedToken: core.selectedToken,
