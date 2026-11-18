@@ -1,6 +1,6 @@
 'use client'
 
-import { useContext, useEffect, useMemo, useState } from 'react'
+import { useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { QueryClientContext, useQueries, useQueryClient } from '@tanstack/react-query'
 import { WagmiContext, useAccount } from 'wagmi'
 import { AccountingApiError } from '../client/errors'
@@ -10,6 +10,32 @@ import type { DepositCheckResponse } from '../types'
 
 const CLAIM_INTERVAL_MS = 5 * 60_000
 const STATUS_POLL_INTERVAL_MS = 15_000
+
+const pauses = new Set<object>()
+const pauseListeners = new Set<() => void>()
+const notifyPauseListeners = () => pauseListeners.forEach((listener) => listener())
+const subscribeToPauses = (listener: () => void) => {
+  pauseListeners.add(listener)
+  return () => {
+    pauseListeners.delete(listener)
+  }
+}
+const isPaused = () => pauses.size > 0
+
+// A deposit screen waits for its own claim to return its deposit. A background
+// claim could sweep and credit the funds first and leave that screen waiting.
+export function usePauseBackgroundClaim(active: boolean) {
+  useEffect(() => {
+    if (!active) return
+    const pause = {}
+    pauses.add(pause)
+    notifyPauseListeners()
+    return () => {
+      pauses.delete(pause)
+      notifyPauseListeners()
+    }
+  }, [active])
+}
 
 export function followedAfterClaim(followed: string[], deposits: DepositCheckResponse[]): string[] {
   const claimed = deposits.flatMap((d) =>
@@ -46,7 +72,12 @@ function BackgroundDepositClaimRunner() {
   const owner =
     privateReadAuthorized && status === 'connected' ? (privateReadAddress ?? undefined) : undefined
 
-  const { deposits } = useDepositClaim({ enabled: !!owner, refetchInterval: CLAIM_INTERVAL_MS })
+  const paused = useSyncExternalStore(subscribeToPauses, isPaused, () => false)
+
+  const { deposits } = useDepositClaim({
+    enabled: !!owner && !paused,
+    refetchInterval: CLAIM_INTERVAL_MS,
+  })
 
   const [state, setState] = useState<{ owner?: string; ids: string[] }>({ ids: [] })
   const followed = useMemo(() => (state.owner === owner ? state.ids : []), [state, owner])

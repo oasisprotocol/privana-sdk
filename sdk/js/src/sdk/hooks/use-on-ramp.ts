@@ -53,6 +53,7 @@ import {
 } from '../utils/pending-lock'
 import { canUseBrowserStorage } from '../utils/browser-storage'
 import { useDepositVerification } from './use-deposit-verification'
+import { usePauseBackgroundClaim } from '../context/background-deposit-claim'
 import { usePrivateReadRequest } from './use-private-read-request'
 import type {
   Address,
@@ -269,6 +270,7 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
   >()
   const [activeIntentId, setActiveIntentId] = useState<string | null>(null)
   const [activeVerificationId, setActiveVerificationId] = useState<string | null>(null)
+  usePauseBackgroundClaim(pending.length > 0 || activeVerificationId !== null)
 
   const onCreditedRef = useRef(onCredited)
   const onLockSubmittedRef = useRef(onLockSubmitted)

@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import { usePrivanaContext } from '@/sdk/context/privana-context'
 import { useDepositClaim, useDepositVerification } from '@/sdk/hooks'
+import { usePauseBackgroundClaim } from '@/sdk/context/background-deposit-claim'
 import type { UseDepositAddressResult } from '@/sdk/hooks/use-deposit-address'
 import type { UseExternalDepositLockResult } from '@/sdk/hooks/use-external-deposit-lock'
 import { depositFinality } from '@/sdk/utils/finality'
@@ -135,6 +136,7 @@ export function ExternalDepositView({
   const [nothingFound, setNothingFound] = useState(false)
   const [credited, setCredited] = useState(false)
   const [showCancelWarning, setShowCancelWarning] = useState(false)
+  usePauseBackgroundClaim(true)
 
   const verification = useDepositVerification({
     onCredited: (depositId, _response, creditedAmount) => {
