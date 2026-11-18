@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import time
 from collections.abc import Sequence
 from typing import Any
 from urllib.parse import urlencode
@@ -60,11 +62,14 @@ from ..types.tokens import (
     TokenConfig,
     get_token_by_id,
 )
+from .errors import AccountingApiError, NetworkError
 from .http_client import HttpClient, TokenProvider
 
 PRIVATE_READ_TOKEN_HEADER = "X-SIWE-Token"
 MAX_BATCH_BALANCE_TOKEN_IDS = 100
 MAX_HISTORY_PAGE_SIZE = 100
+# First wait before a write with an unknown outcome is sent again. Each later wait doubles.
+RESEND_INTERVAL_SEC = 1.0
 
 
 def _parse_lock_info(data: dict[str, Any]) -> LockInfo:
@@ -272,9 +277,44 @@ class PrivanaClient:
             tokens=[_parse_token_info(t) for t in data["tokens"]],
         )
 
-    async def lock_funds(self, request: LockFundsRequest) -> TransactionSubmissionResponse:
+    async def _post_signed(
+        self, path: str, body: dict[str, Any], resend_timeout: float | None
+    ) -> Any:
+        """Send a signed write, and with `resend_timeout` again while its outcome is unknown."""
+        if resend_timeout is None:
+            return await self._http.post(path, body)
+        deadline = time.monotonic() + resend_timeout
+        delay = RESEND_INTERVAL_SEC
+        unknown: AccountingApiError | NetworkError | None = None
+        while True:
+            try:
+                return await self._http.post(path, body)
+            except (AccountingApiError, NetworkError) as exc:
+                status = exc.status_code if isinstance(exc, AccountingApiError) else None
+                if status is not None and status != 409 and status < 500:
+                    # Privana answers 422 only for a body it holds no earlier try of. Any other
+                    # refusal says nothing about the earlier tries.
+                    if unknown is None or status == 422:
+                        raise
+                    raise unknown from exc
+                if time.monotonic() + delay >= deadline:
+                    raise
+                unknown = exc
+            await asyncio.sleep(delay)
+            delay *= 2
+
+    async def lock_funds(
+        self,
+        request: LockFundsRequest,
+        *,
+        resend_timeout: float | None = None,
+    ) -> TransactionSubmissionResponse:
+        """Lock a user's funds for a service with the user's signature.
+
+        `resend_timeout` resends an unknown outcome as in `transfer_locked_funds`.
+        """
         self._check_token(request.token_id)
-        data = await self._http.post(
+        data = await self._post_signed(
             "/v1/accounting/funds/lock",
             {
                 "service_address": normalize_address(request.service_address),
@@ -284,6 +324,7 @@ class PrivanaClient:
                 "nonce": str(request.nonce),
                 "signature": normalize_hex(request.signature),
             },
+            resend_timeout,
         )
         return TransactionSubmissionResponse(
             submission_id=data["submission_id"],
@@ -291,8 +332,17 @@ class PrivanaClient:
             detail=data.get("detail"),
         )
 
-    async def modify_lock(self, request: ModifyLockRequest) -> TransactionSubmissionResponse:
-        data = await self._http.post(
+    async def modify_lock(
+        self,
+        request: ModifyLockRequest,
+        *,
+        resend_timeout: float | None = None,
+    ) -> TransactionSubmissionResponse:
+        """Add funds to a lock or extend it with the user's signature.
+
+        `resend_timeout` resends an unknown outcome as in `transfer_locked_funds`.
+        """
+        data = await self._post_signed(
             "/v1/accounting/funds/modify-lock",
             {
                 "lock_id": request.lock_id,
@@ -301,6 +351,7 @@ class PrivanaClient:
                 "nonce": str(request.nonce),
                 "signature": normalize_hex(request.signature),
             },
+            resend_timeout,
         )
         return TransactionSubmissionResponse(
             submission_id=data["submission_id"],
@@ -366,9 +417,19 @@ class PrivanaClient:
             expired_locks=[_parse_lock_info(lock) for lock in data.get("expired_locks", [])],
         )
 
-    async def transfer_funds(self, request: TransferFundsRequest) -> TransactionSubmissionResponse:
+    async def transfer_funds(
+        self,
+        request: TransferFundsRequest,
+        *,
+        resend_timeout: float | None = None,
+    ) -> TransactionSubmissionResponse:
+        """Transfer funds between balances with the sender's signature.
+
+        `resend_timeout` resends an unknown outcome as in `transfer_locked_funds`. Every try
+        counts against the caller's transfer rate limit.
+        """
         self._check_token(request.token_id)
-        data = await self._http.post(
+        data = await self._post_signed(
             "/v1/accounting/funds/transfer",
             {
                 "to_address": normalize_address(request.to_address),
@@ -377,6 +438,7 @@ class PrivanaClient:
                 "nonce": str(request.nonce),
                 "signature": normalize_hex(request.signature),
             },
+            resend_timeout,
         )
         return TransactionSubmissionResponse(
             submission_id=data["submission_id"],
@@ -409,9 +471,23 @@ class PrivanaClient:
         )
 
     async def transfer_locked_funds(
-        self, request: TransferLockedFundsRequest
+        self,
+        request: TransferLockedFundsRequest,
+        *,
+        resend_timeout: float | None = None,
     ) -> TransactionSubmissionResponse:
-        data = await self._http.post(
+        """Transfer locked funds with the service's signature.
+
+        A 409, a 5xx or a lost reply leaves the outcome unknown. With `resend_timeout` the same
+        signed body is sent again, after 1 s and then a wait that doubles, until Privana gives
+        another answer. The nonce lets the body land once, and Privana answers a resend of a
+        write it saw land with that write's reply. No resend starts after `resend_timeout`
+        seconds, and the last one runs up to the HTTP timeout.
+
+        The caller settles a write still unknown at the end by the signer's nonce: it landed once
+        the nonce has passed `request.nonce` and the signer signed one body at that nonce.
+        """
+        data = await self._post_signed(
             "/v1/accounting/funds/transfer-locked",
             {
                 "user_address": normalize_address(request.user_address),
@@ -422,6 +498,7 @@ class PrivanaClient:
                 "nonce": str(request.nonce),
                 "signature": normalize_hex(request.signature),
             },
+            resend_timeout,
         )
         return TransactionSubmissionResponse(
             submission_id=data["submission_id"],

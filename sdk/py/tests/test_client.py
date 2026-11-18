@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -462,6 +463,146 @@ class TestTransfer:
             )
         )
         assert result.status == "submitted"
+
+
+class TestResend:
+    REQUEST = TransferLockedFundsRequest(
+        user_address="0xfrom",
+        lock_id=0,
+        to_address="0xto",
+        amount=50,
+        service_address="0xservice",
+        nonce=2,
+        signature="0xsig",
+    )
+    OK = httpx.Response(200, json={"submission_id": "sub-1", "status": "submitted"})
+    UNKNOWN = httpx.Response(409, json={"detail": "submission outcome is unknown"})
+    REVERTED = httpx.Response(422, json={"detail": "Transaction reverted: InvalidNonce"})
+    RATE_LIMITED = httpx.Response(429, json={"detail": "Too many transfer requests"})
+    USER_SIGNED = (
+        (
+            "lock_funds",
+            LockFundsRequest(
+                service_address="0xservice",
+                token_id="0xtoken",
+                amount=1000,
+                expiry=9999999999,
+                nonce=2,
+                signature="0xsig",
+            ),
+            "lock",
+        ),
+        (
+            "modify_lock",
+            ModifyLockRequest(
+                lock_id=0, amount=100, new_expiry=9999999999, nonce=2, signature="0xsig"
+            ),
+            "modify-lock",
+        ),
+        (
+            "transfer_funds",
+            TransferFundsRequest(
+                to_address="0xto", token_id="0xtoken", amount=100, nonce=2, signature="0xsig"
+            ),
+            "transfer",
+        ),
+    )
+
+    @pytest.fixture(autouse=True)
+    def no_wait(self, monkeypatch):
+        monkeypatch.setattr("privana.client.privana_client.RESEND_INTERVAL_SEC", 0)
+
+    @staticmethod
+    def route(replies, route="transfer-locked"):
+        return respx.post(f"{BASE_URL}/v1/accounting/funds/{route}").mock(side_effect=replies)
+
+    @respx.mock
+    async def test_resends_the_same_body_while_outcome_unknown(self, client):
+        send = self.route([self.UNKNOWN, httpx.ConnectError("cut"), httpx.Response(503), self.OK])
+
+        result = await client.transfer_locked_funds(self.REQUEST, resend_timeout=60)
+
+        assert result.submission_id == "sub-1"
+        assert send.call_count == 4
+        assert len({call.request.content for call in send.calls}) == 1
+
+    @pytest.mark.parametrize(("method", "write", "route"), USER_SIGNED)
+    @respx.mock
+    async def test_user_signed_write_resends(self, client, method, write, route):
+        send = self.route([self.UNKNOWN, self.OK], route=route)
+
+        result = await getattr(client, method)(write, resend_timeout=60)
+
+        assert result.submission_id == "sub-1"
+        assert send.call_count == 2
+
+    @pytest.mark.parametrize("reply", [REVERTED, RATE_LIMITED])
+    @respx.mock
+    async def test_first_final_reply_is_raised(self, client, reply):
+        send = self.route([reply])
+
+        with pytest.raises(AccountingApiError) as exc_info:
+            await client.transfer_locked_funds(self.REQUEST, resend_timeout=60)
+
+        assert exc_info.value.status_code == reply.status_code
+        assert send.call_count == 1
+
+    @respx.mock
+    async def test_revert_after_unknown_is_final(self, client):
+        send = self.route([httpx.ConnectError("cut"), self.REVERTED])
+
+        with pytest.raises(AccountingApiError) as exc_info:
+            await client.transfer_locked_funds(self.REQUEST, resend_timeout=60)
+
+        assert exc_info.value.status_code == 422
+        assert send.call_count == 2
+
+    @pytest.mark.parametrize("status", [400, 401, 403, 429])
+    @respx.mock
+    async def test_refused_resend_stops_and_keeps_the_outcome_unknown(self, client, status):
+        send = self.route(
+            [self.UNKNOWN, httpx.Response(status, json={"detail": "refused"}), self.OK]
+        )
+
+        with pytest.raises(AccountingApiError) as exc_info:
+            await client.transfer_locked_funds(self.REQUEST, resend_timeout=60)
+
+        assert exc_info.value.status_code == 409
+        assert exc_info.value.__cause__.status_code == status
+        assert send.call_count == 2
+
+    @respx.mock
+    async def test_waits_double_and_no_resend_starts_after_timeout(self, client, monkeypatch):
+        now = [0.0]
+        waits = []
+
+        async def sleep(seconds):
+            waits.append(seconds)
+            now[0] += seconds
+
+        monkeypatch.setattr("privana.client.privana_client.RESEND_INTERVAL_SEC", 1.0)
+        monkeypatch.setattr(
+            "privana.client.privana_client.time", SimpleNamespace(monotonic=lambda: now[0])
+        )
+        monkeypatch.setattr("privana.client.privana_client.asyncio", SimpleNamespace(sleep=sleep))
+        send = self.route([self.UNKNOWN, self.UNKNOWN, self.UNKNOWN, self.UNKNOWN, self.OK])
+
+        with pytest.raises(AccountingApiError) as exc_info:
+            await client.transfer_locked_funds(self.REQUEST, resend_timeout=10)
+
+        assert exc_info.value.status_code == 409
+        assert waits == [1.0, 2.0, 4.0]
+        assert send.call_count == 4
+
+    @respx.mock
+    async def test_sends_once_by_default(self, client):
+        send = self.route([self.UNKNOWN])
+
+        with pytest.raises(AccountingApiError) as exc_info:
+            await client.transfer_locked_funds(self.REQUEST)
+
+        assert exc_info.value.status_code == 409
+        assert send.call_count == 1
 
 
 class TestWithdrawal:
