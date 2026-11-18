@@ -109,18 +109,18 @@ signature = sign_lock_message(
   - `get_batch_balances(request)` - Get multiple token balances
   - `get_history(offset=-1, limit=50)` - Get one authenticated history page
   - `get_token_info(token_id)` - Get token information
-  - `lock_funds(request)` - Lock funds for a service
+  - `lock_funds(request, resend_timeout=None)` - Lock funds for a service
   - `get_lock_nonce(user_address)` - Get next create-lock nonce
   - `get_modify_lock_nonce(user_address)` - Get next modify-lock nonce
-  - `modify_lock(request)` - Modify an existing lock (add funds and/or extend expiry)
+  - `modify_lock(request, resend_timeout=None)` - Modify an existing lock (add funds and/or extend expiry)
   - `unlock_funds(request)` - Unlock specific lock
   - `unlock_all_expired(request)` - Unlock all expired locks
   - `get_locked_funds(service_address=None)` - Get locked funds for the authenticated user
   - `get_total_locked_balance(token_id)` - Get total locked balance for the authenticated user
   - `get_expired_locks()` - Get expired locks for the authenticated user
-  - `transfer_funds(request)` - Transfer tokens (requires nonce)
+  - `transfer_funds(request, resend_timeout=None)` - Transfer tokens (requires nonce)
   - `get_transfer_nonce(user_address)` - Get next transfer nonce
-  - `transfer_locked_funds(request)` - Transfer locked tokens
+  - `transfer_locked_funds(request, resend_timeout=None)` - Transfer locked tokens
   - `get_transfer_locked_nonce(service_address)` - Get next transfer-from-lock nonce
   - `request_withdrawal(request)` - Request withdrawal
   - `get_withdrawal_nonce(user_address)` - Get next withdrawal nonce
@@ -132,6 +132,11 @@ signature = sign_lock_message(
   - `authenticate_private_reads(siwe_message, signature)` - Login and store `X-SIWE-Token`
   - `set_private_read_token(token)` / `clear_private_read_token()` - Manage `X-SIWE-Token`
   - `set_bearer_token(token)` / `clear_bearer_token()` - Manage bearer auth headers
+
+With `resend_timeout`, `lock_funds`, `modify_lock`, `transfer_funds` and `transfer_locked_funds`
+send the same signed body again for up to that many seconds while the outcome is unknown (a 409, a
+5xx or a lost reply). The docstring of `transfer_locked_funds` says how a write still unknown at
+the end is settled.
 
 ### Signing
 
