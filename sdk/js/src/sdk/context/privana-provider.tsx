@@ -16,6 +16,7 @@ import { SUPPORTED_CHAINS, type ChainConfig } from '../types/chains'
 import { resolveMoonpayCurrencyCode } from '../moonpay-currency-codes'
 import { SiweAuthProvider, type SiweAuthConfig } from './siwe-auth-provider'
 import { DepositFlowProvider } from './deposit-flow-provider'
+import { BackgroundDepositClaim } from './background-deposit-claim'
 import { PrivanaContext, type PrivanaContextValue, type TokensStatus } from './privana-context'
 
 export function readStoredHostedAuthSession(
@@ -420,7 +421,12 @@ export function PrivanaProvider({
     ]
   )
 
-  const content = <DepositFlowProvider>{children}</DepositFlowProvider>
+  const content = (
+    <DepositFlowProvider>
+      <BackgroundDepositClaim />
+      {children}
+    </DepositFlowProvider>
+  )
 
   return (
     <PrivanaContext.Provider value={value}>
