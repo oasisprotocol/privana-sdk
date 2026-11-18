@@ -8,6 +8,7 @@ import { erc20Abi, zeroAddress } from 'viem'
 import { usePrivanaContext } from '../context/privana-context'
 import { useEnsureCorrectChain } from './use-ensure-correct-chain'
 import { depositFinality } from '../utils/finality'
+import { usePauseBackgroundClaim } from '../context/background-deposit-claim'
 import { usePrivateReadRequest } from './use-private-read-request'
 import { useDepositVerification, type VerificationContext } from './use-deposit-verification'
 import {
@@ -765,6 +766,7 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
     () => sent && { ...sent, stage, depositId },
     [sent, stage, depositId]
   )
+  usePauseBackgroundClaim(!!sent && (stage === 'confirming' || stage === 'crediting'))
 
   return {
     depositAddress,
