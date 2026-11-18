@@ -223,6 +223,22 @@ export function useDepositVerification(
         let consecutiveFailures = 0
         let followedAmount = amount
         let creditedTotal = 0n
+        let lastCredited: DepositCheckResponse | undefined
+
+        const finishCredited = (response: DepositCheckResponse) => {
+          stopPolling()
+          setIsVerifying(false)
+          verificationContextRef.current = null
+          queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
+          queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
+          onCreditedRef.current?.(key, response, creditedTotal)
+        }
+
+        const fail = (err: Error) => {
+          stopPolling()
+          if (lastCredited) finishCredited(lastCredited)
+          else markVerificationFailed(err)
+        }
 
         const claimNext = async () => {
           const deposits = await executePrivateRead((readClient) =>
@@ -242,7 +258,8 @@ export function useDepositVerification(
           if (isStale()) return true
 
           if (Date.now() - pollStartTime > timeoutMs) {
-            markVerificationTimedOut()
+            if (lastCredited) finishCredited(lastCredited)
+            else markVerificationTimedOut()
             return true
           }
 
@@ -271,13 +288,11 @@ export function useDepositVerification(
               try {
                 creditedAmount = creditedAmountFromResponse(result, followedAmount)
               } catch (err) {
-                stopPolling()
-                markVerificationFailed(
-                  err instanceof Error ? err : new Error('Deposit credited amount is invalid')
-                )
+                fail(err instanceof Error ? err : new Error('Deposit credited amount is invalid'))
                 return true
               }
               creditedTotal += creditedAmount
+              lastCredited = result
               if (!claimedId) {
                 // A sweep already running when we claimed may not include this transfer.
                 const next = await claimNext().catch(() => undefined)
@@ -290,18 +305,12 @@ export function useDepositVerification(
                   return false
                 }
               }
-              stopPolling()
-              setIsVerifying(false)
-              verificationContextRef.current = null
-              queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
-              queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
-              onCreditedRef.current?.(key, result, creditedTotal)
+              finishCredited(result)
               return true
             }
 
             if (result.status === 'error') {
-              stopPolling()
-              markVerificationFailed(new Error(result.detail ?? 'Deposit verification failed'))
+              fail(new Error(result.detail ?? 'Deposit verification failed'))
               return true
             }
           } catch (err) {
@@ -309,10 +318,7 @@ export function useDepositVerification(
             consecutiveFailures++
             console.warn('Error polling deposit status:', err)
             if (consecutiveFailures >= 3) {
-              stopPolling()
-              markVerificationFailed(
-                err instanceof Error ? err : new Error('Deposit status polling failed')
-              )
+              fail(err instanceof Error ? err : new Error('Deposit status polling failed'))
               return true
             }
           }
