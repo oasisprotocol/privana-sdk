@@ -73,7 +73,7 @@ export function OnRampPreview() {
     setManualMessage(null)
     await verify({
       hash: manualTxHash as `0x${string}`,
-      chainId: selectedToken.chainId,
+      tokenId: selectedToken.id,
       amount: parseUnits(manualAmount, selectedToken.decimals),
     })
   }, [manualAmount, manualTxHash, selectedToken, verify])

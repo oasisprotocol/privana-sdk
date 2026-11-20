@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { formatUnits, zeroAddress } from 'viem'
+import { formatUnits } from 'viem'
 import { QRCodeSVG } from 'qrcode.react'
 import { toast } from 'sonner'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import { usePrivanaContext } from '@/sdk/context/privana-context'
-import { useDepositVerification, usePendingDeposits, type VerificationContext } from '@/sdk/hooks'
+import { useDepositClaim, useDepositVerification } from '@/sdk/hooks'
+import { usePauseBackgroundClaim } from '@/sdk/context/background-deposit-claim'
 import type { UseDepositAddressResult } from '@/sdk/hooks/use-deposit-address'
-import { isExternalDepositBlockInSession } from '@/sdk/utils/external-deposit-lock'
 import type { UseExternalDepositLockResult } from '@/sdk/hooks/use-external-deposit-lock'
-import { cn, formatCountdown, shortenAddress } from '@/lib/utils'
+import { depositFinality } from '@/sdk/utils/finality'
+import { cn, formatCountdown } from '@/lib/utils'
 import { FLOW_PANEL_CLASS, useEmbedded } from './embedded-context'
 import { CopyIcon } from './icons'
 import {
@@ -111,7 +112,12 @@ export function ExternalDepositView({
   const embedded = useEmbedded()
   const { getChainById, getTokenById, serviceName } = usePrivanaContext()
   const appName = serviceName ?? 'Privana'
-  const { depositAddress, isReady, isLoading } = depositAddressState
+  const {
+    depositAddress,
+    isReady,
+    isLoading,
+    response: depositAddressResponse,
+  } = depositAddressState
   const minimumLabel =
     token && typeof externalMinimum === 'bigint'
       ? `${formatUnits(externalMinimum, token.decimals)} ${token.symbol}`
@@ -128,29 +134,29 @@ export function ExternalDepositView({
   const secondsLeft = useCountdown(deadline)
   const listening = secondsLeft > 0
   const [nothingFound, setNothingFound] = useState(false)
-  const [credited, setCredited] = useState<{ txHash: string } | null>(null)
+  const [credited, setCredited] = useState(false)
   const [showCancelWarning, setShowCancelWarning] = useState(false)
+  usePauseBackgroundClaim(true)
 
   const verification = useDepositVerification({
-    onCredited: (txHash, _response, creditedAmount) => {
+    onCredited: (depositId, _response, creditedAmount) => {
       if (settleAfterCredit) {
-        void settleAfterCredit(txHash, creditedAmount)
+        void settleAfterCredit(depositId, creditedAmount)
         return
       }
       if (onCredited) {
         onCredited()
         return
       }
-      setCredited({ txHash })
+      setCredited(true)
     },
   })
-  const { isVerifying, verificationFailed, canCheckAnotherTransfer, didTimeout, verify } =
-    verification
+  const { isVerifying, verificationFailed, didTimeout, verify } = verification
   const scanPaused =
     isVerifying ||
     verificationFailed ||
     didTimeout ||
-    !!credited ||
+    credited ||
     !!lock?.isSigning ||
     !!lock?.isSubmittingLock ||
     !!lockSession?.verification ||
@@ -158,17 +164,14 @@ export function ExternalDepositView({
   const showDepositInstructions = !credited && !lockSession?.creditedAmount
 
   const {
-    pending,
+    deposits,
     isFetching: isScanning,
     isError: isScanError,
     isRateLimited,
-    isUnavailable,
-    refetch: refetchPendingDeposits,
-  } = usePendingDeposits({
-    chainId: discoveryToken?.chainId,
-    tokenAddress: discoveryToken?.contract === zeroAddress ? undefined : discoveryToken?.contract,
-    enabled:
-      isReady && !!depositAddress && !!discoveryToken && discoveryToken.contract !== zeroAddress,
+    refetch: refetchClaim,
+  } = useDepositClaim({
+    tokenId: discoveryToken?.id,
+    enabled: isReady && !!depositAddress && !!discoveryToken,
     refetchInterval: listening && !scanPaused ? 30_000 : false,
   })
 
@@ -186,53 +189,51 @@ export function ExternalDepositView({
     if (!stored || lockSession.creditedAmount || isVerifying || verificationFailed || didTimeout) {
       return
     }
-    const key = `${lockSession.generation}:${stored.chainId}:${stored.hash}:${stored.logIndex ?? 0}`
+    const key = `${lockSession.generation}:${stored.depositId}`
     if (verificationRunRef.current === key) return
     verificationRunRef.current = key
-    processedRef.current.add(`${stored.hash}:${stored.logIndex ?? 0}`)
+    processedRef.current.add(stored.depositId)
     void verify({
-      hash: stored.hash,
-      chainId: stored.chainId,
+      depositId: stored.depositId,
       amount: BigInt(stored.amount),
-      logIndex: stored.logIndex,
+      finality: depositFinality(depositAddressResponse, lockSession.chainId),
     })
-  }, [didTimeout, isVerifying, lockSession, verificationFailed, verify])
+  }, [depositAddressResponse, didTimeout, isVerifying, lockSession, verificationFailed, verify])
 
   useEffect(() => {
     if (scanPaused) return
-    const next = [...pending]
-      .sort((a, b) => a.block_number - b.block_number)
-      .find(
-        (deposit) =>
-          (!lockSession || isExternalDepositBlockInSession(lockSession, deposit.block_number)) &&
-          !processedRef.current.has(`${deposit.tx_hash}:${deposit.log_index}`)
-      )
-    if (!next) return
-    const context: VerificationContext = {
-      hash: next.tx_hash,
-      chainId: next.chain_id,
+    const next = deposits.find(
+      (deposit) =>
+        deposit.status === 'pending' &&
+        deposit.deposit_id &&
+        deposit.amount &&
+        !processedRef.current.has(deposit.deposit_id)
+    )
+    if (!next?.deposit_id || !next.amount) return
+    const claimed = {
+      depositId: next.deposit_id,
       amount: BigInt(next.amount),
-      logIndex: next.log_index,
+      finality: depositFinality(depositAddressResponse, discoveryToken?.chainId),
     }
     if (recordVerification) {
       try {
-        recordVerification(context)
+        recordVerification(claimed)
       } catch (err) {
         toast.error(err instanceof Error ? err.message : 'Unable to save deposit recovery state')
         return
       }
     }
-    processedRef.current.add(`${next.tx_hash}:${next.log_index}`)
-    if (!recordVerification) void verify(context)
-  }, [lockSession, pending, recordVerification, scanPaused, verify])
+    processedRef.current.add(claimed.depositId)
+    if (!recordVerification) void verify(claimed)
+  }, [deposits, depositAddressResponse, discoveryToken, recordVerification, scanPaused, verify])
 
   const nothingFoundTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => () => clearTimeout(nothingFoundTimerRef.current), [])
 
   const handleRefresh = () => {
     processedRef.current.clear()
-    void refetchPendingDeposits().then((result) => {
-      if (!result || result.pending.length === 0) {
+    void refetchClaim().then((result) => {
+      if (!result || result.length === 0) {
         setNothingFound(true)
         clearTimeout(nothingFoundTimerRef.current)
         nothingFoundTimerRef.current = setTimeout(() => setNothingFound(false), 4000)
@@ -251,7 +252,7 @@ export function ExternalDepositView({
     }
   }
 
-  const handleCheckAnotherTransfer = () => {
+  const handleCheckAgain = () => {
     try {
       if (!lock?.clearVerification()) {
         toast.error('Deposit recovery changed in another tab. Please review the current state.')
@@ -289,8 +290,9 @@ export function ExternalDepositView({
         <>
           {!scanPaused && (
             <p className="text-muted-foreground text-sm">
-              Send the displayed amount in one transfer. Transfers below the minimum
-              {minimumLabel ? ` (${minimumLabel})` : ''} are not combined or automatically returned.
+              Send the displayed amount in one transfer. Less than the minimum
+              {minimumLabel ? ` (${minimumLabel})` : ''} stays at the deposit address until more
+              arrives.
             </p>
           )}
 
@@ -380,11 +382,11 @@ export function ExternalDepositView({
       ) : credited ? (
         <TransactionSuccessView
           title="Deposit Credited"
-          message={`Transfer ${shortenAddress(credited.txHash)} has been credited to your Privana balance.`}
+          message="Your deposit has been credited to your Privana balance."
           onDone={() => {
-            setCredited(null)
+            setCredited(false)
             verification.reset()
-            void refetchPendingDeposits()
+            void refetchClaim()
           }}
         />
       ) : verificationFailed || didTimeout ? (
@@ -397,14 +399,8 @@ export function ExternalDepositView({
                 'Your transfer was found but could not be verified.')
           }
           onRetry={() => void verification.retryVerification()}
-          onDismiss={
-            lock
-              ? canCheckAnotherTransfer
-                ? handleCheckAnotherTransfer
-                : undefined
-              : () => verification.reset()
-          }
-          dismissLabel={lock && canCheckAnotherTransfer ? 'Check another transfer' : undefined}
+          onDismiss={lock ? handleCheckAgain : () => verification.reset()}
+          dismissLabel={lock ? 'Check again' : undefined}
           isRetrying={isVerifying}
         />
       ) : isVerifying ? (
@@ -445,10 +441,6 @@ export function ExternalDepositView({
             {isRateLimited ? (
               <p className="text-muted-foreground text-center text-sm">
                 Checked too recently. Try again in a moment.
-              </p>
-            ) : isUnavailable ? (
-              <p className="text-muted-foreground text-center text-sm">
-                Deposit discovery is unavailable for this chain.
               </p>
             ) : isScanError ? (
               <p className="text-muted-foreground text-center text-sm">

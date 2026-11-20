@@ -104,7 +104,6 @@ export function TransakCardWidgetView({
     pending,
     activeVerificationId,
     error,
-    finalityProgress,
     depositAddress,
     minDepositBaseUnits,
     selectedToken,
@@ -348,7 +347,6 @@ export function TransakCardWidgetView({
           <p className="text-foreground text-sm font-medium">Validating purchases</p>
           {pending.map((record) => {
             const isActivelyVerifying = record.transaction_id === activeVerificationId
-            const progress = parseFinalityProgress(finalityProgress[record.transaction_id])
             const showRetry = canRetryOnRampVerification(record, activeVerificationId)
             return (
               <div
@@ -358,7 +356,9 @@ export function TransakCardWidgetView({
                 <p className="text-muted-foreground flex items-center gap-1 text-xs">
                   <Loader2 className="size-3 animate-spin" aria-hidden />
                   {record.on_chain_tx_hash
-                    ? (progress ?? (isActivelyVerifying ? 'Verifying…' : 'Ready to verify'))
+                    ? isActivelyVerifying
+                      ? 'Verifying…'
+                      : 'Ready to verify'
                     : 'Waiting for provider delivery…'}
                 </p>
                 {rowError?.id === record.transaction_id && (
@@ -424,10 +424,4 @@ export function TransakCardWidgetView({
       )}
     </div>
   )
-}
-
-function parseFinalityProgress(message: string | undefined): string | null {
-  if (!message) return null
-  const match = message.match(/(\d+\/\d+)\s+confirmations/i)
-  return match ? `${match[1]} confirmations` : null
 }

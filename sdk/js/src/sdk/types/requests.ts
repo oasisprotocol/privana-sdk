@@ -6,19 +6,8 @@ export interface DepositAddressRequest {
 }
 
 export interface DepositCheckRequest {
-  chain_type?: string
-  chain_id: number
-  tx_hash: HexString
-  amount: IntegerLike
-  log_index?: number
+  token_id?: Bytes32
   version?: number
-}
-
-export interface PendingDepositsRequest {
-  chain_id: number
-  version?: number
-  token_address?: Address
-  lookback_blocks?: number
 }
 
 export interface LockFundsRequest {

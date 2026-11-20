@@ -62,7 +62,6 @@ export function TransakOnRampPreview() {
     pending,
     activeVerificationId,
     error,
-    finalityProgress,
     depositAddress,
     minDepositBaseUnits,
     selectedToken,
@@ -406,11 +405,6 @@ export function TransakOnRampPreview() {
                   <p className="font-mono text-[11px] break-all">
                     {record.on_chain_tx_hash ?? 'Waiting for provider delivery hash'}
                   </p>
-                  {finalityProgress[record.transaction_id] && (
-                    <p className="text-muted-foreground">
-                      {finalityProgress[record.transaction_id]}
-                    </p>
-                  )}
                 </div>
               )
             })}

@@ -228,7 +228,7 @@ Notes:
 | `useBalance`             | Get token balance (available + locked)                                                                             |
 | `useBatchBalances`       | Get multiple token balances                                                                                        |
 | `useDeposit`             | Deposit tokens. One flow per app, run by `PrivanaProvider`, so a deposit keeps crediting after unmount             |
-| `useDepositVerification` | Run checkDeposit + status polling against an existing on-chain transfer (used by `useDeposit` and `useFiatOnRamp`) |
+| `useDepositVerification` | Claim a transfer's token (`checkDeposit`) and poll the deposit's status (used by `useDeposit` and `useFiatOnRamp`) |
 | `useFiatOnRamp`          | MoonPay on-ramp with provider-neutral recovery, verification, credit, and locking (from `/on-ramp` sub-export)     |
 | `useTransakOnRamp`       | Explicit Transak session launch and hardened iframe over the same shared recovery and credit core                  |
 | `useWithdraw`            | Withdraw tokens                                                                                                    |
