@@ -11,7 +11,8 @@ class DepositAddressResponse:
     deposit_address: Address
     chain_type: str
     version: int
-    min_deposit: dict[str, dict[str, str]] = field(default_factory=dict)
+    # Minimum deposit in base units per tokenId; a token not listed has no minimum.
+    min_deposit: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
