@@ -598,6 +598,7 @@ export function useTransakOnRamp(options: UseTransakOnRampOptions): UseTransakOn
     activeIntentId: core.activeIntentId,
     pending: core.pending,
     activeVerificationId: core.activeVerificationId,
+    verificationFinality: core.verificationFinality,
     error: core.error,
     depositAddress: core.depositAddress,
     minDepositBaseUnits: core.minDepositBaseUnits,

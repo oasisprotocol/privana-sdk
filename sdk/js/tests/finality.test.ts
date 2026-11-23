@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { depositFinality } from '../src/sdk/utils/finality'
+import { depositFinality, formatFinalityProgress } from '../src/sdk/utils/finality'
 import type { DepositAddressResponse } from '../src/sdk/types'
 
 const depositAddress = {
@@ -20,5 +20,9 @@ describe('deposit finality', () => {
     expect(depositFinality(depositAddress, 999)).toBeUndefined()
     expect(depositFinality(undefined, 1)).toBeUndefined()
     expect(depositFinality(depositAddress, undefined)).toBeUndefined()
+  })
+
+  it('formats the sweep confirmations for display', () => {
+    expect(formatFinalityProgress({ confirmations: 12, required: 32 })).toBe('12/32 confirmations')
   })
 })

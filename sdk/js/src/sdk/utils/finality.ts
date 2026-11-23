@@ -1,5 +1,5 @@
 import { getBlock, type Config } from '@wagmi/core'
-import type { DepositAddressResponse } from '../types'
+import type { DepositAddressResponse, DepositFinalityProgress } from '../types'
 
 export interface DepositFinality {
   chainId: number
@@ -13,6 +13,13 @@ export function depositFinality(
   if (!depositAddress || chainId === undefined) return undefined
   const depth = depositAddress.finality_depth?.[String(chainId)]
   return depth === undefined ? undefined : { chainId, depth }
+}
+
+export function formatFinalityProgress({
+  confirmations,
+  required,
+}: DepositFinalityProgress): string {
+  return `${confirmations}/${required} confirmations`
 }
 
 export async function finalityDurationMs(

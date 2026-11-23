@@ -14,6 +14,7 @@ import type { Allowance } from '@/sdk/types/allowance'
 import type { Address, OnRampRecord } from '@/sdk/types'
 import type { TokenConfig } from '@/sdk/types/tokens'
 import type { PostDepositLockError } from '@/sdk/utils/pending-lock'
+import { formatFinalityProgress } from '@/sdk/utils/finality'
 import { cn } from '@/lib/utils'
 import { FLOW_PANEL_CLASS, useEmbedded } from './embedded-context'
 
@@ -103,6 +104,7 @@ export function TransakCardWidgetView({
     activeIntentId,
     pending,
     activeVerificationId,
+    verificationFinality,
     error,
     depositAddress,
     minDepositBaseUnits,
@@ -357,7 +359,9 @@ export function TransakCardWidgetView({
                   <Loader2 className="size-3 animate-spin" aria-hidden />
                   {record.on_chain_tx_hash
                     ? isActivelyVerifying
-                      ? 'Verifying…'
+                      ? verificationFinality
+                        ? formatFinalityProgress(verificationFinality)
+                        : 'Verifying…'
                       : 'Ready to verify'
                     : 'Waiting for provider delivery…'}
                 </p>

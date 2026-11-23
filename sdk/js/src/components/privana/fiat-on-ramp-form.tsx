@@ -12,6 +12,7 @@ import type { Bytes32, OnRampRecord, TransactionSubmissionResponse } from '@/sdk
 import { canRetryOnRampVerification, matchesOnRampTransaction } from '@/sdk/on-ramp/provider'
 import { matchesFrozenOnRampToken } from '@/sdk/on-ramp/product-config'
 import type { TokenConfig } from '@/sdk/types/tokens'
+import { formatFinalityProgress } from '@/sdk/utils/finality'
 import { useMoonPayOnRampAdapter } from './use-moonpay-on-ramp-adapter'
 
 export interface FiatOnRampFormProps {
@@ -139,6 +140,7 @@ export function FiatOnRampForm({
     activeIntentId,
     pending,
     activeVerificationId,
+    verificationFinality,
     error,
     depositAddress,
     minDepositBaseUnits,
@@ -448,7 +450,9 @@ export function FiatOnRampForm({
                     <Loader2 className="size-3 animate-spin" aria-hidden />
                     {record.on_chain_tx_hash
                       ? isActivelyVerifying
-                        ? 'Verifying…'
+                        ? verificationFinality
+                          ? formatFinalityProgress(verificationFinality)
+                          : 'Verifying…'
                         : 'Ready to verify'
                       : 'Waiting for provider delivery…'}
                   </p>
