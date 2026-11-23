@@ -13,12 +13,18 @@ export interface DepositAddressResponse {
   finality_depth: Record<string, number>
 }
 
+export interface DepositFinalityProgress {
+  confirmations: number
+  required: number
+}
+
 export interface DepositCheckResponse {
   status: 'credited' | 'pending' | 'error' | 'none'
   deposit_id?: string | null
   amount?: string | null
   token_id?: Bytes32 | null
   detail?: string | null
+  finality?: DepositFinalityProgress | null
 }
 
 export interface TransactionSubmissionResponse {
