@@ -32,6 +32,7 @@ from ..types.responses import (
     BatchBalancesResponse,
     DepositAddressResponse,
     DepositCheckResponse,
+    DepositFinalityProgress,
     ExpiredLocksResponse,
     HistoryEntry,
     HistoryResponse,
@@ -121,12 +122,20 @@ def _parse_token_info(data: dict[str, Any]) -> TokenInfoResponse:
 
 
 def _parse_deposit_check(data: dict[str, Any]) -> DepositCheckResponse:
+    finality = data.get("finality")
     return DepositCheckResponse(
         status=data["status"],
         deposit_id=data.get("deposit_id"),
         amount=data.get("amount"),
         token_id=data.get("token_id"),
         detail=data.get("detail"),
+        finality=(
+            DepositFinalityProgress(
+                confirmations=finality["confirmations"], required=finality["required"]
+            )
+            if finality
+            else None
+        ),
     )
 
 

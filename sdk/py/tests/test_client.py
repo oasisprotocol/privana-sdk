@@ -22,6 +22,7 @@ from privana.types.requests import (
     WithdrawalRequest,
     WithdrawFromLockRequest,
 )
+from privana.types.responses import DepositFinalityProgress
 
 BASE_URL = "https://api.test.example.com"
 HISTORY_TOKEN_ID = "0x1111111111111111111111111111111111111111111111111111111111111111"
@@ -273,6 +274,26 @@ class TestGetDepositStatus:
         assert result.amount == "1000000"
         assert result.token_id == TOKEN_ID
         assert result.detail == "Deposit has been credited"
+        assert result.finality is None
+
+    @respx.mock
+    async def test_pending_deposit_status_reports_finality(self, client):
+        respx.get(f"{BASE_URL}/v1/accounting/deposits/status/{DEPOSIT_ID_HEX}").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "status": "pending",
+                    "deposit_id": DEPOSIT_ID_HEX,
+                    "amount": "1000000",
+                    "token_id": TOKEN_ID,
+                    "finality": {"confirmations": 12, "required": 32},
+                },
+            )
+        )
+
+        result = await client.get_deposit_status(DEPOSIT_ID_HEX)
+        assert result.status == "pending"
+        assert result.finality == DepositFinalityProgress(confirmations=12, required=32)
 
 
 class TestLockFunds:
