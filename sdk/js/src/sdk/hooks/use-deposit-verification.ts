@@ -7,7 +7,7 @@ import { AccountingApiError } from '../client/errors'
 import { claimDepositWithRetry, findClaimedDeposit } from '../utils/deposit-claim'
 import { finalityDurationMs, type DepositFinality } from '../utils/finality'
 import { usePrivateReadRequest } from './use-private-read-request'
-import type { Bytes32, DepositCheckResponse } from '../types'
+import type { Bytes32, DepositCheckResponse, DepositFinalityProgress } from '../types'
 
 export interface VerificationContext {
   /** On-chain transfer that funded the user's Privana deposit address. */
@@ -56,6 +56,7 @@ export interface UseDepositVerificationResult {
    */
   verificationFailed: boolean
   error: Error | null
+  finality: DepositFinalityProgress | null
   /** Current transfer hash being verified, if any. */
   txHash: `0x${string}` | undefined
   /** Kick off Phase 1 (checkDeposit) + Phase 2 (poll getDepositStatus) for the given context. */
@@ -91,6 +92,7 @@ export function useDepositVerification(
   const [didTimeout, setDidTimeout] = useState(false)
   const [verificationFailed, setVerificationFailed] = useState(false)
   const [error, setError] = useState<Error | null>(null)
+  const [finality, setFinality] = useState<DepositFinalityProgress | null>(null)
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>()
 
   const generationRef = useRef(0)
@@ -146,6 +148,7 @@ export function useDepositVerification(
       setVerificationFailed(false)
       setError(null)
       setDidTimeout(false)
+      setFinality(null)
       setIsVerifying(true)
 
       const pollStartTime = Date.now()
@@ -228,6 +231,7 @@ export function useDepositVerification(
         const finishCredited = (response: DepositCheckResponse) => {
           stopPolling()
           setIsVerifying(false)
+          setFinality(null)
           verificationContextRef.current = null
           queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
           queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
@@ -250,6 +254,7 @@ export function useDepositVerification(
           if (!next.deposit_id) return false
           depositId = next.deposit_id
           followedAmount = nextAmount
+          setFinality(null)
           onCheckAcceptedRef.current?.(key, depositId)
           return true
         }
@@ -282,6 +287,7 @@ export function useDepositVerification(
             }
             if (isStale()) return true
             consecutiveFailures = 0
+            if (result.finality) setFinality(result.finality)
 
             if (result.status === 'credited') {
               let creditedAmount: bigint
@@ -383,6 +389,7 @@ export function useDepositVerification(
     setDidTimeout(false)
     setVerificationFailed(false)
     setError(null)
+    setFinality(null)
   }, [stopPolling])
 
   return {
@@ -390,6 +397,7 @@ export function useDepositVerification(
     didTimeout,
     verificationFailed,
     error,
+    finality,
     txHash,
     verify,
     retryVerification,

@@ -32,6 +32,7 @@ import type {
   Bytes32,
   DepositAddressResponse,
   DepositCheckResponse,
+  DepositFinalityProgress,
   LockFundsRequest,
   TransactionSubmissionResponse,
 } from '../types'
@@ -78,6 +79,7 @@ export interface DepositProgress {
   sentAt: number
   stage: DepositStage
   depositId?: string
+  finality?: DepositFinalityProgress
 }
 
 export interface UseDepositResult {
@@ -333,6 +335,7 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
     didTimeout,
     verificationFailed: innerVerificationFailed,
     error: verificationError,
+    finality,
     verify,
     reset: resetVerification,
   } = useDepositVerification({
@@ -763,8 +766,14 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
     confirming: isWaitingForConfirmation,
   })
   const progress = useMemo<DepositProgress | null>(
-    () => sent && { ...sent, stage, depositId },
-    [sent, stage, depositId]
+    () =>
+      sent && {
+        ...sent,
+        stage,
+        depositId,
+        ...(stage === 'crediting' && finality ? { finality } : {}),
+      },
+    [sent, stage, depositId, finality]
   )
   usePauseBackgroundClaim(!!sent && (stage === 'confirming' || stage === 'crediting'))
 
