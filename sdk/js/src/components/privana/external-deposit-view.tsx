@@ -9,7 +9,7 @@ import { useDepositClaim, useDepositVerification } from '@/sdk/hooks'
 import { usePauseBackgroundClaim } from '@/sdk/context/background-deposit-claim'
 import type { UseDepositAddressResult } from '@/sdk/hooks/use-deposit-address'
 import type { UseExternalDepositLockResult } from '@/sdk/hooks/use-external-deposit-lock'
-import { depositFinality } from '@/sdk/utils/finality'
+import { depositFinality, formatFinalityProgress } from '@/sdk/utils/finality'
 import { cn, formatCountdown } from '@/lib/utils'
 import { FLOW_PANEL_CLASS, useEmbedded } from './embedded-context'
 import { CopyIcon } from './icons'
@@ -151,7 +151,7 @@ export function ExternalDepositView({
       setCredited(true)
     },
   })
-  const { isVerifying, verificationFailed, didTimeout, verify } = verification
+  const { isVerifying, verificationFailed, didTimeout, verify, finality } = verification
   const scanPaused =
     isVerifying ||
     verificationFailed ||
@@ -406,7 +406,11 @@ export function ExternalDepositView({
       ) : isVerifying ? (
         <AwaitingDepositStatus
           title="Deposit detected"
-          subtitle="Crediting the incoming transaction to your Privana balance…"
+          subtitle={
+            finality
+              ? `Crediting the incoming transaction to your Privana balance (${formatFinalityProgress(finality)})…`
+              : 'Crediting the incoming transaction to your Privana balance…'
+          }
         />
       ) : (
         <>

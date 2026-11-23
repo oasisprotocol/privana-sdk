@@ -25,6 +25,7 @@ import {
 import { cn, shortenAddress } from '@/lib/utils'
 import { EmbeddedContext, FLOW_PANEL_CLASS } from './embedded-context'
 import { parseAmountInput } from '@/sdk/utils/amount-format'
+import { formatFinalityProgress } from '@/sdk/utils/finality'
 import { TokenSelectorView } from './token-selector-view'
 import { CreditCardWidgetView } from './credit-card-widget-view'
 import {
@@ -365,6 +366,7 @@ export function DepositModalContent({
 
   const {
     txHash,
+    progress,
     isGettingAddress,
     isSwitchingChain,
     isSendingTransaction,
@@ -594,7 +596,9 @@ export function DepositModalContent({
           : 'pending',
     },
     {
-      label: 'Verifying deposit — may take up to a few minutes',
+      label: progress?.finality
+        ? `Verifying deposit — ${formatFinalityProgress(progress.finality)}`
+        : 'Verifying deposit — may take up to a few minutes',
       status: isWaitingForProcessing ? 'active' : isSubmittingLock ? 'completed' : 'pending',
     },
     ...(allowance

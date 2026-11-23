@@ -58,6 +58,7 @@ import { usePrivateReadRequest } from './use-private-read-request'
 import type {
   Address,
   Bytes32,
+  DepositFinalityProgress,
   HexString,
   MinDepositAmounts,
   OnRampRecord,
@@ -157,6 +158,7 @@ export interface UseOnRampResult {
    * being actively verified shouldn't be offered a manual retry.
    */
   activeVerificationId: string | null
+  verificationFinality: DepositFinalityProgress | null
   error: Error | null
   /** Per-user Privana deposit address. */
   depositAddress: `0x${string}` | undefined
@@ -542,7 +544,11 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
     [client, emitDebug, postDepositLock, queryClient]
   )
 
-  const { verify, reset: resetDepositVerification } = useDepositVerification({
+  const {
+    verify,
+    reset: resetDepositVerification,
+    finality: verificationFinality,
+  } = useDepositVerification({
     pollTimeout: verificationTimeout,
     pollInterval: options.verificationPollInterval,
     finalityRetryInterval,
@@ -1308,6 +1314,7 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
     activeIntentId,
     pending,
     activeVerificationId,
+    verificationFinality,
     error,
     depositAddress: scopedDepositAddress,
     minDepositBaseUnits: scopedMinDepositBaseUnits,

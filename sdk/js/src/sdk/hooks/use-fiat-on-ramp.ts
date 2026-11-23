@@ -137,6 +137,7 @@ export function useFiatOnRamp(options: UseFiatOnRampOptions): UseFiatOnRampResul
     activeIntentId: core.activeIntentId,
     pending: core.pending,
     activeVerificationId: core.activeVerificationId,
+    verificationFinality: core.verificationFinality,
     error: core.error,
     depositAddress: core.depositAddress,
     minDepositBaseUnits: core.minDepositBaseUnits,
