@@ -1,7 +1,5 @@
 import { decodeEventLog, parseAbiItem, zeroAddress, type Address, type Hex, type Log } from 'viem'
 
-import type { MinDepositAmounts } from '../types'
-
 const ERC20_TRANSFER_EVENT = parseAbiItem(
   'event Transfer(address indexed from, address indexed to, uint256 value)'
 )
@@ -29,14 +27,6 @@ export function assertErc20OnRampToken(tokenAddress: Address): void {
   if (tokenAddress.toLowerCase() === zeroAddress) {
     throw new Error('On-ramp verification supports ERC-20 tokens only')
   }
-}
-
-export function erc20MinDepositBaseUnits(
-  minDepositByChain: Record<string, MinDepositAmounts> | undefined,
-  chainId: number
-): bigint | undefined {
-  const minimum = minDepositByChain?.[String(chainId)]?.erc20
-  return minimum !== undefined && /^\d+$/.test(minimum) ? BigInt(minimum) : undefined
 }
 
 /** Select the one ERC-20 transfer that authorizes this deposit verification. */

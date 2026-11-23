@@ -1,15 +1,11 @@
 import type { Address, Bytes32, HexString } from './common'
 
-export interface MinDepositAmounts {
-  native: string
-  erc20: string
-}
-
 export interface DepositAddressResponse {
   deposit_address: Address
   chain_type: string
   version: number
-  min_deposit: Record<string, MinDepositAmounts>
+  /** Minimum deposit in base units per tokenId; a token not listed has no minimum. */
+  min_deposit: Record<string, string>
   finality_depth: Record<string, number>
 }
 
