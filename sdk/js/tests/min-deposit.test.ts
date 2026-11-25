@@ -1,39 +1,19 @@
 import { describe, expect, test } from 'bun:test'
 import { getMinDepositBaseUnits } from '../src/sdk/utils/min-deposit'
-import type { DepositAddressResponse } from '../src/sdk/types'
 
-const response: DepositAddressResponse = {
-  deposit_address: '0x4A7c9E21d3F08b556E5a1fD9C3b82B44Aa61eF02',
-  chain_type: 'evm',
-  version: 0,
-  min_deposit: {
-    '1': { native: '2000000000000000', erc20: '1000000' },
-    '999': { native: '50000000000000000', erc20: '1000000' },
-  },
-  finality_depth: { '1': 32, '999': 10 },
-}
+const USDC = '0x5e7facf6b7b5b9887e41398db2ae1990ff7e379d17fedb428b04265d748b33b2'
+const ETH = '0xe5e6c795953f93ec9c872a4a6000788aacf182163c7abf8a5e982fedcd9f1620'
 
 describe('getMinDepositBaseUnits', () => {
-  test('picks the native or erc20 floor for the chain', () => {
-    expect(getMinDepositBaseUnits(response, 1, 'native')).toBe(2_000_000_000_000_000n)
-    expect(getMinDepositBaseUnits(response, 1, 'erc20')).toBe(1_000_000n)
-    expect(getMinDepositBaseUnits(response, 999, 'native')).toBe(50_000_000_000_000_000n)
+  test('reads the minimum by tokenId; an unlisted token has none', () => {
+    const minDeposits = { [USDC]: '1000000' }
+    expect(getMinDepositBaseUnits(minDeposits, '0x' + USDC.slice(2).toUpperCase())).toBe(1_000_000n)
+    expect(getMinDepositBaseUnits(minDeposits, ETH)).toBe(0n)
   })
 
-  test('returns undefined when the response or chain entry is missing', () => {
-    expect(getMinDepositBaseUnits(undefined, 1, 'native')).toBeUndefined()
-    expect(getMinDepositBaseUnits(response, 8453, 'erc20')).toBeUndefined()
-    expect(
-      getMinDepositBaseUnits({ ...response, min_deposit: undefined! }, 1, 'native')
-    ).toBeUndefined()
-  })
-
-  test('returns undefined for malformed or negative values', () => {
-    const bad: DepositAddressResponse = {
-      ...response,
-      min_deposit: { '1': { native: 'not-a-number', erc20: '-5' } },
-    }
-    expect(getMinDepositBaseUnits(bad, 1, 'native')).toBeUndefined()
-    expect(getMinDepositBaseUnits(bad, 1, 'erc20')).toBeUndefined()
+  test('returns undefined when the minimums are not loaded or malformed', () => {
+    expect(getMinDepositBaseUnits(undefined, USDC)).toBeUndefined()
+    expect(getMinDepositBaseUnits({ [USDC]: '-5' }, USDC)).toBeUndefined()
+    expect(getMinDepositBaseUnits({ [USDC]: 'not-a-number' }, USDC)).toBeUndefined()
   })
 })

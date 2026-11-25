@@ -198,7 +198,7 @@ class TestGetDepositAddress:
                     "deposit_address": "0xdeposit",
                     "chain_type": "evm",
                     "version": 0,
-                    "min_deposit": {"84532": {"native": "1000000000000000", "erc20": "1000000"}},
+                    "min_deposit": {"0x" + "11" * 32: "1000000"},
                 },
             )
         )
@@ -207,7 +207,7 @@ class TestGetDepositAddress:
         assert result.deposit_address == "0xdeposit"
         assert result.chain_type == "evm"
         assert result.version == 0
-        assert "84532" in result.min_deposit
+        assert result.min_deposit == {"0x" + "11" * 32: "1000000"}
 
 
 DEPOSIT_ID_HEX = "0x" + "ab" * 32
