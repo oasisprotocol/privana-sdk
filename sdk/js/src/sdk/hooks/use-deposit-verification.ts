@@ -1,47 +1,46 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { WagmiContext } from 'wagmi'
 import { AccountingApiError } from '../client/errors'
-import { checkDepositWithFinalityRetry } from '../utils/deposit-finality'
+import { claimDepositWithRetry, findClaimedDeposit } from '../utils/deposit-claim'
+import { finalityDurationMs, type DepositFinality } from '../utils/finality'
 import { usePrivateReadRequest } from './use-private-read-request'
-import type { DepositCheckResponse } from '../types'
+import type { Bytes32, DepositCheckResponse, DepositFinalityProgress } from '../types'
 
 export interface VerificationContext {
   /** On-chain transfer that funded the user's Privana deposit address. */
-  hash: `0x${string}`
-  /** Chain the transfer was mined on. */
-  chainId: number
+  hash?: `0x${string}`
+  depositId?: string
+  tokenId?: Bytes32
   /** Transferred amount in base units (matches the deposit's token decimals). */
   amount: bigint
-  /** Log index of the exact Transfer event within the tx (default: 0). */
-  logIndex?: number
+  finality?: DepositFinality
 }
 
 export interface UseDepositVerificationOptions {
   /** Fired when the deposit is credited inside the Privana accounting module. */
-  onCredited?: (txHash: string, response: DepositCheckResponse, creditedAmount: bigint) => void
+  onCredited?: (key: string, response: DepositCheckResponse, creditedAmount: bigint) => void
   /**
-   * Fired when `checkDeposit` accepts the transfer for processing, with the
-   * deposit id status polling follows. The deposit can still credit after a
-   * polling timeout; the id is what identifies it in history.
+   * Fired when `checkDeposit` returns the deposit status polling follows. The
+   * deposit can still credit after a polling timeout; the id is what
+   * identifies it in history.
    */
-  onCheckAccepted?: (txHash: string, depositId: string) => void
+  onCheckAccepted?: (key: string, depositId: string) => void
   /** Fired when polling exceeds `pollTimeout` (the deposit may still be processing). */
-  onCheckTimeout?: (txHash: string) => void
+  onCheckTimeout?: (key: string) => void
   onError?: (error: Error) => void
   /**
-   * Fired each time `checkDeposit` returns "Insufficient finality" and the hook
-   * is about to sleep + retry. Non-terminal — does not stop the retry loop.
-   * Use this to surface confirmation-progress messages (e.g. "4/32 confirmations")
-   * to the user while phase 1 is still waiting on chain finality.
+   * Fired each time the claim finds nothing for the token yet and the hook is
+   * about to sleep + retry. Non-terminal — does not stop the retry loop.
    */
   onCheckRetry?: (message: string) => void
   /** Polling interval in ms (default: 5000). */
   pollInterval?: number
-  /** Retry interval in ms while the source-chain tx is waiting finality (default: pollInterval). */
+  /** Retry interval in ms while the claim finds nothing yet (default: pollInterval). */
   finalityRetryInterval?: number
-  /** Max time to wait for credit confirmation in ms (default: 180000). */
+  /** Max time to wait for credit confirmation in ms, plus the chain's finality time when known (default: 180000). */
   pollTimeout?: number
 }
 
@@ -56,9 +55,8 @@ export interface UseDepositVerificationResult {
    * without re-sending the transfer.
    */
   verificationFailed: boolean
-  /** True only when this transfer was definitively rejected and another candidate is safe to try. */
-  canCheckAnotherTransfer: boolean
   error: Error | null
+  finality: DepositFinalityProgress | null
   /** Current transfer hash being verified, if any. */
   txHash: `0x${string}` | undefined
   /** Kick off Phase 1 (checkDeposit) + Phase 2 (poll getDepositStatus) for the given context. */
@@ -70,7 +68,7 @@ export interface UseDepositVerificationResult {
 }
 
 /**
- * Phase 1 (POST /deposits/check) + Phase 2 (poll /deposits/status) of the
+ * Phase 1 (POST /deposits/check, claiming the token) + Phase 2 (poll /deposits/status) of the
  * Privana deposit flow, decoupled from the wallet-signing half. Use this
  * directly when the on-chain transfer to the deposit address came from
  * somewhere other than the connected wallet — e.g. a fiat on-ramp that
@@ -83,6 +81,7 @@ export function useDepositVerification(
   options: UseDepositVerificationOptions = {}
 ): UseDepositVerificationResult {
   const queryClient = useQueryClient()
+  const wagmiConfig = useContext(WagmiContext)
   const { executePrivateRead } = usePrivateReadRequest()
 
   const pollInterval = options.pollInterval ?? 5000
@@ -92,8 +91,8 @@ export function useDepositVerification(
   const [isVerifying, setIsVerifying] = useState(false)
   const [didTimeout, setDidTimeout] = useState(false)
   const [verificationFailed, setVerificationFailed] = useState(false)
-  const [canCheckAnotherTransfer, setCanCheckAnotherTransfer] = useState(false)
   const [error, setError] = useState<Error | null>(null)
+  const [finality, setFinality] = useState<DepositFinalityProgress | null>(null)
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>()
 
   const generationRef = useRef(0)
@@ -142,21 +141,28 @@ export function useDepositVerification(
   const runVerification = useCallback(
     async (ctx: VerificationContext, generation: number): Promise<void> => {
       const isStale = () => generation !== generationRef.current
-      const { hash, chainId, amount, logIndex } = ctx
+      const { hash, depositId: claimedId, tokenId, amount } = ctx
+      const key = hash ?? claimedId
+      if (!key) throw new Error('Nothing to verify: pass a transfer hash or a deposit id')
 
       setVerificationFailed(false)
-      setCanCheckAnotherTransfer(false)
       setError(null)
       setDidTimeout(false)
+      setFinality(null)
       setIsVerifying(true)
 
       const pollStartTime = Date.now()
+      let timeoutMs = pollTimeout
+      if (ctx.finality && wagmiConfig) {
+        // The backend credits only once its sweep is final.
+        timeoutMs += await finalityDurationMs(wagmiConfig, ctx.finality).catch(() => 0)
+        if (isStale()) return
+      }
 
-      const markVerificationFailed = (err: Error, canCheckAnother = false) => {
+      const markVerificationFailed = (err: Error) => {
         setIsVerifying(false)
         setError(err)
         setVerificationFailed(true)
-        setCanCheckAnotherTransfer(canCheckAnother)
         onErrorRef.current?.(err)
       }
 
@@ -164,36 +170,33 @@ export function useDepositVerification(
         stopPolling()
         setIsVerifying(false)
         setDidTimeout(true)
-        onCheckTimeoutRef.current?.(hash)
+        onCheckTimeoutRef.current?.(key)
         queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
       }
 
       try {
-        // Phase 1: trigger sweep. The backend rejects with "Insufficient finality"
-        // when the source-chain tx isn't deep enough yet; retry on a slower
-        // cadence instead of failing, until pollTimeout.
-        const finality = await checkDepositWithFinalityRetry({
-          checkDeposit: () =>
-            executePrivateRead((readClient) =>
-              readClient.checkDeposit({
-                chain_id: chainId,
-                tx_hash: hash,
-                amount: amount.toString(),
-                log_index: logIndex,
-              })
-            ),
-          isStale,
-          onRetry: (message) => onCheckRetryRef.current?.(message),
-          timeoutMs: pollTimeout,
-          retryIntervalMs: finalityRetryInterval,
-          startedAt: pollStartTime,
-        })
-        if (finality.kind === 'stale') return
-        if (finality.kind === 'timeout') {
-          markVerificationTimedOut()
-          return
+        // Phase 1: claim the token, which starts a sweep of the deposit address.
+        // Until the transfer shows up there the claim comes back empty; retry
+        // on a slower cadence instead of failing, until pollTimeout.
+        let triggerResult: DepositCheckResponse = { status: 'pending', deposit_id: claimedId }
+        if (!claimedId) {
+          const claim = await claimDepositWithRetry({
+            claim: () =>
+              executePrivateRead((readClient) => readClient.checkDeposit({ token_id: tokenId })),
+            tokenId,
+            isStale,
+            onRetry: (message) => onCheckRetryRef.current?.(message),
+            timeoutMs,
+            retryIntervalMs: finalityRetryInterval,
+            startedAt: pollStartTime,
+          })
+          if (claim.kind === 'stale') return
+          if (claim.kind === 'timeout') {
+            markVerificationTimedOut()
+            return
+          }
+          triggerResult = claim.deposit
         }
-        const triggerResult = finality.response
         if (isStale()) return
 
         if (triggerResult.status === 'credited') {
@@ -202,7 +205,7 @@ export function useDepositVerification(
           verificationContextRef.current = null
           queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
           queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
-          onCreditedRef.current?.(hash, triggerResult, creditedAmount)
+          onCreditedRef.current?.(key, triggerResult, creditedAmount)
           return
         }
 
@@ -211,55 +214,109 @@ export function useDepositVerification(
           return
         }
 
-        const depositId = triggerResult.deposit_id
-        if (!depositId) {
+        const firstId = triggerResult.deposit_id
+        if (!firstId) {
           markVerificationFailed(new Error('Deposit check did not return a deposit id'))
           return
         }
-        onCheckAcceptedRef.current?.(hash, depositId)
+        let depositId = firstId
+        onCheckAcceptedRef.current?.(key, depositId)
 
         // Phase 2: poll status
         let consecutiveFailures = 0
+        let followedAmount = amount
+        let creditedTotal = 0n
+        let lastCredited: DepositCheckResponse | undefined
+
+        const finishCredited = (response: DepositCheckResponse) => {
+          stopPolling()
+          setIsVerifying(false)
+          setFinality(null)
+          verificationContextRef.current = null
+          queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
+          queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
+          onCreditedRef.current?.(key, response, creditedTotal)
+        }
+
+        const fail = (err: Error) => {
+          stopPolling()
+          if (lastCredited) finishCredited(lastCredited)
+          else markVerificationFailed(err)
+        }
+
+        const claimNext = async () => {
+          const deposits = await executePrivateRead((readClient) =>
+            readClient.checkDeposit({ token_id: tokenId })
+          )
+          return findClaimedDeposit(deposits, tokenId)
+        }
+        const follow = (next: DepositCheckResponse, nextAmount: bigint) => {
+          if (!next.deposit_id) return false
+          depositId = next.deposit_id
+          followedAmount = nextAmount
+          setFinality(null)
+          onCheckAcceptedRef.current?.(key, depositId)
+          return true
+        }
 
         const checkStatus = async (): Promise<boolean> => {
           if (isStale()) return true
 
-          if (Date.now() - pollStartTime > pollTimeout) {
-            markVerificationTimedOut()
+          if (Date.now() - pollStartTime > timeoutMs) {
+            if (lastCredited) finishCredited(lastCredited)
+            else markVerificationTimedOut()
             return true
           }
 
           try {
-            const result = await executePrivateRead((readClient) =>
-              readClient.getDepositStatus(depositId)
-            )
+            let result: DepositCheckResponse
+            try {
+              result = await executePrivateRead((readClient) =>
+                readClient.getDepositStatus(depositId)
+              )
+            } catch (err) {
+              if (claimedId || !(err instanceof AccountingApiError && err.statusCode === 404)) {
+                throw err
+              }
+              // The sweep was dropped and its funds are still at the address: claim them again.
+              const next = await claimNext()
+              if (isStale()) return true
+              consecutiveFailures = 0
+              if (next) follow(next, next.amount ? BigInt(next.amount) : followedAmount)
+              return false
+            }
             if (isStale()) return true
             consecutiveFailures = 0
+            if (result.finality) setFinality(result.finality)
 
             if (result.status === 'credited') {
               let creditedAmount: bigint
               try {
-                creditedAmount = creditedAmountFromResponse(result, amount)
+                creditedAmount = creditedAmountFromResponse(result, followedAmount)
               } catch (err) {
-                stopPolling()
-                markVerificationFailed(
-                  err instanceof Error ? err : new Error('Deposit credited amount is invalid'),
-                  false
-                )
+                fail(err instanceof Error ? err : new Error('Deposit credited amount is invalid'))
                 return true
               }
-              stopPolling()
-              setIsVerifying(false)
-              verificationContextRef.current = null
-              queryClient.invalidateQueries({ queryKey: ['accounting-balance'] })
-              queryClient.invalidateQueries({ queryKey: ['accounting-history'] })
-              onCreditedRef.current?.(hash, result, creditedAmount)
+              creditedTotal += creditedAmount
+              lastCredited = result
+              if (!claimedId) {
+                // A sweep already running when we claimed may not include this transfer.
+                const next = await claimNext().catch(() => undefined)
+                if (isStale()) return true
+                if (
+                  next &&
+                  next.deposit_id !== depositId &&
+                  follow(next, next.amount ? BigInt(next.amount) : 0n)
+                ) {
+                  return false
+                }
+              }
+              finishCredited(result)
               return true
             }
 
             if (result.status === 'error') {
-              stopPolling()
-              markVerificationFailed(new Error(result.detail ?? 'Deposit verification failed'))
+              fail(new Error(result.detail ?? 'Deposit verification failed'))
               return true
             }
           } catch (err) {
@@ -267,10 +324,7 @@ export function useDepositVerification(
             consecutiveFailures++
             console.warn('Error polling deposit status:', err)
             if (consecutiveFailures >= 3) {
-              stopPolling()
-              markVerificationFailed(
-                err instanceof Error ? err : new Error('Deposit status polling failed')
-              )
+              fail(err instanceof Error ? err : new Error('Deposit status polling failed'))
               return true
             }
           }
@@ -287,11 +341,20 @@ export function useDepositVerification(
       } catch (err) {
         if (isStale()) return
         stopPolling()
-        const error = err instanceof Error ? err : new Error('Deposit verification failed')
-        markVerificationFailed(error, isDefinitiveCandidateFailure(error))
+        markVerificationFailed(
+          err instanceof Error ? err : new Error('Deposit verification failed')
+        )
       }
     },
-    [executePrivateRead, finalityRetryInterval, pollInterval, pollTimeout, queryClient, stopPolling]
+    [
+      executePrivateRead,
+      finalityRetryInterval,
+      pollInterval,
+      pollTimeout,
+      queryClient,
+      stopPolling,
+      wagmiConfig,
+    ]
   )
 
   const verify = useCallback(
@@ -325,16 +388,16 @@ export function useDepositVerification(
     setIsVerifying(false)
     setDidTimeout(false)
     setVerificationFailed(false)
-    setCanCheckAnotherTransfer(false)
     setError(null)
+    setFinality(null)
   }, [stopPolling])
 
   return {
     isVerifying,
     didTimeout,
     verificationFailed,
-    canCheckAnotherTransfer,
     error,
+    finality,
     txHash,
     verify,
     retryVerification,
@@ -354,11 +417,4 @@ function creditedAmountFromResponse(
   } catch (err) {
     throw new Error('Deposit API returned an invalid credited amount', { cause: err })
   }
-}
-
-function isDefinitiveCandidateFailure(error: Error): boolean {
-  // The deposit API uses 400 for candidate-specific validation failures. A
-  // status response of "error" or an accounting 422 can still succeed when
-  // the same transfer is retried, so neither is safe to skip.
-  return error instanceof AccountingApiError && error.statusCode === 400
 }

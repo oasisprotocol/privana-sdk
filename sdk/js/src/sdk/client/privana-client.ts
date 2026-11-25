@@ -6,8 +6,6 @@ import type {
   DepositAddressResponse,
   DepositCheckRequest,
   DepositCheckResponse,
-  PendingDepositsRequest,
-  PendingDepositsResponse,
   HostedAuthAuthorizeUrlRequest,
   HostedAuthTokenExchangeRequest,
   HostedAuthTokenExchangeResponse,
@@ -83,33 +81,15 @@ export class PrivanaClient {
     })
   }
 
-  async checkDeposit(request: DepositCheckRequest): Promise<DepositCheckResponse> {
-    return this.http.post<DepositCheckResponse>('/v1/accounting/deposits/check', {
-      chain_type: request.chain_type ?? 'evm',
-      chain_id: request.chain_id,
-      tx_hash: normalizeHex(request.tx_hash),
-      amount: String(request.amount),
-      log_index: request.log_index ?? 0,
+  async checkDeposit(request: DepositCheckRequest = {}): Promise<DepositCheckResponse[]> {
+    return this.http.post<DepositCheckResponse[]>('/v1/accounting/deposits/check', {
+      ...(request.token_id ? { token_id: normalizeHex(request.token_id) } : {}),
       version: request.version ?? 0,
     })
   }
 
   async getDepositStatus(depositId: string): Promise<DepositCheckResponse> {
     return this.http.get<DepositCheckResponse>(`/v1/accounting/deposits/status/${depositId}`)
-  }
-
-  async getPendingDeposits(request: PendingDepositsRequest): Promise<PendingDepositsResponse> {
-    const params = new URLSearchParams({ chain_id: String(request.chain_id) })
-    if (request.version !== undefined) params.set('version', String(request.version))
-    if (request.token_address !== undefined) {
-      params.set('token_address', normalizeAddress(request.token_address))
-    }
-    if (request.lookback_blocks !== undefined) {
-      params.set('lookback_blocks', String(request.lookback_blocks))
-    }
-    return this.http.get<PendingDepositsResponse>(
-      `/v1/accounting/deposits/pending?${params.toString()}`
-    )
   }
 
   async getBalance(tokenId: Bytes32 | string): Promise<BalanceResponse> {

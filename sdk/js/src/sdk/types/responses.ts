@@ -1,47 +1,26 @@
 import type { Address, Bytes32, HexString } from './common'
 
-export interface MinDepositAmounts {
-  native: string
-  erc20: string
-}
-
 export interface DepositAddressResponse {
   deposit_address: Address
   chain_type: string
   version: number
-  min_deposit: Record<string, MinDepositAmounts>
+  /** Minimum deposit in base units per tokenId; a token not listed has no minimum. */
+  min_deposit: Record<string, string>
   finality_depth: Record<string, number>
 }
 
+export interface DepositFinalityProgress {
+  confirmations: number
+  required: number
+}
+
 export interface DepositCheckResponse {
-  status: 'credited' | 'pending' | 'error'
+  status: 'credited' | 'pending' | 'error' | 'none'
   deposit_id?: string | null
   amount?: string | null
-  token_address?: Address | null
+  token_id?: Bytes32 | null
   detail?: string | null
-}
-
-export type PendingDepositStatus = 'discovered' | 'processing'
-
-export interface PendingDeposit {
-  chain_id: number
-  tx_hash: HexString
-  log_index: number
-  /** Base units. */
-  amount: string
-  token_address: Address
-  token_id: Bytes32
-  block_number: number
-  version: number
-  status: PendingDepositStatus
-  /** Set only when status is 'processing'. */
-  deposit_id: string | null
-}
-
-export interface PendingDepositsResponse {
-  pending: PendingDeposit[]
-  scanned_from_block: number
-  scanned_to_block: number
+  finality?: DepositFinalityProgress | null
 }
 
 export interface TransactionSubmissionResponse {

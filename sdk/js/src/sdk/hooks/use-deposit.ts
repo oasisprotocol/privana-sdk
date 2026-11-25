@@ -3,10 +3,12 @@
 import { createContext, useState, useCallback, useContext, useEffect, useMemo, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAccount, useWriteContract, useSendTransaction, useConfig } from 'wagmi'
-import { getBlockNumber, getTransactionReceipt, waitForTransactionReceipt } from '@wagmi/core'
+import { getTransactionReceipt, waitForTransactionReceipt } from '@wagmi/core'
 import { erc20Abi, zeroAddress } from 'viem'
 import { usePrivanaContext } from '../context/privana-context'
 import { useEnsureCorrectChain } from './use-ensure-correct-chain'
+import { depositFinality } from '../utils/finality'
+import { usePauseBackgroundClaim } from '../context/background-deposit-claim'
 import { usePrivateReadRequest } from './use-private-read-request'
 import { useDepositVerification, type VerificationContext } from './use-deposit-verification'
 import {
@@ -30,6 +32,7 @@ import type {
   Bytes32,
   DepositAddressResponse,
   DepositCheckResponse,
+  DepositFinalityProgress,
   LockFundsRequest,
   TransactionSubmissionResponse,
 } from '../types'
@@ -76,6 +79,7 @@ export interface DepositProgress {
   sentAt: number
   stage: DepositStage
   depositId?: string
+  finality?: DepositFinalityProgress
 }
 
 export interface UseDepositResult {
@@ -124,12 +128,10 @@ interface PersistedDeposit {
 
 const STALE_MS = 30 * 60 * 1000
 
-function resolveConfirmations(depositAddress: DepositAddressResponse, chainId: number): number {
-  const confirmations = depositAddress.finality_depth?.[String(chainId)]
-  if (confirmations === undefined) {
+function assertDepositChain(depositAddress: DepositAddressResponse, chainId: number): void {
+  if (!depositFinality(depositAddress, chainId)) {
     throw new Error(`Deposits are not supported on chain ${chainId}`)
   }
-  return confirmations
 }
 
 function depositStage(state: {
@@ -333,6 +335,7 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
     didTimeout,
     verificationFailed: innerVerificationFailed,
     error: verificationError,
+    finality,
     verify,
     reset: resetVerification,
   } = useDepositVerification({
@@ -473,8 +476,9 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
     pendingLockRef.current = persisted.signedLock ?? null
     const ctx: VerificationContext = {
       hash,
-      chainId: persisted.chainId,
+      tokenId: persisted.tokenId,
       amount: BigInt(persisted.amount),
+      finality: depositFinality(persisted.depositAddress, persisted.chainId),
     }
     verificationContextRef.current = ctx
 
@@ -483,7 +487,7 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
 
     ;(async () => {
       try {
-        const confirmations = resolveConfirmations(persisted.depositAddress, persisted.chainId)
+        assertDepositChain(persisted.depositAddress, persisted.chainId)
 
         // Try a one-shot receipt fetch first. Resumed deposits were submitted
         // in a previous session, so the transaction is almost certainly mined
@@ -492,23 +496,13 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
         // isn't fully initialised yet on mount.
         let confirmed = false
         try {
-          const receipt = await getTransactionReceipt(config, {
-            hash,
-            chainId: persisted.chainId,
-          })
-          // A receipt exists from the first block, so accepting it alone would
-          // confirm a resumed deposit at 1 block where a live one waits the full depth.
-          const blockNumber = await getBlockNumber(config, { chainId: persisted.chainId })
-          confirmed = blockNumber - receipt.blockNumber + 1n >= BigInt(confirmations)
+          await getTransactionReceipt(config, { hash, chainId: persisted.chainId })
+          confirmed = true
         } catch {
           // Receipt not available yet — fall back to polling
         }
         if (!confirmed) {
-          await waitForTransactionReceipt(config, {
-            hash,
-            chainId: persisted.chainId,
-            confirmations,
-          })
+          await waitForTransactionReceipt(config, { hash, chainId: persisted.chainId })
         }
         if (isStale()) return
         setIsWaitingForConfirmation(false)
@@ -571,21 +565,16 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
         // 3. Validate amount against the backend minimum. Below this the
         // deposit processor refuses to credit and funds would be stranded
         // at the per-user deposit address.
-        const isNative = token.contract === zeroAddress
-        const minimum = getMinDepositBaseUnits(
-          addrResponse,
-          sourceChain.id,
-          isNative ? 'native' : 'erc20'
-        )
+        const minimum = getMinDepositBaseUnits(addrResponse.min_deposit, token.id)
         if (minimum !== undefined && params.amount < minimum) {
           throw new Error(
-            `Amount is below the minimum deposit (${minimum}) for ${isNative ? 'native' : 'ERC-20'} on chain ${sourceChain.id}`
+            `Amount is below the minimum deposit (${minimum}) for ${token.symbol} on chain ${sourceChain.id}`
           )
         }
 
-        // Resolved here rather than at the wait below so an unsupported chain
-        // fails before the transfer, not after the funds have left the wallet.
-        const confirmations = resolveConfirmations(addrResponse, sourceChain.id)
+        // Checked here so an unsupported chain fails before the transfer, not
+        // after the funds have left the wallet.
+        assertDepositChain(addrResponse, sourceChain.id)
 
         if (params.postDepositLock && !canUseBrowserStorage()) {
           throw new Error('Browser storage is required for locked deposit recovery')
@@ -673,8 +662,9 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
         // rather than appearing terminal.
         const ctx: VerificationContext = {
           hash,
-          chainId: sourceChain.id,
+          tokenId: token.id,
           amount: params.amount,
+          finality: depositFinality(addrResponse, sourceChain.id),
         }
         verificationContextRef.current = ctx
         pendingLockRef.current = signedLock ?? null
@@ -683,11 +673,7 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
           // 6. Wait for on-chain confirmation
           setIsWaitingForConfirmation(true)
           try {
-            await waitForTransactionReceipt(config, {
-              hash,
-              chainId: sourceChain.id,
-              confirmations,
-            })
+            await waitForTransactionReceipt(config, { hash, chainId: sourceChain.id })
           } finally {
             if (!isStale()) setIsWaitingForConfirmation(false)
           }
@@ -775,9 +761,16 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
     confirming: isWaitingForConfirmation,
   })
   const progress = useMemo<DepositProgress | null>(
-    () => sent && { ...sent, stage, depositId },
-    [sent, stage, depositId]
+    () =>
+      sent && {
+        ...sent,
+        stage,
+        depositId,
+        ...(stage === 'crediting' && finality ? { finality } : {}),
+      },
+    [sent, stage, depositId, finality]
   )
+  usePauseBackgroundClaim(!!sent && (stage === 'confirming' || stage === 'crediting'))
 
   return {
     depositAddress,
