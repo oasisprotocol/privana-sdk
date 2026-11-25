@@ -36,6 +36,7 @@ import {
 } from '../on-ramp/recovery'
 import {
   assertErc20OnRampToken,
+  erc20MinDepositBaseUnits,
   resolveErc20OnRampTransfer,
   type OnRampDeliveredTransfer,
 } from '../on-ramp/receipt'
@@ -59,13 +60,13 @@ import type {
   Bytes32,
   DepositFinalityProgress,
   HexString,
+  MinDepositAmounts,
   OnRampRecord,
   TokenConfig,
   TransactionSubmissionResponse,
 } from '../types'
 import { useSigningClient } from './use-signing-client'
 import { getSigningClient } from '../utils/signing-client'
-import { getMinDepositBaseUnits } from '../utils/min-deposit'
 
 const DEFAULT_DELIVERY_TIMEOUT_MS = 120_000
 const DEFAULT_VERIFICATION_TIMEOUT_MS = 10 * 60_000
@@ -265,8 +266,10 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
   const [pending, setPending] = useState<OnRampRecord[]>([])
   const [error, setError] = useState<Error | null>(null)
   const [depositAddress, setDepositAddress] = useState<`0x${string}` | undefined>()
-  // Recovery is not token-scoped, so retain the backend minima for every token.
-  const [minDeposits, setMinDeposits] = useState<Record<string, string> | undefined>()
+  // Recovery is not token-scoped, so retain the backend minima for every chain.
+  const [minDepositByChain, setMinDepositByChain] = useState<
+    Record<string, MinDepositAmounts> | undefined
+  >()
   const [activeIntentId, setActiveIntentId] = useState<string | null>(null)
   const [activeVerificationId, setActiveVerificationId] = useState<string | null>(null)
   usePauseBackgroundClaim(pending.length > 0 || activeVerificationId !== null)
@@ -303,10 +306,10 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
   const purchaseInitiatedRef = useRef(false)
   const scopedDepositAddress =
     depositAddressSessionRef.current === flowSession ? depositAddress : undefined
-  const scopedMinDeposits =
-    depositAddressSessionRef.current === flowSession ? minDeposits : undefined
+  const scopedMinDepositByChain =
+    depositAddressSessionRef.current === flowSession ? minDepositByChain : undefined
   const scopedMinDepositBaseUnits = selectedToken
-    ? getMinDepositBaseUnits(scopedMinDeposits, selectedToken.id)
+    ? erc20MinDepositBaseUnits(scopedMinDepositByChain, selectedToken.chainId)
     : undefined
   useEffect(() => {
     onCreditedRef.current = onCredited
@@ -347,14 +350,14 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
     if (!privateReadReady) {
       emitDebug('deposit-address:skip', { reason: 'private-read-not-ready' })
       setDepositAddress(undefined)
-      setMinDeposits(undefined)
+      setMinDepositByChain(undefined)
       return
     }
 
     // Never leave the previous authenticated user's address actionable while
     // the scoped replacement request is in flight.
     setDepositAddress(undefined)
-    setMinDeposits(undefined)
+    setMinDepositByChain(undefined)
     let cancelled = false
     void (async () => {
       try {
@@ -363,13 +366,13 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
         if (cancelled || flowSessionRef.current !== flowSession) return
         depositAddressSessionRef.current = flowSession
         setDepositAddress(resp.deposit_address)
-        setMinDeposits(resp.min_deposit)
+        setMinDepositByChain(resp.min_deposit)
         const token = enabledTokens.find((t) => t.id.toLowerCase() === tokenId.toLowerCase())
-        const minimum = token ? getMinDepositBaseUnits(resp.min_deposit, token.id) : undefined
+        const mins = token ? resp.min_deposit?.[String(token.chainId)] : undefined
         emitDebug('deposit-address:success', {
           depositAddressReady: true,
           selectedToken: token ? summariseToken(token) : null,
-          minDepositBaseUnits: minimum?.toString() ?? null,
+          minDepositBaseUnits: mins?.erc20 ?? null,
         })
       } catch (err) {
         if (!cancelled) {
@@ -1044,7 +1047,10 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
 
         // Post-completion safety net: provider fees or settlement drift can
         // leave delivery below Privana's minimum.
-        const recordMinDepositBaseUnits = getMinDepositBaseUnits(scopedMinDeposits, token.id)
+        const recordMinDepositBaseUnits = erc20MinDepositBaseUnits(
+          scopedMinDepositByChain,
+          record.chain_id
+        )
         if (
           recordMinDepositBaseUnits !== undefined &&
           delivered.amount < recordMinDepositBaseUnits
@@ -1087,7 +1093,7 @@ export function useOnRamp(options: UseOnRampOptions): UseOnRampResult {
         throw err
       }
     },
-    [emitDebug, enabledTokens, flowSession, scopedMinDeposits, verify, wagmiConfig]
+    [emitDebug, enabledTokens, flowSession, scopedMinDepositByChain, verify, wagmiConfig]
   )
 
   const handleProviderEvent = useCallback(

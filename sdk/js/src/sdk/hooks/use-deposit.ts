@@ -565,10 +565,15 @@ export function useDepositFlow(options: UseDepositOptions): UseDepositResult {
         // 3. Validate amount against the backend minimum. Below this the
         // deposit processor refuses to credit and funds would be stranded
         // at the per-user deposit address.
-        const minimum = getMinDepositBaseUnits(addrResponse.min_deposit, token.id)
+        const isNative = token.contract === zeroAddress
+        const minimum = getMinDepositBaseUnits(
+          addrResponse,
+          sourceChain.id,
+          isNative ? 'native' : 'erc20'
+        )
         if (minimum !== undefined && params.amount < minimum) {
           throw new Error(
-            `Amount is below the minimum deposit (${minimum}) for ${token.symbol} on chain ${sourceChain.id}`
+            `Amount is below the minimum deposit (${minimum}) for ${isNative ? 'native' : 'ERC-20'} on chain ${sourceChain.id}`
           )
         }
 

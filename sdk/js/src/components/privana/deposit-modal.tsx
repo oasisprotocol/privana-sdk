@@ -276,7 +276,7 @@ export function DepositModalContent({
       : depositAddressState.isError
         ? null
         : depositAddressState.response
-          ? (getMinDepositBaseUnits(depositAddressState.response.min_deposit, selectedToken.id) ??
+          ? (getMinDepositBaseUnits(depositAddressState.response, selectedToken.chainId, 'erc20') ??
             null)
           : undefined
   const walletMinimum =
@@ -285,8 +285,11 @@ export function DepositModalContent({
       : depositAddressState.isError
         ? null
         : depositAddressState.response
-          ? (getMinDepositBaseUnits(depositAddressState.response.min_deposit, selectedToken.id) ??
-            null)
+          ? (getMinDepositBaseUnits(
+              depositAddressState.response,
+              selectedToken.chainId,
+              selectedToken.contract === zeroAddress ? 'native' : 'erc20'
+            ) ?? null)
           : undefined
 
   const prevAddressRef = useRef(address)

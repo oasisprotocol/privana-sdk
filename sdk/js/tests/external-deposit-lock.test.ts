@@ -12,6 +12,7 @@ import {
   submitExternalDepositLock,
   type ExternalDepositLockSessionRecord,
 } from '../src/sdk/utils/external-deposit-lock'
+import { getMinDepositBaseUnits } from '../src/sdk/utils/min-deposit'
 import { PostDepositLockError, requireDepositLockOwner } from '../src/sdk/utils/pending-lock'
 import {
   canUseSharedBrowserStorage,
@@ -20,7 +21,7 @@ import {
   setSharedBrowserStorageItem,
 } from '../src/sdk/utils/browser-storage'
 import { AccountingApiError } from '../src/sdk/client/errors'
-import type { Address, LockFundsRequest } from '../src/sdk/types'
+import type { Address, DepositAddressResponse, LockFundsRequest } from '../src/sdk/types'
 
 const OWNER = '0x000000000000000000000000000000000000dEaD' as Address
 const OTHER_OWNER = '0x000000000000000000000000000000000000bEEF' as Address
@@ -263,6 +264,36 @@ describe('external deposit owner', () => {
     expect(() => requireDepositLockOwner(OTHER_OWNER, OWNER)).toThrow(
       'Connected wallet does not match the authenticated deposit account'
     )
+  })
+})
+
+describe('external deposit minimum', () => {
+  it('reads the backend minimum for the selected chain and asset kind', () => {
+    const response = {
+      deposit_address: OWNER,
+      chain_type: 'evm',
+      version: 0,
+      min_deposit: {
+        [CHAIN_ID]: { native: '100', erc20: '1000' },
+      },
+    }
+
+    expect(getMinDepositBaseUnits(response, CHAIN_ID, 'erc20')).toBe(1000n)
+    expect(getMinDepositBaseUnits(response, 1, 'erc20')).toBeUndefined()
+  })
+
+  it('treats a legacy response without minimums as unavailable', () => {
+    expect(
+      getMinDepositBaseUnits(
+        {
+          deposit_address: OWNER,
+          chain_type: 'evm',
+          version: 0,
+        } as DepositAddressResponse,
+        CHAIN_ID,
+        'erc20'
+      )
+    ).toBeUndefined()
   })
 })
 

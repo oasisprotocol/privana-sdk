@@ -1,15 +1,16 @@
 import type { DepositAddressResponse } from '../types'
 
-/**
- * Minimum deposit of a token in base units. A token the backend does not list
- * has no minimum (0n); undefined means the minimums are not loaded or invalid.
- */
 export function getMinDepositBaseUnits(
-  minDeposits: DepositAddressResponse['min_deposit'] | undefined,
-  tokenId: string
+  response: DepositAddressResponse | undefined,
+  chainId: number,
+  kind: 'native' | 'erc20'
 ): bigint | undefined {
-  if (!minDeposits) return undefined
-  const value = minDeposits[tokenId.toLowerCase()]
-  if (value === undefined) return 0n
-  return /^\d+$/.test(value) ? BigInt(value) : undefined
+  const value = response?.min_deposit?.[String(chainId)]?.[kind]
+  if (value === undefined) return undefined
+  try {
+    const amount = BigInt(value)
+    return amount >= 0n ? amount : undefined
+  } catch {
+    return undefined
+  }
 }

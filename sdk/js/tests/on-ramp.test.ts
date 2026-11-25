@@ -40,7 +40,11 @@ import {
   rememberUnresolvedOnRampIntent,
   type OnRampRecoveryScope,
 } from '../src/sdk/on-ramp/recovery'
-import { assertErc20OnRampToken, resolveErc20OnRampTransfer } from '../src/sdk/on-ramp/receipt'
+import {
+  assertErc20OnRampToken,
+  erc20MinDepositBaseUnits,
+  resolveErc20OnRampTransfer,
+} from '../src/sdk/on-ramp/receipt'
 import { settlePendingOnRampLock } from '../src/sdk/on-ramp/settlement'
 import type {
   Address,
@@ -862,6 +866,21 @@ describe('deposit claim retry', () => {
 })
 
 describe('on-chain credit authority', () => {
+  it('selects the ERC-20 minimum for the recovered record chain', () => {
+    const minimums = {
+      '84532': { native: '1000000000000000', erc20: '1000000' },
+      '11155111': { native: '50000000000000000', erc20: '50000000' },
+    }
+    const recovered = makeRecord({ chain_id: 11155111 })
+
+    expect(erc20MinDepositBaseUnits(minimums, 84532)).toBe(1_000_000n)
+    expect(erc20MinDepositBaseUnits(minimums, recovered.chain_id!)).toBe(50_000_000n)
+    expect(erc20MinDepositBaseUnits(minimums, 1)).toBeUndefined()
+    expect(
+      erc20MinDepositBaseUnits({ '84532': { native: '0', erc20: 'invalid' } }, 84532)
+    ).toBeUndefined()
+  })
+
   it('selects one exact matching transfer and preserves its non-zero log index', () => {
     const transfer = resolveErc20OnRampTransfer(
       [
