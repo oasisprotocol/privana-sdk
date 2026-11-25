@@ -32,6 +32,7 @@ from ..types.responses import (
     BatchBalancesResponse,
     DepositAddressResponse,
     DepositCheckResponse,
+    DepositFinalityProgress,
     ExpiredLocksResponse,
     HistoryEntry,
     HistoryResponse,
@@ -120,6 +121,24 @@ def _parse_token_info(data: dict[str, Any]) -> TokenInfoResponse:
     )
 
 
+def _parse_deposit_check(data: dict[str, Any]) -> DepositCheckResponse:
+    finality = data.get("finality")
+    return DepositCheckResponse(
+        status=data["status"],
+        deposit_id=data.get("deposit_id"),
+        amount=data.get("amount"),
+        token_id=data.get("token_id"),
+        detail=data.get("detail"),
+        finality=(
+            DepositFinalityProgress(
+                confirmations=finality["confirmations"], required=finality["required"]
+            )
+            if finality
+            else None
+        ),
+    )
+
+
 def _parse_pending_withdrawal(data: dict[str, Any]) -> PendingWithdrawal:
     return PendingWithdrawal(
         index=data["index"],
@@ -187,35 +206,20 @@ class PrivanaClient:
             min_deposit=data.get("min_deposit", {}),
         )
 
-    async def check_deposit(self, request: DepositCheckRequest) -> DepositCheckResponse:
-        data = await self._http.post(
-            "/v1/accounting/deposits/check",
-            {
-                "chain_type": request.chain_type,
-                "chain_id": request.chain_id,
-                "tx_hash": normalize_hex(request.tx_hash),
-                "amount": str(request.amount),
-                "log_index": request.log_index,
-                "version": request.version,
-            },
-        )
-        return DepositCheckResponse(
-            status=data["status"],
-            deposit_id=data.get("deposit_id"),
-            amount=data.get("amount"),
-            token_address=data.get("token_address"),
-            detail=data.get("detail"),
-        )
+    async def check_deposit(
+        self, request: DepositCheckRequest | None = None
+    ) -> list[DepositCheckResponse]:
+        req = request or DepositCheckRequest()
+        body: dict[str, Any] = {"version": req.version}
+        if req.token_id is not None:
+            self._check_token(req.token_id)
+            body["token_id"] = normalize_hex(req.token_id)
+        data = await self._http.post("/v1/accounting/deposits/check", body)
+        return [_parse_deposit_check(d) for d in data]
 
     async def get_deposit_status(self, deposit_id: str) -> DepositCheckResponse:
         data = await self._http.get(f"/v1/accounting/deposits/status/{deposit_id}")
-        return DepositCheckResponse(
-            status=data["status"],
-            deposit_id=data.get("deposit_id"),
-            amount=data.get("amount"),
-            token_address=data.get("token_address"),
-            detail=data.get("detail"),
-        )
+        return _parse_deposit_check(data)
 
     async def get_balance(self, token_id: str) -> BalanceResponse:
         self._check_token(token_id)

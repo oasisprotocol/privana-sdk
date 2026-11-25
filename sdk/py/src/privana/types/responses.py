@@ -15,12 +15,19 @@ class DepositAddressResponse:
 
 
 @dataclass
+class DepositFinalityProgress:
+    confirmations: int
+    required: int
+
+
+@dataclass
 class DepositCheckResponse:
-    status: Literal["credited", "pending", "error"]
+    status: Literal["credited", "pending", "error", "none"]
     deposit_id: str | None = None
     amount: str | None = None
-    token_address: Address | None = None
+    token_id: Bytes32 | None = None
     detail: str | None = None
+    finality: DepositFinalityProgress | None = None
 
 
 @dataclass

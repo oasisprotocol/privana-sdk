@@ -22,6 +22,7 @@ from privana.types.requests import (
     WithdrawalRequest,
     WithdrawFromLockRequest,
 )
+from privana.types.responses import DepositFinalityProgress
 
 BASE_URL = "https://api.test.example.com"
 HISTORY_TOKEN_ID = "0x1111111111111111111111111111111111111111111111111111111111111111"
@@ -211,42 +212,44 @@ class TestGetDepositAddress:
 
 
 DEPOSIT_ID_HEX = "0x" + "ab" * 32
+TOKEN_ID = "0x" + "cd" * 32
 
 
 class TestCheckDeposit:
     @respx.mock
-    async def test_check_deposit(self, client):
-        def handler(request: httpx.Request) -> httpx.Response:
-            body = json.loads(request.content.decode())
-            assert body == {
-                "chain_type": "evm",
-                "chain_id": 84532,
-                "tx_hash": "0xabc123",
-                "amount": "1000000",
-                "log_index": 0,
-                "version": 0,
-            }
+    async def test_check_deposit_claims_one_token(self, client):
+        def handler(request):
+            body = json.loads(request.content)
+            assert body == {"token_id": TOKEN_ID, "version": 0}
             return httpx.Response(
-                200,
-                json={
-                    "status": "credited",
-                    "deposit_id": DEPOSIT_ID_HEX,
-                    "amount": "1000000",
-                    "token_address": "0xtoken",
-                },
+                202,
+                json=[
+                    {
+                        "status": "pending",
+                        "deposit_id": DEPOSIT_ID_HEX,
+                        "amount": "1000000",
+                        "token_id": TOKEN_ID,
+                    }
+                ],
             )
 
         respx.post(f"{BASE_URL}/v1/accounting/deposits/check").mock(side_effect=handler)
 
-        result = await client.check_deposit(
-            DepositCheckRequest(
-                chain_id=84532,
-                tx_hash="0xabc123",
-                amount=1000000,
-            )
-        )
-        assert result.status == "credited"
-        assert result.deposit_id == DEPOSIT_ID_HEX
+        result = await client.check_deposit(DepositCheckRequest(token_id=TOKEN_ID))
+        assert len(result) == 1
+        assert result[0].status == "pending"
+        assert result[0].deposit_id == DEPOSIT_ID_HEX
+        assert result[0].token_id == TOKEN_ID
+
+    @respx.mock
+    async def test_check_deposit_claims_every_token_without_token_id(self, client):
+        def handler(request):
+            assert json.loads(request.content) == {"version": 0}
+            return httpx.Response(200, json=[])
+
+        respx.post(f"{BASE_URL}/v1/accounting/deposits/check").mock(side_effect=handler)
+
+        assert await client.check_deposit() == []
 
 
 class TestGetDepositStatus:
@@ -259,7 +262,7 @@ class TestGetDepositStatus:
                     "status": "credited",
                     "deposit_id": DEPOSIT_ID_HEX,
                     "amount": "1000000",
-                    "token_address": "0xtoken",
+                    "token_id": TOKEN_ID,
                     "detail": "Deposit has been credited",
                 },
             )
@@ -269,7 +272,28 @@ class TestGetDepositStatus:
         assert result.status == "credited"
         assert result.deposit_id == DEPOSIT_ID_HEX
         assert result.amount == "1000000"
+        assert result.token_id == TOKEN_ID
         assert result.detail == "Deposit has been credited"
+        assert result.finality is None
+
+    @respx.mock
+    async def test_pending_deposit_status_reports_finality(self, client):
+        respx.get(f"{BASE_URL}/v1/accounting/deposits/status/{DEPOSIT_ID_HEX}").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "status": "pending",
+                    "deposit_id": DEPOSIT_ID_HEX,
+                    "amount": "1000000",
+                    "token_id": TOKEN_ID,
+                    "finality": {"confirmations": 12, "required": 32},
+                },
+            )
+        )
+
+        result = await client.get_deposit_status(DEPOSIT_ID_HEX)
+        assert result.status == "pending"
+        assert result.finality == DepositFinalityProgress(confirmations=12, required=32)
 
 
 class TestLockFunds:

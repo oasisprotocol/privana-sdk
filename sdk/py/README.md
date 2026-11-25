@@ -20,15 +20,12 @@ async def main():
         addr = await client.get_deposit_address()
         print(f"Deposit to: {addr.deposit_address}")
 
-        # After sending tokens to the deposit address, verify the deposit
-        result = await client.check_deposit(
-            DepositCheckRequest(
-                chain_id=84532,
-                tx_hash="0xYourTxHash",
-                amount=1000000,
-            )
-        )
-        print(f"Deposit status: {result.status}")
+        # After sending tokens to the deposit address, claim them. Without a token_id every
+        # enabled token is claimed. An empty list means there is nothing to claim yet.
+        deposits = await client.check_deposit(DepositCheckRequest(token_id="0xYourTokenId"))
+        for deposit in deposits:
+            status = await client.get_deposit_status(deposit.deposit_id)
+            print(f"Deposit {deposit.deposit_id}: {status.status}")
 
 asyncio.run(main())
 ```
@@ -104,7 +101,7 @@ signature = sign_lock_message(
 
 - `PrivanaClient(base_url, timeout=30.0, headers=None)` - Main API client
   - `get_deposit_address(request=None)` - Get per-user deposit address
-  - `check_deposit(request)` - Verify a deposit and trigger credit
+  - `check_deposit(request=None)` - Claim what arrived at the deposit address (one token, or every token); returns the pending deposits
   - `get_balance(token_id)` - Get token balance for the authenticated user
   - `get_batch_balances(request)` - Get multiple token balances
   - `get_history(offset=-1, limit=50)` - Get one authenticated history page
