@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useAccount } from 'wagmi'
-import { formatUnits, zeroAddress } from 'viem'
+import { formatUnits } from 'viem'
 import { MoonPayProvider } from '@moonpay/moonpay-react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import type { TokenConfig } from '@/sdk/types/tokens'
@@ -469,10 +469,6 @@ export function DepositModalContent({
     if (args.source === 'external') {
       const token = enabledTokens.find((candidate) => candidate.id === args.tokenId)
       if (!token) return
-      if (token.contract === zeroAddress) {
-        toast.error('External deposits support ERC20 tokens only')
-        return
-      }
       const parsedAmount = parseAmountInput(args.amount, token)
       if (!parsedAmount.ok) return
       const depositAmount = parsedAmount.raw

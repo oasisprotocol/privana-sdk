@@ -119,7 +119,7 @@ export function ExternalDepositView({
     response: depositAddressResponse,
   } = depositAddressState
   const minimumLabel =
-    token && typeof externalMinimum === 'bigint'
+    token && typeof externalMinimum === 'bigint' && externalMinimum > 0n
       ? `${formatUnits(externalMinimum, token.decimals)} ${token.symbol}`
       : undefined
   const chain = token ? getChainById(token.chainId) : undefined
@@ -288,11 +288,11 @@ export function ExternalDepositView({
 
       {showDepositInstructions && (
         <>
-          {!scanPaused && (
+          {!scanPaused && (lock || minimumLabel) && (
             <p className="text-muted-foreground text-sm">
-              Send the displayed amount in one transfer. Less than the minimum
-              {minimumLabel ? ` (${minimumLabel})` : ''} stays at the deposit address until more
-              arrives.
+              {lock
+                ? 'Send the displayed amount in one transfer.'
+                : `Minimum deposit: ${minimumLabel}`}
             </p>
           )}
 

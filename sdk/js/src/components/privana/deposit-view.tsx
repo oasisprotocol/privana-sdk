@@ -140,7 +140,6 @@ export function DepositView({
     isMoonPayCard && hasValidAmount && moonpayMinBuy != null && parseFloat(amount) < moonpayMinBuy
   const moonpayLimitsUnready = isMoonPayCard && !!onRamp.providerAssetCode && moonpayMinBuy == null
   const creditCardUnavailable = isCreditCard && !!onRamp.unavailableReason
-  const externalTokenUnavailable = isExternal && !!selectedToken && isNative
   const externalMinimumRequired = isExternal && !!selectedToken
   const externalMinimumLoading = externalMinimumRequired && externalMinimum === undefined
   const externalMinimumUnavailable = externalMinimumRequired && externalMinimum === null
@@ -174,7 +173,6 @@ export function DepositView({
     !belowMoonpayMin &&
     !moonpayLimitsUnready &&
     !creditCardUnavailable &&
-    !externalTokenUnavailable &&
     !externalMinimumLoading &&
     !externalMinimumUnavailable &&
     !belowExternalMinimum &&
@@ -357,12 +355,6 @@ export function DepositView({
         )}
         {creditCardUnavailable && (
           <p className="text-destructive text-sm">{onRamp.unavailableReason}</p>
-        )}
-        {externalTokenUnavailable && (
-          <p className="text-destructive text-sm">
-            {selectedToken?.symbol ?? 'This token'} can’t be used for external deposits. Choose an
-            ERC20 token.
-          </p>
         )}
       </div>
 
