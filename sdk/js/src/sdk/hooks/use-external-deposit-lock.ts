@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAccount, useConfig } from 'wagmi'
-import { zeroAddress } from 'viem'
 import { usePrivanaContext } from '../context/privana-context'
 import type { Bytes32, TransactionSubmissionResponse } from '../types'
 import type { Allowance } from '../types/allowance'
@@ -212,7 +211,6 @@ export function useExternalDepositLock({
         restored.serviceAddress.toLowerCase() !== serviceAddress.toLowerCase() ||
         !token ||
         token.chainId !== restored.chainId ||
-        token.contract === zeroAddress ||
         (!restored.creditedAmount && !restored.payload)
       if (!invalid) return restored
 
@@ -301,9 +299,6 @@ export function useExternalDepositLock({
       }
       const token = getTokenById(tokenId)
       if (!token) throw new Error(`Unknown token ID: ${tokenId}`)
-      if (token.contract === zeroAddress) {
-        throw new Error('External deposits support ERC20 tokens only')
-      }
       const targetService = requireServiceAddress(serviceAddress)
       const lockDuration = allowance.lockDuration ?? DEFAULT_LOCK_DURATION_SECONDS
 
@@ -443,7 +438,7 @@ export function useExternalDepositLock({
       throw new Error('Authenticated deposit account does not match the credited deposit')
     }
     const token = getTokenById(active.tokenId)
-    if (!token || token.chainId !== active.chainId || token.contract === zeroAddress) {
+    if (!token || token.chainId !== active.chainId) {
       throw new Error('The credited token is no longer available')
     }
     const targetService = requireServiceAddress(serviceAddress)
